@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_example_chip.v,v 1.1.1.1 2001-02-21 15:31:57 bbeaver Exp $
+// $Id: pci_example_chip.v,v 1.2 2001-02-23 13:18:37 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -485,13 +485,19 @@ pci_null_interface pci_null_interface (
   wire   [3:0] pci_host_request_cbe;
   wire   [2:0] pci_host_request_type;
   wire    pci_host_request_room_available_meta;
+  wire    pci_host_request_submit;
+  wire    pci_host_request_error;
   wire   [31:0] pci_host_response_data;
   wire   [3:0] pci_host_response_cbe;
   wire   [3:0] pci_host_response_type;
+  wire    pci_host_response_data_available_meta;
   wire    pci_host_response_unload;
+  wire    pci_host_response_error;
   wire   [31:0] pci_host_delayed_read_data;
   wire   [2:0] pci_host_delayed_read_type;
-  wire    pci_host_delayed_read_full;
+  wire    pci_host_delayed_read_room_available_meta;
+  wire    pci_host_delayed_read_data_submit;
+  wire    pci_host_delayed_read_data_error;
 // Courtesy indication that PCI Interface Config Register contains an error indication
   wire    pci_config_reg_signals_some_error;
   wire    pci_host_sees_pci_reset;

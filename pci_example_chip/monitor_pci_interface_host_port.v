@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: monitor_pci_interface_host_port.v,v 1.1.1.1 2001-02-21 15:31:47 bbeaver Exp $
+// $Id: monitor_pci_interface_host_port.v,v 1.2 2001-02-23 13:18:37 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -140,6 +140,7 @@ module monitor_pci_interface_host_port (
                      pci_host_request_type[2:0], $time);
         endcase
       end
+      `NO_ELSE;
 
       if (pci_host_response_unload)
       begin
@@ -155,38 +156,47 @@ module monitor_pci_interface_host_port (
             begin
               $display ("Reading PERR Detected from Host Response FIFO, at time %t", $time);
             end
+            `NO_ELSE;
             if (pci_host_response_data[30])
             begin
               $display ("Reading SERR Detected from Host Response FIFO, at time %t", $time);
             end
+            `NO_ELSE;
             if (pci_host_response_data[29])
             begin
               $display ("Reading Master Abort Detected from Host Response FIFO, at time %t", $time);
             end
+            `NO_ELSE;
             if (pci_host_response_data[28])
             begin
               $display ("Reading Target Abort Detected from Host Response FIFO, at time %t", $time);
             end
+            `NO_ELSE;
             if (pci_host_response_data[27])
             begin
               $display ("Reading Caused Target Abort from Host Response FIFO, at time %t", $time);
             end
+            `NO_ELSE;
             if (pci_host_response_data[24])
             begin
               $display ("Reading Caused PERR from Host Response FIFO, at time %t", $time);
             end
+            `NO_ELSE;
             if (pci_host_response_data[18])
             begin
               $display ("Reading Delayed Read Discarded from Host Response FIFO, at time %t", $time);
             end
+            `NO_ELSE;
             if (pci_host_response_data[17])
             begin
               $display ("Reading Target Retry or Dsconnect from Host Response FIFO, at time %t", $time);
             end
+            `NO_ELSE;
             if (pci_host_response_data[16])
             begin
               $display ("Reading Illegal Command Sequence from Host Response FIFO, at time %t", $time);
             end
+            `NO_ELSE;
           end
         `PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE:
 //      `PCI_HOST_RESPONSE_READ_WRITE_CONFIG_REGISTER:
@@ -243,6 +253,7 @@ module monitor_pci_interface_host_port (
                      pci_host_response_type[3:0], $time);
         endcase
       end
+      `NO_ELSE;
 
       if (pci_host_delayed_read_data_submit)
       begin
@@ -268,19 +279,23 @@ module monitor_pci_interface_host_port (
                      pci_host_delayed_read_type[2:0], $time);
         endcase
       end
+      `NO_ELSE;
 
       if (pci_host_request_error)
       begin
         $display ("*** Host Request FIFO reports Error, at time %t", $time);
       end
+      `NO_ELSE;
       if (pci_host_response_error)
       begin
         $display ("*** Host Response FIFO reports Error, at time %t", $time);
       end
+      `NO_ELSE;
       if (pci_host_delayed_read_data_error)
       begin
         $display ("*** Delayed Read FIFO reports Error, at time %t", $time);
       end
+      `NO_ELSE;
     end
   end
 endmodule

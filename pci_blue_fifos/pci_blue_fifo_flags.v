@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_fifo_flags.v,v 1.1.1.1 2001-02-21 15:29:32 bbeaver Exp $
+// $Id: pci_blue_fifo_flags.v,v 1.2 2001-02-23 13:18:35 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -262,8 +262,12 @@ function  [3:0] grey_code_counter_inc;
     default:
       begin
         grey_code_counter_inc[1:0] = 2'b00;
-        if ($time > 0) $display ("*** fifo pointer has invalid value %h, at %t",
+        if ($time > 0)
+        begin
+          $display ("*** fifo pointer has invalid value %h, at %t",
                                                  counter_in[3:0], $time);
+        end
+        `NO_ELSE;
       end
     endcase
 `endif  // HOST_FIFO_DEPTH_3
@@ -280,8 +284,12 @@ function  [3:0] grey_code_counter_inc;
     default:
       begin
         grey_code_counter_inc[2:0] = 3'b000;
-        if ($time > 0) $display ("*** fifo pointer has invalid value %h, at %t",
+        if ($time > 0)
+        begin
+          $display ("*** fifo pointer has invalid value %h, at %t",
                                                  counter_in[3:0], $time);
+        end
+        `NO_ELSE;
       end
     endcase
 `endif  // HOST_FIFO_DEPTH_5
@@ -300,8 +308,12 @@ function  [3:0] grey_code_counter_inc;
     default:
       begin
         grey_code_counter_inc[2:0] = 3'b000;
-        if ($time > 0) $display ("*** fifo pointer has invalid value %h, at %t",
+        if ($time > 0)
+        begin
+          $display ("*** fifo pointer has invalid value %h, at %t",
                                                  counter_in[3:0], $time);
+        end
+        `NO_ELSE;
       end
     endcase
 `endif  // HOST_FIFO_DEPTH_7
@@ -327,8 +339,12 @@ function  [3:0] grey_code_counter_inc;
     default:
       begin
         grey_code_counter_inc[3:0] = 4'h0;
-        if ($time > 0) $display ("*** fifo pointer has invalid value %h, at %t",
+        if ($time > 0)
+        begin
+          $display ("*** fifo pointer has invalid value %h, at %t",
                                                  counter_in[3:0], $time);
+        end
+        `NO_ELSE;
       end
     endcase
 `endif  // HOST_FIFO_DEPTH_15
@@ -525,19 +541,26 @@ pci_synchronizer_flop sync_write_counter_3 (
       $display ("*** pci_fifo_flags - ASYNC FIFO must either write Data before Flag, or read Data after Flag, at %t",
                   $time);
     end
+    `NO_ELSE;
   end
 `ifdef NORMAL_PCI_CHECKS
   always @(posedge write_clk)
   begin
     if (($time > 0) & ~reset_flags_async & ((write_submit ^ write_submit) === 1'bX))
-      $display ("*** pci_fifo_flags - Write_Insert invalid, at %t",
+    begin
+      $display ("*** pci_fifo_flags - Write_Submit invalid, at %t",
                   write_submit, $time);
+    end
+    `NO_ELSE;
   end
   always @(posedge read_clk)
   begin
     if (($time > 0) & ~reset_flags_async & ((read_remove ^ read_remove) === 1'bX))
+    begin
       $display ("*** pci_fifo_flags - Read_Remove invalid, at %t",
                   read_remove, $time);
+    end
+    `NO_ELSE;
   end
 `endif  // NORMAL_PCI_CHECKS
 endmodule

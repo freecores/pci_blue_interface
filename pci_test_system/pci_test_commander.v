@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_test_commander.v,v 1.1.1.1 2001-02-21 15:33:18 bbeaver Exp $
+// $Id: pci_test_commander.v,v 1.2 2001-02-23 13:18:37 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -136,7 +136,10 @@ task do_pause;
     for (cnt = 16'h0000; cnt[15:0] < delay[15:0]; cnt[15:0] = cnt[15:0] + 16'h0001)
     begin
       if (~pci_reset_comb)
+      begin
            @ (negedge pci_ext_clk or posedge pci_reset_comb) ;
+      end
+      `NO_ELSE;
     end
   end
 endtask
@@ -164,7 +167,10 @@ task DO_REF;
       if (~pci_reset_comb && (test_accepted_l == 1'b0))
       begin
         if (~pci_reset_comb)
+        begin
              @ (negedge pci_ext_clk or posedge pci_reset_comb) ;
+        end
+        `NO_ELSE;
       end
       else
       begin
@@ -189,7 +195,11 @@ task DO_REF;
     test_target_termination <= target_termination[2:0];
     test_expect_master_abort <= expect_master_abort;
     test_start <= 1'b1;
-    if (~pci_reset_comb) @ (negedge pci_ext_clk or posedge pci_reset_comb) ;
+    if (~pci_reset_comb)
+    begin
+      @ (negedge pci_ext_clk or posedge pci_reset_comb) ;
+    end
+    `NO_ELSE;
 // wait for new command to start
     for (waiting = 1'b1; waiting != 1'b0; waiting = waiting)
     begin
@@ -1169,18 +1179,23 @@ task exhaustive_config_refs_scan;
                {2'h0, target_wait_states[1:0], 4'h0},
                devsel_type[1:0], target_termination[2:0]);
         if (target_termination[2:0] == `Test_Target_Start_Delayed_Read)
+        begin
           CONFIG_READ  ("CFA_R_SCAN", Master_ID_A_Now[2:0],  // complete delayed read
                  Target_Addr_A_Now[31:0], 32'hZZZZZZZZ, burst_size[3:0],
                  {2'h0, master_wait_states[1:0], 4'h0},
                  {2'h0, target_wait_states[1:0], 4'h0},
                  devsel_type[1:0], `Test_Target_Normal_Completion);
+        end
+        `NO_ELSE;
       end
       else
+      begin
         CONFIG_WRITE ("CFA_W_SCAN", Master_ID_A_Now[2:0], Target_Addr_A_Now[31:0],
                32'h12341234, burst_size[3:0],
                {2'h0, master_wait_states[1:0], 4'h0},
                {2'h0, target_wait_states[1:0], 4'h0},
                devsel_type[1:0], target_termination[2:0]);
+      end
 // Swap source and destination
       Master_ID_Temp[2:0] = Master_ID_A_Now[2:0];
       Target_Addr_Temp[31:0] = Target_Addr_A_Now[31:0];
@@ -1262,6 +1277,7 @@ task exhaustive_mem_refs_scan;
                {2'h0, target_wait_states[1:0], 4'h0},
                devsel_type[1:0], target_termination[2:0]);
         if (target_termination[2:0] == `Test_Target_Start_Delayed_Read)
+        begin
           MEM_READ  ("MMS_R_SCAN", Master_ID_A_Now[2:0],  // complete delayed read
                  Target_Addr_A_Now[31:0] + {21'h000000, j[7:2], 2'h0},
                  {2'b00, j[7:2] + 6'h03, 2'b00, j[7:2] + 6'h02,
@@ -1270,8 +1286,11 @@ task exhaustive_mem_refs_scan;
                  {2'h0, master_wait_states[1:0], 4'h0},
                  {2'h0, target_wait_states[1:0], 4'h0},
                  devsel_type[1:0], `Test_Target_Normal_Completion);
+        end
+        `NO_ELSE;
       end
       else
+      begin
         MEM_WRITE ("MMS_W_SCAN", Master_ID_A_Now[2:0],
                Target_Addr_A_Now[31:0] + {21'h000000, j[7:2], 2'h0},
                {2'b00, j[7:2] + 6'h03, 2'b00, j[7:2] + 6'h02,
@@ -1280,6 +1299,7 @@ task exhaustive_mem_refs_scan;
                {2'h0, master_wait_states[1:0], 4'h0},
                {2'h0, target_wait_states[1:0], 4'h0},
                devsel_type[1:0], target_termination[2:0]);
+      end
 // Swap source and destination
       Master_ID_Temp[2:0] = Master_ID_A_Now[2:0];
       Target_Addr_Temp[31:0] = Target_Addr_A_Now[31:0];
@@ -1338,6 +1358,7 @@ endtask
         waiting = 1'b0;
         present_test_name[79:0] <= "Reset.....";
       end
+      `NO_ELSE;
     end
 
     for (waiting = 1'b1; waiting != 1'b0; waiting = waiting)
@@ -1346,8 +1367,9 @@ endtask
       if (~pci_reset_comb)
       begin
         waiting = 1'b0;
-        present_test_name[79:0] <= "Initializing...";
+        present_test_name[79:0] <= "Initing...";
       end
+    `NO_ELSE;
     end
 
     @ (negedge pci_ext_clk) ;
@@ -1424,10 +1446,15 @@ endtask
                         Target_Base_Addr_B0[31:0], Target_Base_Addr_B1[31:0]);
       do_pause( 16'h0008);
       if (test_sequence == 4'h2)
+      begin
         exhaustive_config_refs_scan (1'b0, Master_ID_A[2:0], Target_Config_Addr_A[31:0],
                                            Master_ID_B[2:0], Target_Config_Addr_B[31:0]);
+      end
+      else
+      begin
         exhaustive_config_refs_scan (1'b1, Master_ID_A[2:0], Target_Config_Addr_A[31:0],
                                            Master_ID_B[2:0], Target_Config_Addr_B[31:0]);
+      end
     end
     else if ( (test_sequence == 4'h4) | (test_sequence == 4'h5) )
     begin
@@ -1443,11 +1470,15 @@ endtask
                         Target_Base_Addr_B0[31:0], Target_Base_Addr_B1[31:0]);
       do_pause( 16'h0008);
       if (test_sequence == 4'hF)
+      begin
         exhaustive_mem_refs_scan (1'b0, Master_ID_A[2:0], Target_Base_Addr_A0[31:0],
                                         Master_ID_B[2:0], Target_Base_Addr_B0[31:0]);
+      end
       else
+      begin
         exhaustive_mem_refs_scan (1'b1, Master_ID_A[2:0], Target_Base_Addr_A0[31:0],
                                         Master_ID_B[2:0], Target_Base_Addr_B0[31:0]);
+      end
     end
     else if ( (test_sequence == 4'hF) | (test_sequence == 4'hE ) )
     begin
@@ -1489,11 +1520,15 @@ endtask
                         Target_Base_Addr_B0[31:0], Target_Base_Addr_B1[31:0]);
       do_pause( 16'h0008);
       if (test_sequence == 4'hF)
+      begin
         exhaustive_mem_refs_scan (1'b0, Master_ID_A[2:0], Target_Base_Addr_A0[31:0],
                                         Master_ID_B[2:0], Target_Base_Addr_B0[31:0]);
+      end
       else
+      begin
         exhaustive_mem_refs_scan (1'b1, Master_ID_A[2:0], Target_Base_Addr_A0[31:0],
                                         Master_ID_B[2:0], Target_Base_Addr_B0[31:0]);
+      end
     end
 
     test_start <= 1'b0;

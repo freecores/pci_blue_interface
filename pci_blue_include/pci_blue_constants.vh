@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_constants.vh,v 1.1.1.1 2001-02-21 15:30:32 bbeaver Exp $
+// $Id: pci_blue_constants.vh,v 1.2 2001-02-23 13:18:35 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -293,13 +293,13 @@
 `define Test_No_Data_Perr                      (1'b0)
 `define Test_Data_Perr                         (1'b1)
 
-// Master Wait States ([7:4] wait before first data, [3:0] wait between subsequent)
-`define Test_No_Master_WS                     ({4'h0, 4'h0})
-`define Test_One_Master_WS                    ({4'h1, 4'h1})
+// Master Wait States {[7:4] wait before first data, [3:0] wait between subsequent{
+`define Test_No_Master_WS                      (8'h00)
+`define Test_One_Master_WS                     (8'h11)
 
-// Target Wait States ([7:4] wait before first data, [3:0] wait between subsequent)
-`define Test_No_Target_WS                     ({4'h0, 4'h0})
-`define Test_One_Target_WS                    ({4'h1, 4'h1})
+// Target Wait States {[7:4] wait before first data, [3:0] wait between subsequent}
+`define Test_No_Target_WS                      (8'h00)
+`define Test_One_Target_WS                     (8'h11)
 
 // Target Devsel Speed
 `define Test_Devsel_Fast                       (2'b00)

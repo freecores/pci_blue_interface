@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_test_top.v,v 1.1.1.1 2001-02-21 15:33:20 bbeaver Exp $
+// $Id: pci_test_top.v,v 1.2 2001-02-23 13:18:37 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -151,6 +151,7 @@ module pci_test_top (
     begin
       total_errors_detected = total_errors_detected + 32'h00000001;
     end
+    `NO_ELSE;
   end
 
 // Make test name visible when the Master starts working on it
@@ -249,7 +250,10 @@ module pci_test_top (
   begin
     bus_idle_prev <= pci_ext_reset_l & bus_idle_right_now;
     if (bus_idle_right_now & bus_idle_prev)
+    begin
       test_idle_event_int <= ~test_idle_event_int;
+    end
+    `NO_ELSE;
   end
 
 `ifdef PCI_EXTERNAL_MASTER
@@ -497,6 +501,7 @@ pci_bus_monitor pci_bus_monitor (
     begin
       #500000 $finish;
     end
+    `NO_ELSE;
   end
 
 pci_test_commander pci_test_commander (

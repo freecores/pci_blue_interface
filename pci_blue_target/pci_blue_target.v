@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_target.v,v 1.1.1.1 2001-02-21 15:31:23 bbeaver Exp $
+// $Id: pci_blue_target.v,v 1.2 2001-02-23 13:18:36 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -302,14 +302,6 @@ module pci_blue_target (
   reg [4:0] PCI_Target_State;
   wire [4:0] Next_PCI_Target_State;
 
-  always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
-  begin
-        if (pci_reset_comb)
-            PCI_Target_State <= PCI_TARGET_IDLE;
-        else
-            PCI_Target_State <= PCI_Target_State;
-  end
-
 // Experience with the PCI Target interface teaches that the signals
 //   FRAME and IRDY are extremely time critical.  These signals cannot be
 //   latched in the IO pads.  The signals must be acted upon by the
@@ -322,35 +314,35 @@ module pci_blue_target (
  
   always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
   begin
-        if (pci_reset_comb)
+    if (pci_reset_comb)
+    begin
+      PCI_Target_State <= PCI_TARGET_IDLE;
+    end
+    else
+    begin
+      case (PCI_Target_State)
+      PCI_TARGET_IDLE:
         begin
-            PCI_Target_State <= PCI_TARGET_IDLE;
         end
-        else
+      PCI_TARGET_B_BUSY:
         begin
-            case (PCI_Target_State)
-            PCI_TARGET_IDLE:
-              begin
-              end
-            PCI_TARGET_B_BUSY:
-              begin
-              end
-            PCI_TARGET_S_DATA:
-              begin
-              end
-            PCI_TARGET_BACKOFF:
-              begin
-              end
-            PCI_TARGET_TURN_AR:
-              begin
-              end
-            default:
-              begin
- //               $display ("PCI Target State Machine Unknown %x at time %t",
+        end
+      PCI_TARGET_S_DATA:
+        begin
+        end
+      PCI_TARGET_BACKOFF:
+        begin
+        end
+      PCI_TARGET_TURN_AR:
+        begin
+        end
+      default:
+        begin
+ //       $display ("PCI Target State Machine Unknown %x at time %t",
  //                           PCI_Target_State, $time);
-              end
-            endcase
         end
+      endcase
+    end
   end
 
   always @(posedge pci_clk or posedge pci_reset_comb)

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_master.v,v 1.1.1.1 2001-02-21 15:31:07 bbeaver Exp $
+// $Id: pci_blue_master.v,v 1.2 2001-02-23 13:18:36 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -233,14 +233,6 @@ module pci_blue_master (
   reg [5:0] PCI_Master_State;
   wire [5:0] Next_PCI_Master_State;
 
-  always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
-  begin
-        if (pci_reset_comb)
-            PCI_Master_State <= PCI_MASTER_IDLE;
-        else
-            PCI_Master_State <= Next_PCI_Master_State;
-  end
-
   assign Next_PCI_Master_State[0] =     // MASTER_IDLE
         1'b0;
   assign Next_PCI_Master_State[1] =     // MASTER_IDLE
@@ -267,46 +259,46 @@ module pci_blue_master (
 
   always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
   begin
-        if (pci_reset_comb)
+    if (pci_reset_comb)
+    begin
+      PCI_Master_State <= PCI_MASTER_IDLE;
+    end
+    else
+    begin
+      case (PCI_Master_State)
+      PCI_MASTER_IDLE:
         begin
-            PCI_Master_State <= PCI_MASTER_IDLE;
         end
-        else
+      PCI_MASTER_ADDR_B_BUSY:
         begin
-            case (PCI_Master_State)
-            PCI_MASTER_IDLE:
-              begin
-              end
-            PCI_MASTER_ADDR_B_BUSY:
-              begin
-              end
-            PCI_MASTER_M_DATA:
-              begin
-              end
-            PCI_MASTER_S_TAR:
-              begin
-              end
-            PCI_MASTER_TURN_AR:
-              begin
-              end
-            PCI_MASTER_DR_BUS:
-              begin
-              end
+        end
+      PCI_MASTER_M_DATA:
+        begin
+        end
+      PCI_MASTER_S_TAR:
+        begin
+        end
+      PCI_MASTER_TURN_AR:
+        begin
+        end
+      PCI_MASTER_DR_BUS:
+        begin
+        end
 
-            default:
-              begin
-//                $display ("PCI Master State Machine Unknown %x at time %t",
+      default:
+        begin
+//        $display ("PCI Master State Machine Unknown %x at time %t",
 //                            PCI_Master_State, $time);
-              end
-            endcase
         end
+      endcase
+    end
   end
 
   always @(posedge pci_clk or posedge pci_reset_comb)
   begin
         if (pci_reset_comb)
         begin
-            pci_master_ad_out_oe_next_reg <= 4'h0;
+            pci_master_ad_out_oe_next_reg <= 1'b0;
             pci_cbe_out_oe_next_reg[3:0] <= 4'h0;
             pci_master_par_out_oe_next_reg <= 1'b0;
             pci_frame_out_oe_next_reg <= 1'b0;

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_example_host_controller.v,v 1.1.1.1 2001-02-21 15:32:25 bbeaver Exp $
+// $Id: pci_example_host_controller.v,v 1.2 2001-02-23 13:18:37 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -261,6 +261,7 @@ module pci_example_host_controller (
         error_detected <= ~error_detected;
       end
     end
+    `NO_ELSE;
 `ifdef VERBOSE_TEST_DEVICE
     if (mem_read_enable)
     begin
@@ -269,11 +270,13 @@ module pci_example_host_controller (
                  {Example_Host_Mem_3[mem_address], Example_Host_Mem_2[mem_address],
                   Example_Host_Mem_1[mem_address], Example_Host_Mem_0[mem_address]}, $time);
     end
+    `NO_ELSE;
     if (mem_write_enable)
     begin
       $display ("Example Host Controller %h - Local Memory written with Address %h, Data %h, Strobes %h, at time %t",
                  test_device_id[2:0], mem_address[5:0], mem_write_data[31:0], mem_write_byte_enables[3:0], $time);
     end
+    `NO_ELSE;
 `endif  // VERBOSE_TEST_DEVICE
   end
 `endif  // VERILOGGER_BUG
@@ -301,7 +304,7 @@ task Clear_Example_Host_Command;
   end
 endtask
 
-  wire    Offer_Next_Data_In_Burst;
+  wire    Expose_Next_Data_In_Burst;
 
 // Display on negative edge so easy to see in the waveform.  Don't do so in real hardware!
   reg     host_command_finished, host_sram_ref_finished;
@@ -366,7 +369,7 @@ endtask
         host_command_started <= host_command_started;
         hold_master_address[31:0] <= hold_master_address[31:0];
         hold_master_command[3:0] <= hold_master_command[3:0];
-        hold_master_data[31:0] <= Offer_Next_Data_In_Burst
+        hold_master_data[31:0] <= Expose_Next_Data_In_Burst
                ? (hold_master_data[31:0] + 32'h01010101) : hold_master_data[31:0];
 // A real host might update the Byte Enables throughout a Burst.
         hold_master_byte_enables[3:0] <= hold_master_byte_enables[3:0];
@@ -488,9 +491,11 @@ endtask
 //   the Host PCI Interface that it is doing a Memory reference.
 // Writes are indicated to be done immediately.  Reads wait until the
 //   data gets back before indicating done.
+
   parameter Example_Host_Master_Idle          = 3'b001;
   parameter Example_Host_Master_Transfer_Data = 3'b010;
   parameter Example_Host_Master_Read_Linger   = 3'b100;
+
   reg    [2:0] Example_Host_Master_State;
 
   wire    present_command_is_read =
@@ -505,76 +510,10 @@ endtask
   begin
     if (host_reset)
     begin
-      Example_Host_Master_State <= Example_Host_Master_Idle;
-    end
-    else
-    begin
-      case (Example_Host_Master_State[2:0])
-      Example_Host_Master_Idle:
-        begin
-          if (target_requests_write_fence & host_allows_write_fence
-              & ~master_issues_write_fence & pci_host_request_room_available_meta)
-          begin  // Issue Write Fence into FIFO, exclude other writes to FIFO
-            Example_Host_Master_State <= Example_Host_Master_Idle;
-          end
-          else if (host_command_started & ~host_command_finished
-                    & pci_host_request_room_available_meta
-                    & (modified_master_address[31:24] == 8'hCC) )
-          begin  // Issue Local PCI Register command to PCI Controller
-            if (present_command_is_write)
-              Example_Host_Master_State <= Example_Host_Master_Idle;
-            else
-              Example_Host_Master_State <= Example_Host_Master_Read_Linger;
-          end
-          else if (host_command_started & ~host_command_finished
-                    & pci_host_request_room_available_meta
-                    & (modified_master_address[31:24] != 8'hDD))
-          begin  // Issue Remote PCI Reference to PCI Controller
-            Example_Host_Master_State <= Example_Host_Master_Transfer_Data;
-          end
-          else
-          begin  // No requests which can be acted on, so stay idle.
-            Example_Host_Master_State <= Example_Host_Master_Idle;
-          end
-        end
-      Example_Host_Master_Transfer_Data:
-        begin
-          if (~pci_host_request_room_available_meta)
-            Example_Host_Master_State <= Example_Host_Master_Transfer_Data;
-          else if ((pci_master_running_transfer_count[3:0] <= 4'h1)
-                     & present_command_is_read)  // end of read
-            Example_Host_Master_State <= Example_Host_Master_Read_Linger;
-          else if ((pci_master_running_transfer_count[3:0] <= 4'h1)
-                     & present_command_is_write)  // end of write
-            Example_Host_Master_State <= Example_Host_Master_Idle;
-          else  // more data to transfer
-            Example_Host_Master_State <= Example_Host_Master_Transfer_Data;
-        end
-      Example_Host_Master_Read_Linger:
-        begin
-          if (~target_sees_read_end)
-            Example_Host_Master_State <= Example_Host_Master_Read_Linger;
-          else
-            Example_Host_Master_State <= Example_Host_Master_Idle;
-        end
-      default:
-        begin
-          Example_Host_Master_State <= Example_Host_Master_Idle;
-          $display ("*** Example Host Controller %h - Host_Master_State_Machine State invalid %b, at %t",
-                      test_device_id[2:0], Example_Host_Master_State[2:0], $time);
-          error_detected <= ~error_detected;
-        end
-      endcase
-    end
-  end
-
-  always @(posedge host_clk)
-  begin
-    if (host_reset)
-    begin
       pci_master_running_transfer_count[3:0] <= 4'h0;
       host_command_finished <= 1'b0;
       master_issues_write_fence <= 1'b0;
+      Example_Host_Master_State <= Example_Host_Master_Idle;
     end
     else
     begin
@@ -584,66 +523,104 @@ endtask
           pci_master_running_transfer_count[3:0] <= hold_master_size[3:0];  // grab size
           if (target_requests_write_fence & host_allows_write_fence
               & ~master_issues_write_fence & pci_host_request_room_available_meta)
-          begin  // Example_Host_Master_Idle
+          begin  // Issue Write Fence into FIFO, exclude other writes to FIFO
             host_command_finished <= 1'b0;
             master_issues_write_fence <= 1'b1;  // indicate that write fence inserted
+            Example_Host_Master_State <= Example_Host_Master_Idle;
           end
           else if (host_command_started & ~host_command_finished
                     & pci_host_request_room_available_meta
-                    & (modified_master_address[31:24] == 8'hCC) )  // Local Config Registers
-          begin  // Example_Host_Master_Idle or Example_Host_Master_Read_Linger
-            host_command_finished <= present_command_is_write;
-            master_issues_write_fence <= 1'b0;
+                    & (modified_master_address[31:24] == 8'hCC) )
+          begin  // Issue Local PCI Register command to PCI Controller
+            if (present_command_is_write)
+            begin
+              host_command_finished <= 1'b1;
+              master_issues_write_fence <= 1'b0;
+              Example_Host_Master_State <= Example_Host_Master_Idle;
+            end
+            else
+            begin
+              host_command_finished <= 1'b0;
+              master_issues_write_fence <= 1'b0;
+              Example_Host_Master_State <= Example_Host_Master_Read_Linger;
+            end
           end
           else if (host_command_started & ~host_command_finished
                     & pci_host_request_room_available_meta
-                    & (modified_master_address[31:24] != 8'hDD))  // Remote PCI Target
-          begin  // Example_Host_Master_Transfer_Data
-            host_command_finished <= present_command_is_write
-                                   & (hold_master_size[3:0] <= 4'h1);
-            master_issues_write_fence <= 1'b0;
-          end
-          else
-          begin  // Example_Host_Master_Idle
+                    & (modified_master_address[31:24] != 8'hDD))
+          begin  // Issue Remote PCI Reference to PCI Controller
             host_command_finished <= 1'b0;
             master_issues_write_fence <= 1'b0;
+            Example_Host_Master_State <= Example_Host_Master_Transfer_Data;
+          end
+          else
+          begin  // No requests which can be acted on, so stay idle.
+            host_command_finished <= 1'b0;
+            master_issues_write_fence <= 1'b0;
+            Example_Host_Master_State <= Example_Host_Master_Idle;
           end
         end
       Example_Host_Master_Transfer_Data:
         begin
           if (~pci_host_request_room_available_meta)
-          begin  // Example_Host_Master_Transfer_Data.  Fifos are full, so wait
+          begin
             pci_master_running_transfer_count[3:0] <=
                                   pci_master_running_transfer_count[3:0];
             host_command_finished <= 1'b0;
+            Example_Host_Master_State <= Example_Host_Master_Transfer_Data;
           end
-          else if (pci_master_running_transfer_count[3:0] <= 4'h1)  // end of read or write
-          begin  // Example_Host_Master_Read_Linger or Example_Host_Master_Idle
-            pci_master_running_transfer_count[3:0] <=
-                                  pci_master_running_transfer_count[3:0] - 4'h1;
-            host_command_finished <= present_command_is_write;
-          end
-          else
-          begin  // Example_Host_Master_Transfer_Data.  More data to transfer.
+          else if ((pci_master_running_transfer_count[3:0] <= 4'h1)
+                     & present_command_is_read)  // end of read
+          begin
             pci_master_running_transfer_count[3:0] <=
                                   pci_master_running_transfer_count[3:0] - 4'h1;
             host_command_finished <= 1'b0;
+            Example_Host_Master_State <= Example_Host_Master_Read_Linger;
+          end
+          else if ((pci_master_running_transfer_count[3:0] <= 4'h1)
+                     & present_command_is_write)  // end of write
+          begin
+            pci_master_running_transfer_count[3:0] <=
+                                  pci_master_running_transfer_count[3:0] - 4'h1;
+            host_command_finished <= 1'b1;
+            Example_Host_Master_State <= Example_Host_Master_Idle;
+          end
+          else  // more data to transfer
+          begin
+            pci_master_running_transfer_count[3:0] <=
+                                  pci_master_running_transfer_count[3:0] - 4'h1;
+            host_command_finished <= 1'b0;
+            Example_Host_Master_State <= Example_Host_Master_Transfer_Data;
           end
           master_issues_write_fence <= 1'b0;  // not doing write fence, so never.
         end
       Example_Host_Master_Read_Linger:
-        begin  // Example_Host_Master_Read_Linger or Example_Host_Master_Idle
-          pci_master_running_transfer_count[3:0] <=
+        begin
+          if (~target_sees_read_end)
+          begin
+            pci_master_running_transfer_count[3:0] <=
                                   pci_master_running_transfer_count[3:0];
-          host_command_finished <= target_sees_read_end;
-          master_issues_write_fence <= 1'b0;
+            host_command_finished <= 1'b0;
+            Example_Host_Master_State <= Example_Host_Master_Read_Linger;
+          end
+          else
+          begin
+            pci_master_running_transfer_count[3:0] <=
+                                  pci_master_running_transfer_count[3:0];
+            host_command_finished <= 1'b1;
+            Example_Host_Master_State <= Example_Host_Master_Idle;
+          end
         end
       default:
-        begin  // Example_Host_Master_Idle
+        begin
           pci_master_running_transfer_count[3:0] <=
                                   pci_master_running_transfer_count[3:0];
           host_command_finished <= 1'b0;
           master_issues_write_fence <= 1'b0;
+          Example_Host_Master_State <= Example_Host_Master_Idle;
+          $display ("*** Example Host Controller %h - Host_Master_State_Machine State invalid %b, at %t",
+                      test_device_id[2:0], Example_Host_Master_State[2:0], $time);
+          error_detected <= ~error_detected;
         end
       endcase
     end
@@ -746,7 +723,8 @@ endtask
 // Only write the FIFO when data is available and the FIFO has room for more data
 // This is actually an if-then-else, done in combinational logic.  Would it be clearer as a function?
 // A slower Host Interface could do this as sequential logic in an always block.
-  assign  pci_host_request_submit =
+// NOTE WORKING that 1'b0 & ( has to go!
+  assign  pci_host_request_submit = 1'b0 & (
                 ((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
                  & target_requests_write_fence & host_allows_write_fence
                  & ~master_issues_write_fence & pci_host_request_room_available_meta)
@@ -759,7 +737,7 @@ endtask
                  & pci_host_request_room_available_meta
                  & (modified_master_address[31:24] != 8'hDD))
               | ((Example_Host_Master_State[2:0] == Example_Host_Master_Transfer_Data)
-                 & pci_host_request_room_available_meta);
+                 & pci_host_request_room_available_meta) );
 
 // Check for errors in the Host_Master_State_Machine
   always @(posedge host_clk)
@@ -774,6 +752,7 @@ endtask
                     test_device_id[2:0], hold_master_size[3:0], $time);
         error_detected <= ~error_detected;
       end
+      `NO_ELSE;
       if (  (hold_master_byte_enables[3:0] != 4'h1)
           & (hold_master_byte_enables[3:0] != 4'h2)
           & (hold_master_byte_enables[3:0] != 4'h4)
@@ -783,13 +762,16 @@ endtask
                     test_device_id[2:0], hold_master_byte_enables[3:0], $time);
         error_detected <= ~error_detected;
       end
+      `NO_ELSE;
     end
+    `NO_ELSE;
     if (pci_host_request_error)
     begin
       $display ("*** Example Host Controller %h - Request FIFO reports Error, at %t",
                   test_device_id[2:0], $time);
       error_detected <= ~error_detected;
     end
+    `NO_ELSE;
   end
 
 
@@ -1075,7 +1057,7 @@ endtask
 //   data always increments by 32'h01010101 during a burst.
 // The Write side increments it during writes, and the Read side increments
 // it during compares.
-  wire    Offer_Next_Host_Data_During_Reads = 1'b0;
+  wire    Calculate_Next_Host_Data_During_Reads = 1'b0;
 
 
 // Check for errors in the Host_Target_State_Machine
@@ -1087,18 +1069,21 @@ endtask
                   test_device_id[2:0], $time);
       error_detected <= ~error_detected;
     end
+    `NO_ELSE;
     if (Illegal_Command_Detected_In_Request_FIFO)
     begin
       $display ("*** Example Host Controller %h - Illegal Command reported in Request FIFO, at %t",
                   test_device_id[2:0], $time);
       error_detected <= ~error_detected;
     end
+    `NO_ELSE;
     if (Illegal_Command_Detected_In_Response_FIFO)
     begin
       $display ("*** Example Host Controller %h - Illegal Command reported in Response FIFO, at %t",
                   test_device_id[2:0], $time);
       error_detected <= ~error_detected;
     end
+    `NO_ELSE;
   end
 
 // Get the next Host Data during a Burst.  In this example Host Interface,
@@ -1107,8 +1092,8 @@ endtask
 //   data is written correctly to a remote PCI device, read it back!
 // The Write side increments it during writes, and the Read side increments
 //   it during compares.
-  assign  Offer_Next_Data_In_Burst = Offer_Next_Host_Data_During_Writes
-                                   | Offer_Next_Host_Data_During_Reads;
+  assign  Expose_Next_Data_In_Burst = Offer_Next_Host_Data_During_Writes
+                                    | Calculate_Next_Host_Data_During_Reads;
 
 // Host_Delayed_Read_State_Machine
   always @(posedge host_clk)
@@ -1151,7 +1136,85 @@ endtask
                   test_device_id[2:0], $time);
       error_detected <= ~error_detected;
     end
+    `NO_ELSE;
   end
+
+// Print out various Interface Error reports.  Some of these printouts should
+//   go away when the testing code above starts checking for intentional errors.
+  always @(posedge host_clk)
+  begin
+    if (PERR_Detected)
+    begin
+      $display ("*** Example Host Controller %h - PERR_Detected, at %t",
+                  test_device_id[2:0], $time);
+      error_detected <= ~error_detected;
+    end
+    `NO_ELSE;
+    if (SERR_Detected)
+    begin
+      $display ("*** Example Host Controller %h - SERR_Detected, at %t",
+                  test_device_id[2:0], $time);
+      error_detected <= ~error_detected;
+    end
+    `NO_ELSE;
+    if (Master_Abort_Received)
+    begin
+      $display ("*** Example Host Controller %h - Master_Abort_Received, at %t",
+                  test_device_id[2:0], $time);
+      error_detected <= ~error_detected;
+    end
+    `NO_ELSE;
+    if (Target_Abort_Received)
+    begin
+      $display ("*** Example Host Controller %h - Target_Abort_Received, at %t",
+                  test_device_id[2:0], $time);
+      error_detected <= ~error_detected;
+    end
+    `NO_ELSE;
+    if (Caused_Target_Abort)
+    begin
+      $display ("*** Example Host Controller %h - Caused_Target_Abort, at %t",
+                  test_device_id[2:0], $time);
+      error_detected <= ~error_detected;
+    end
+    `NO_ELSE;
+    if (Caused_PERR)
+    begin
+      $display ("*** Example Host Controller %h - Caused_PERR, at %t",
+                  test_device_id[2:0], $time);
+      error_detected <= ~error_detected;
+    end
+    `NO_ELSE;
+    if (Discarded_Delayed_Read)
+    begin
+      $display ("*** Example Host Controller %h - Discarded_Delayed_Read, at %t",
+                  test_device_id[2:0], $time);
+      error_detected <= ~error_detected;
+    end
+    `NO_ELSE;
+    if (Target_Retry_Or_Disconnect)
+    begin
+      $display ("*** Example Host Controller %h - Target_Retry_Or_Disconnect, at %t",
+                  test_device_id[2:0], $time);
+      error_detected <= ~error_detected;
+    end
+    `NO_ELSE;
+    if (Illegal_Command_Detected_In_Request_FIFO)
+    begin
+      $display ("*** Example Host Controller %h - Illegal_Command_Detected_In_Request_FIFO, at %t",
+                  test_device_id[2:0], $time);
+      error_detected <= ~error_detected;
+    end
+    `NO_ELSE;
+    if (Illegal_Command_Detected_In_Response_FIFO)
+    begin
+      $display ("*** Example Host Controller %h - Illegal_Command_Detected_In_Response_FIFO, at %t",
+                  test_device_id[2:0], $time);
+      error_detected <= ~error_detected;
+    end
+    `NO_ELSE;
+  end
+
 // Monitor the activity on the Host Interface of the PCI_Blue_Interface.
 monitor_pci_interface_host_port monitor_pci_interface_host_port (
 // Wires used by the host controller to request action by the pci interface

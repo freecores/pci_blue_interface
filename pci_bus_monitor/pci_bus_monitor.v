@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_bus_monitor.v,v 1.1.1.1 2001-02-21 15:31:41 bbeaver Exp $
+// $Id: pci_bus_monitor.v,v 1.2 2001-02-23 13:18:37 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -245,6 +245,7 @@ module pci_bus_monitor (
       end
       `NO_ELSE;
     end
+    `NO_ELSE;
   end
 
 task Watch_For_X_On_OE_Sigs;
@@ -254,12 +255,16 @@ task Watch_For_X_On_OE_Sigs;
     if ((^oe_signals) === 1'bX)
     begin
       if (signal_source[2:0] == `Test_Master_Real)
+      begin
         $display ("*** monitor - PCI Real OE signals have X's {F, I, D_T_S, AD, CBE, PERR} 'b%b, at %t",
                     oe_signals[5:0], $time);
+      end
       else
+      begin
         $display ("*** monitor - PCI Test %h OE signals have X's {F, I, D_T_S, AD, CBE, PERR} 'b%b, at %t",
                     signal_source[2:0], oe_signals[5:0], $time);
         error_detected <= ~error_detected;
+      end
     end
     `NO_ELSE;
   end
@@ -274,17 +279,23 @@ task Watch_For_Simultaneous_Drive_Of_OE_Sigs;
     if ((oe_signals_0 & oe_signals_1) !== 6'h00)
     begin
       if (signal_source_0[2:0] == `Test_Master_Real)
+      begin
         $display ("*** monitor - PCI Real and Test %x drive bus simultaneously {F, I, D_T_S, AD, CBE, PERR} 'b%b, 'b%b, at %t",
                     signal_source_1[2:0], oe_signals_0[5:0],
                     oe_signals_1[5:0], $time);
+      end
       else if (signal_source_1[2:0] == `Test_Master_Real)
+      begin
         $display ("*** monitor - PCI Test %x and Real drive bus simultaneously {F, I, D_T_S, AD, CBE, PERR} 'b%b, 'b%b, at %t",
                     signal_source_0[2:0], oe_signals_0[5:0],
                     oe_signals_1[5:0], $time);
+      end
       else
+      begin
         $display ("*** monitor - PCI Test %x and Test %h drive bus simultaneously {F, I, D_T_S, AD, CBE, PERR} 'b%b, 'b%b, at %t",
                     signal_source_0[2:0], signal_source_1[1:0],
                     oe_signals_0[5:0], oe_signals_1[5:0], $time);
+      end
       error_detected <= ~error_detected;
     end
     `NO_ELSE;
@@ -300,17 +311,23 @@ task Watch_For_Back_To_Back_Drive_Of_OE_Sigs;
     if ((oe_signals_0 & oe_signals_1) !== 6'h00)
     begin
       if (signal_source_0[2:0] == `Test_Master_Real)
+      begin
         $display ("*** monitor - PCI Real drives when Test %x drove previously {F, I, D_T_S, AD, CBE, PERR} 'b%b, 'b%b, at %t",
                     signal_source_1[2:0], oe_signals_0[5:0],
                     oe_signals_1[5:0], $time);
+      end
       else if (signal_source_1[2:0] == `Test_Master_Real)
+      begin
         $display ("*** monitor - PCI Test %x drives when Real drove previously {F, I, D_T_S, AD, CBE, PERR} 'b%b, 'b%b, at %t",
                     signal_source_0[2:0], oe_signals_0[5:0],
                     oe_signals_1[5:0], $time);
+      end
       else
+      begin
         $display ("*** monitor - PCI Test %x drives when Test %h drove previously {F, I, D_T_S, AD, CBE, PERR} 'b%b, 'b%b, at %t",
                     signal_source_0[2:0], signal_source_1[1:0],
                     oe_signals_0[5:0], oe_signals_1[5:0], $time);
+      end
       error_detected <= ~error_detected;
     end
     `NO_ELSE;
@@ -425,6 +442,7 @@ endtask
       Watch_For_Back_To_Back_Drive_Of_OE_Sigs (3'h3, `Test_Master_Real,
                      test_observe_3_oe_sigs[5:0], prev_real_oe_sigs[5:0]);
     end
+    `NO_ELSE;
   end
 
 // Make Asserted HIGH signals to prevent (cause?) confusion
@@ -851,6 +869,7 @@ endtask
       end
       `NO_ELSE;
     end
+    `NO_ELSE;
   end
 
 // Verify some of the state transitions observed on the bus. See the
@@ -886,6 +905,7 @@ endtask
       end
       `NO_ELSE;
     end
+    `NO_ELSE;
   end
 `endif // VERBOSE_MONITOR_DEVICE
 
@@ -952,6 +972,7 @@ endtask
         end
       endcase
     end
+    `NO_ELSE;
   end
 `endif // VERBOSE_MONITOR_DEVICE
 endmodule

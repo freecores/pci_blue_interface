@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_behaviorial_master.v,v 1.1.1.1 2001-02-21 15:28:15 bbeaver Exp $
+// $Id: pci_behaviorial_master.v,v 1.2 2001-02-23 13:18:34 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -312,7 +312,10 @@ endtask
 task Inc_Master_Abort_Counter;
   begin
     if (Master_Abort_Counter < 3'h7)  // count up cycles since Address
+    begin
       Master_Abort_Counter <= Master_Abort_Counter + 3'h1;
+    end
+    `NO_ELSE;
   end
 endtask
 
@@ -324,7 +327,7 @@ task Check_Master_Abort_Counter;
 endtask
 
 // Signals used by Master test code to apply correct info to the PCI bus
-  reg    [31:0] hold_master_address;
+  reg    [23:9] hold_master_address;
   reg    [3:0] hold_master_command;
   reg    [31:0] hold_master_data;
   reg    [3:0] hold_master_byte_enables;
@@ -346,12 +349,15 @@ endtask
 // If a task DOESN'T end with @(posedge pci_ext_clk), then it must
 //      be called just before some other task which does.
 
-`define TEST_MASTER_SPINLOOP_MAX  20
+parameter TEST_MASTER_SPINLOOP_MAX = 20;
 
 task Clock_Wait_Unless_Reset;
   begin
     if (~pci_reset_comb)
+    begin
       @ (posedge pci_ext_clk or posedge pci_reset_comb) ;
+    end
+    `NO_ELSE;
   end
 endtask
 
@@ -431,8 +437,8 @@ task Master_Unreq_Bus;  // must be followed by SOMETHING???
   end
 endtask
 
-`define TEST_MASTER_IMMEDIATE_ADDRESS  1'b0
-`define TEST_MASTER_STEP_ADDRESS       1'b1
+parameter TEST_MASTER_IMMEDIATE_ADDRESS = 1'b0;
+parameter TEST_MASTER_STEP_ADDRESS      = 1'b1;
 
 // Tasks can't have local storage!  have to be module global
   integer ii; // sequential code, so OK to use "=" assignment operator
@@ -446,8 +452,8 @@ task Master_Assert_Address;
     $display (" test %h - Driving Address 'h%x, CBE 'h%x, at %t",
               test_device_id[2:0], address[31:0], command[3:0], $time);
 `endif // VERBOSE_TEST_DEVICE
-    first_step_delay = (address_speed == `TEST_MASTER_STEP_ADDRESS);
-    for (ii = 0; ii < `TEST_MASTER_SPINLOOP_MAX; ii = ii + 1)
+    first_step_delay = (address_speed == TEST_MASTER_STEP_ADDRESS);
+    for (ii = 0; ii < TEST_MASTER_SPINLOOP_MAX; ii = ii + 1)
     begin
       if (master_gnt_now
            & (  (~frame_now & ~irdy_now)  // and bus previously idle
@@ -486,7 +492,7 @@ task Master_Assert_Address;
           Deassert_IRDY;
           Init_Master_Abort_Counter;  // just completed master cycle 1
           first_step_delay = 1'b0;  // next time through, make frame
-          ii = `TEST_MASTER_SPINLOOP_MAX + 1;  // break
+          ii = TEST_MASTER_SPINLOOP_MAX + 1;  // break
         end
       end
       else
@@ -502,13 +508,13 @@ task Master_Assert_Address;
         master_perr_check_next <= 1'b0;
         Deassert_FRAME;
         Deassert_IRDY;
-        first_step_delay = (address_speed == `TEST_MASTER_STEP_ADDRESS);
+        first_step_delay = (address_speed == TEST_MASTER_STEP_ADDRESS);
       end
       Clock_Wait_Unless_Reset;  // wait for outputs to settle
       Indicate_Done;  // indicate done as early as possible, while still after start
     end
 `ifdef NORMAL_PCI_CHECKS
-    if (~pci_reset_comb & (ii == `TEST_MASTER_SPINLOOP_MAX))
+    if (~pci_reset_comb & (ii == TEST_MASTER_SPINLOOP_MAX))
     begin
       $display ("*** test %h - PCI Gnt never arrived, at %t",
                   test_device_id[2:0], $time);
@@ -646,39 +652,62 @@ task Check_Master_Burst_Termination_Cause;
       if (hold_master_target_termination[2:0] == `Test_Target_Abort_Before_Second)
       begin
         if (hold_master_size[3:0] >= 4'h2)  // too small, don't get a chance to do 2
+        begin
           Check_Target_Abort (got_target_abort, words_transferred[3:0], 4'h1);
+        end
         else
+        begin
           Check_Target_Stop (got_master_terminate,
                              words_transferred[3:0], hold_master_size[3:0]);
+        end
       end
+      `NO_ELSE;
 // Check for Target Retry status
       if (hold_master_target_termination[2:0] == `Test_Target_Retry_Before_First)
+      begin
         Check_Target_Retry (got_target_retry, words_transferred[3:0], 4'h0);
+      end
+      `NO_ELSE;
 
       if (hold_master_target_termination[2:0] == `Test_Target_Retry_Before_Second)
       begin
         if (hold_master_size[3:0] >= 4'h2)  // too small, don't get a chance to do 2
+        begin
           Check_Target_Retry (got_target_retry, words_transferred[3:0], 4'h1);
+        end
         else
+        begin
           Check_Target_Stop (got_master_terminate,
                              words_transferred[3:0], hold_master_size[3:0]);
+        end
       end
+      `NO_ELSE;
 // Check for Target Disconnect status
       if (hold_master_target_termination[2:0] == `Test_Target_Disc_With_First)
+      begin
         Check_Target_Stop (got_target_stop, words_transferred[3:0], 4'h1);
+      end
+      `NO_ELSE;
 
       if (hold_master_target_termination[2:0] == `Test_Target_Disc_With_Second)
       begin
         if (hold_master_size[3:0] >= 4'h2)  // too small, don't get a chance to do 2
+        begin
           Check_Target_Stop (got_target_stop, words_transferred[3:0], 4'h2);
+        end
         else
+        begin
           Check_Target_Stop (got_master_terminate,
                              words_transferred[3:0], hold_master_size[3:0]);
+        end
       end
-
+    `NO_ELSE;
 // Check for retry due to starting a delayed read
       if (hold_master_target_termination[2:0] == `Test_Target_Start_Delayed_Read)
+      begin
         Check_Target_Retry (got_target_retry, words_transferred[3:0], 4'h0);
+      end
+      `NO_ELSE;
 
 // Check for normal completion caused by the Master
       if (   (hold_master_target_termination[2:0] == `Test_Target_Normal_Completion)
@@ -706,6 +735,7 @@ task Check_Master_Burst_Termination_Cause;
         end
         `NO_ELSE;
       end
+      `NO_ELSE;
     end
   end
 endtask
@@ -724,13 +754,13 @@ task Linger_Until_DEVSEL_Or_Master_Abort_Or_Target_Abort;
     $display (" test %h - Lingering waiting for DEVSEL, at %t",
               test_device_id[2:0], $time);
 `endif // VERBOSE_TEST_DEVICE
-    for (iii = 0; iii < `TEST_MASTER_SPINLOOP_MAX; iii = iii + 1)
+    for (iii = 0; iii < TEST_MASTER_SPINLOOP_MAX; iii = iii + 1)
     begin
       if (~devsel_now)  // no master yet
       begin
         if (stop_now)  // target abort!
         begin
-          iii = `TEST_MASTER_SPINLOOP_MAX + 1;  // break
+          iii = TEST_MASTER_SPINLOOP_MAX + 1;  // break
           got_master_abort = 1'b0;  // target abort handled before master abort
         end
         else
@@ -738,7 +768,7 @@ task Linger_Until_DEVSEL_Or_Master_Abort_Or_Target_Abort;
           Check_Master_Abort_Counter (got_master_abort);
           if (got_master_abort)  // immediate exit on master abort
           begin
-            iii = `TEST_MASTER_SPINLOOP_MAX + 1;  // break
+            iii = TEST_MASTER_SPINLOOP_MAX + 1;  // break
           end
           else
           begin
@@ -759,14 +789,17 @@ task Linger_Until_DEVSEL_Or_Master_Abort_Or_Target_Abort;
       end
       else
       begin
-        iii = `TEST_MASTER_SPINLOOP_MAX + 1;  // break
+        iii = TEST_MASTER_SPINLOOP_MAX + 1;  // break
         got_master_abort = 1'b0;  // success
       end
     end
-    if (iii == `TEST_MASTER_SPINLOOP_MAX)
+    if (iii == TEST_MASTER_SPINLOOP_MAX)
+    begin
       got_master_abort = 1'b1;  // fail if fall off end
+    end
+    `NO_ELSE;
 `ifdef NORMAL_PCI_CHECKS
-    if (~pci_reset_comb & (iii == `TEST_MASTER_SPINLOOP_MAX))
+    if (~pci_reset_comb & (iii == TEST_MASTER_SPINLOOP_MAX))
     begin
       $display ("*** test master %h - Bus didn't get DEVSEL during Master ref, at %t",
                   test_device_id[2:0], $time);
@@ -786,7 +819,7 @@ task Linger_Until_Target_Waitstates_Done;
   input  [3:0] master_mask_l;
   input   do_master_terminate;
   begin
-    for (iiii = 0; iiii < `TEST_MASTER_SPINLOOP_MAX; iiii = iiii + 1)
+    for (iiii = 0; iiii < TEST_MASTER_SPINLOOP_MAX; iiii = iiii + 1)
     begin
       if (~trdy_now & ~stop_now)  // stick in master wait states
       begin
@@ -804,11 +837,11 @@ task Linger_Until_Target_Waitstates_Done;
       end
       else
       begin
-        iiii = `TEST_MASTER_SPINLOOP_MAX + 1;  // break
+        iiii = TEST_MASTER_SPINLOOP_MAX + 1;  // break
       end
     end
 `ifdef NORMAL_PCI_CHECKS
-    if (~pci_reset_comb & (iiii == `TEST_MASTER_SPINLOOP_MAX))
+    if (~pci_reset_comb & (iiii == TEST_MASTER_SPINLOOP_MAX))
     begin
       $display ("*** test master %h - Bus didn't get DEVSEL during Master ref, at %t",
                   test_device_id[2:0], $time);
@@ -854,11 +887,15 @@ task Execute_Master_Ref_Undrive_All_In_Any_Termination_Unless_Fast_B2B;
       Inc_Master_Abort_Counter;
       Clock_Wait_Unless_Reset;  // wait for outputs to settle
       if (watching_for_master_abort)
+      begin
         Linger_Until_DEVSEL_Or_Master_Abort_Or_Target_Abort (drive_ad_bus,
                                       master_write_data[31:0], master_mask_l[3:0],
                                       do_master_terminate, got_master_abort);
+      end
       else
+      begin
         got_master_abort = 1'b0;
+      end
       if (got_master_abort)
       begin
         got_target_retry = 1'b0; got_target_stop = 1'b0; got_target_abort = 1'b0;
@@ -955,29 +992,31 @@ task Execute_Master_Ref_Undrive_All_In_Any_Termination_Unless_Fast_B2B;
       end
     end
     else
+    begin
       want_fast_back_to_back = 1'b0;
+    end
   end
 endtask
 
-`define TEST_MASTER_DOING_CONFIG_READ   2'b00
-`define TEST_MASTER_DOING_CONFIG_WRITE  2'b01
-`define TEST_MASTER_DOING_MEM_READ      2'b10
-`define TEST_MASTER_DOING_MEM_WRITE     2'b11
+parameter TEST_MASTER_DOING_CONFIG_READ  = 2'b00;
+parameter TEST_MASTER_DOING_CONFIG_WRITE = 2'b01;
+parameter TEST_MASTER_DOING_MEM_READ     = 2'b10;
+parameter TEST_MASTER_DOING_MEM_WRITE    = 2'b11;
 
 task Report_On_Master_PCI_Ref_Start;
   input  [1:0] reference_type;
   begin
     case (reference_type[1:0])
-    `TEST_MASTER_DOING_CONFIG_READ:
+    TEST_MASTER_DOING_CONFIG_READ:
       $display (" test master %h - Starting Config Read, at %t",
                     test_device_id[2:0], $time);
-    `TEST_MASTER_DOING_CONFIG_WRITE:
+    TEST_MASTER_DOING_CONFIG_WRITE:
       $display (" test master %h - Starting Config Write, at %t",
                     test_device_id[2:0], $time);
-    `TEST_MASTER_DOING_MEM_READ:
+    TEST_MASTER_DOING_MEM_READ:
       $display (" test master %h - Starting Memory Read, at %t",
                     test_device_id[2:0], $time);
-    `TEST_MASTER_DOING_MEM_WRITE:
+    TEST_MASTER_DOING_MEM_WRITE:
       $display (" test master %h - Starting Memory Write, at %t",
                     test_device_id[2:0], $time);
     default:
@@ -1053,11 +1092,15 @@ task Execute_Master_PCI_Ref;
   output  want_fast_back_to_back;
   begin
     Master_Req_Bus;
-    if (   (reference_type[1:0] == `TEST_MASTER_DOING_CONFIG_READ)
-         | (reference_type[1:0] == `TEST_MASTER_DOING_CONFIG_WRITE) )
-      step_address = `TEST_MASTER_STEP_ADDRESS;
+    if (   (reference_type[1:0] == TEST_MASTER_DOING_CONFIG_READ)
+         | (reference_type[1:0] == TEST_MASTER_DOING_CONFIG_WRITE) )
+    begin
+      step_address = TEST_MASTER_STEP_ADDRESS;
+    end
     else
-      step_address = `TEST_MASTER_IMMEDIATE_ADDRESS;
+    begin
+      step_address = TEST_MASTER_IMMEDIATE_ADDRESS;
+    end
     Master_Assert_Address (modified_master_address[31:0], hold_master_command[3:0],
                      step_address, hold_master_fast_b2b, hold_master_addr_par_err);
     Master_Unreq_Bus;  // After FRAME is asserted!
@@ -1065,8 +1108,8 @@ task Execute_Master_PCI_Ref;
 // Do Report after Address to let the time of the report line up with the bus event.
     Report_On_Master_PCI_Ref_Start (reference_type[1:0]);
 `endif // REPORT_TEST_DEVICE
-    drive_ad_bus = (reference_type[1:0] == `TEST_MASTER_DOING_CONFIG_WRITE)
-                 | (reference_type[1:0] == `TEST_MASTER_DOING_MEM_WRITE);
+    drive_ad_bus = (reference_type[1:0] == TEST_MASTER_DOING_CONFIG_WRITE)
+                 | (reference_type[1:0] == TEST_MASTER_DOING_MEM_WRITE);
     words_transferred = 4'h0;
     wait_states_this_time = hold_master_initial_waitstates[3:0];
     do_master_terminate_this_time =
@@ -1095,8 +1138,11 @@ task Execute_Master_PCI_Ref;
       if (~got_master_abort & ~got_target_retry & ~got_target_abort)
       begin
         if (~drive_ad_bus)
+        begin
           Compare_Read_Data_With_Expected_Data (target_read_data[31:0],
                                                         master_write_data[31:0]);
+        end
+        `NO_ELSE;
         wait_states_this_time = hold_master_subsequent_waitstates[3:0];
         words_transferred = words_transferred + 4'b1;
         do_master_terminate_this_time =
@@ -1107,6 +1153,7 @@ task Execute_Master_PCI_Ref;
         master_write_data[31:0] = master_write_data_next[31:0];
         master_mask_l[3:0] = master_mask_l_next[3:0];
       end
+      `NO_ELSE;
     end
 `ifdef NORMAL_PCI_CHECKS
     Check_Master_Burst_Termination_Cause (got_master_abort, got_master_terminate,
@@ -1214,7 +1261,7 @@ endtask
         Indicate_Start;
 // Grab address and data in case it takes a while to get bus mastership
 // Intentionally use "=" assignment so these variables are available to tasks
-        hold_master_address[31:0] = test_address[31:0];
+        hold_master_address[23:9] = test_address[23:9];
         hold_master_command[3:0] = test_command[3:0];
         hold_master_data[31:0] = test_data[31:0];
         hold_master_byte_enables[3:0] = test_byte_enables[3:0];
@@ -1234,6 +1281,7 @@ endtask
           hold_master_size = 4'h1;
           hold_master_target_termination = `Test_Target_Retry_Before_First;
         end
+        `NO_ELSE;
         modified_master_address[31:24] = test_address[31:24];
         modified_master_address[`TARGET_ENCODED_PARAMATERS_ENABLE] = 1'b1;
         modified_master_address[`TARGET_ENCODED_INIT_WAITSTATES] =
@@ -1263,20 +1311,20 @@ endtask
         `PCI_COMMAND_RESERVED_5:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
         `PCI_COMMAND_MEMORY_READ:
-          Execute_Master_PCI_Ref (`TEST_MASTER_DOING_MEM_READ,
+          Execute_Master_PCI_Ref (TEST_MASTER_DOING_MEM_READ,
                                              want_fast_back_to_back);
         `PCI_COMMAND_MEMORY_WRITE:
-          Execute_Master_PCI_Ref (`TEST_MASTER_DOING_MEM_WRITE,
+          Execute_Master_PCI_Ref (TEST_MASTER_DOING_MEM_WRITE,
                                              want_fast_back_to_back);
         `PCI_COMMAND_RESERVED_8:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
         `PCI_COMMAND_RESERVED_9:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
         `PCI_COMMAND_CONFIG_READ:
-          Execute_Master_PCI_Ref (`TEST_MASTER_DOING_CONFIG_READ,
+          Execute_Master_PCI_Ref (TEST_MASTER_DOING_CONFIG_READ,
                                              want_fast_back_to_back);
         `PCI_COMMAND_CONFIG_WRITE:
-          Execute_Master_PCI_Ref (`TEST_MASTER_DOING_CONFIG_WRITE,
+          Execute_Master_PCI_Ref (TEST_MASTER_DOING_CONFIG_WRITE,
                                              want_fast_back_to_back);
         `PCI_COMMAND_MEMORY_READ_MULTIPLE:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
@@ -1294,7 +1342,10 @@ endtask
           end
         endcase
         if (pci_reset_comb)
+        begin
           want_fast_back_to_back = 1'b0;
+        end
+        `NO_ELSE;
       end
     end // while want_fast_back_to_back
     else if (~frame_now & ~irdy_now & master_gnt_now)
@@ -1319,6 +1370,7 @@ endtask
     begin
       Reset_Master_To_Idle;
     end
+    `NO_ELSE;
   end
 endmodule
 

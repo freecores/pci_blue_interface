@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_behaviorial_target.v,v 1.1.1.1 2001-02-21 15:28:49 bbeaver Exp $
+// $Id: pci_behaviorial_target.v,v 1.2 2001-02-23 13:18:34 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -272,6 +272,7 @@ task Write_Test_Device_Config_Regs;
       pending_config_reg_write_data[31:0] <= data[31:0];
       pending_config_write_request <= 1'b1;
     end
+    `NO_ELSE;
   end
 endtask
 
@@ -621,12 +622,15 @@ endtask
 // If a task DOESN'T end with @(posedge pci_ext_clk), then it must
 //      be called just before some other task which does.
 
-`define TEST_TARGET_SPINLOOP_MAX  20
+parameter TEST_TARGET_SPINLOOP_MAX = 20;
 
 task Clock_Wait_Unless_Reset;
   begin
     if (~pci_reset_comb)
+    begin
       @ (posedge pci_ext_clk or posedge pci_reset_comb) ;
+    end
+    `NO_ELSE;
   end
 endtask
 
@@ -688,7 +692,7 @@ task Execute_Target_Retry_Undrive_DEVSEL;
   input   signal_starting_delayed_read;
   input   signal_satisfied_delayed_read;
   begin
-    for (iiii = 0; iiii < `TEST_TARGET_SPINLOOP_MAX; iiii = iiii + 1)
+    for (iiii = 0; iiii < TEST_TARGET_SPINLOOP_MAX; iiii = iiii + 1)
     begin
       if ((iiii == 0) | frame_now | ~irdy_now)  // At least one stop, then Not Finished
       begin
@@ -708,6 +712,7 @@ task Execute_Target_Retry_Undrive_DEVSEL;
           Delayed_Read_Command =  hold_target_command[3:0];
           Delayed_Read_Mask_L = cbe_l_now[3:0];
         end
+        `NO_ELSE;
       end
       else
       begin
@@ -721,13 +726,13 @@ task Execute_Target_Retry_Undrive_DEVSEL;
         Deassert_DEVSEL;  // Master saw us, so leave
         Deassert_TRDY;
         Deassert_STOP;
-        iiii = `TEST_TARGET_SPINLOOP_MAX + 1;  // break
+        iiii = TEST_TARGET_SPINLOOP_MAX + 1;  // break
       end
       Clock_Wait_Unless_Reset;  // wait for outputs to settle
       signal_satisfied_delayed_read = 1'b0;
     end
 `ifdef NORMAL_PCI_CHECKS
-    if (~pci_reset_comb & (iiii == `TEST_TARGET_SPINLOOP_MAX))
+    if (~pci_reset_comb & (iiii == TEST_TARGET_SPINLOOP_MAX))
     begin
       $display ("*** test target %h - Bus didn't go Idle during Target Retry, at %t",
                 test_device_id[2:0], $time);
@@ -938,7 +943,7 @@ task Linger_Until_Master_Waitstates_Done;
   input  [31:0] target_read_data;
   input   do_target_disconnect;
   begin
-    for (ii = 0; ii < `TEST_TARGET_SPINLOOP_MAX; ii = ii + 1)
+    for (ii = 0; ii < TEST_TARGET_SPINLOOP_MAX; ii = ii + 1)
     begin
       if (frame_now & ~irdy_now)  // master executing wait states
       begin
@@ -954,7 +959,7 @@ task Linger_Until_Master_Waitstates_Done;
       end
       else
       begin
-      ii = `TEST_TARGET_SPINLOOP_MAX + 1;  // break
+      ii = TEST_TARGET_SPINLOOP_MAX + 1;  // break
       end
     end
 `ifdef NORMAL_PCI_CHECKS
@@ -965,7 +970,7 @@ task Linger_Until_Master_Waitstates_Done;
       error_detected <= ~error_detected;
     end
     `NO_ELSE;
-    if (~pci_reset_comb & (ii == `TEST_TARGET_SPINLOOP_MAX))
+    if (~pci_reset_comb & (ii == TEST_TARGET_SPINLOOP_MAX))
     begin
       $display ("*** test target %h - Bus stuck in Master Wait States during Target ref, at %t",
                    test_device_id[2:0], $time);
@@ -992,7 +997,7 @@ task Execute_Target_Abort_Undrive_DEVSEL;
     end
     `NO_ELSE;
 `endif // NORMAL_PCI_CHECKS
-    for (iii = 0; iii < `TEST_TARGET_SPINLOOP_MAX; iii = iii + 1)
+    for (iii = 0; iii < TEST_TARGET_SPINLOOP_MAX; iii = iii + 1)
     begin
       if ((iii == 0) | frame_now | ~irdy_now)  // At least one stop, Master Not Finished
       begin
@@ -1019,7 +1024,7 @@ task Execute_Target_Abort_Undrive_DEVSEL;
         Deassert_DEVSEL;  // Signal Target Abort
         Deassert_TRDY;
         Deassert_STOP;  // Master saw us, so leave
-        iii = `TEST_TARGET_SPINLOOP_MAX + 1;  // break
+        iii = TEST_TARGET_SPINLOOP_MAX + 1;  // break
       end
       Clock_Wait_Unless_Reset;  // wait for outputs to settle
       signal_satisfied_delayed_read = 1'b0;
@@ -1032,7 +1037,7 @@ task Execute_Target_Abort_Undrive_DEVSEL;
       error_detected <= ~error_detected;
     end
     `NO_ELSE;
-    if (~pci_reset_comb & (iii == `TEST_TARGET_SPINLOOP_MAX))
+    if (~pci_reset_comb & (iii == TEST_TARGET_SPINLOOP_MAX))
     begin
       $display ("*** test target %h - Bus didn't go Idle during Target Abort, at %t",
                    test_device_id[2:0], $time);
@@ -1086,6 +1091,7 @@ task Execute_Target_Ref_Undrive_DEVSEL_On_Any_Termination;
         Assert_STOP;
         Clock_Wait_Unless_Reset;  // give master a chance to turn FRAME around
       end
+      `NO_ELSE;
 `ifdef NORMAL_PCI_CHECKS
       if (~pci_reset_comb & ~(~frame_now & irdy_now))  // error if not last master data phase
       begin
@@ -1197,8 +1203,12 @@ task Execute_Target_PCI_Ref;
       begin
         Execute_Target_Waitstates (1'b0, 1'b0, 4'h1);  // avoid collisions on AD bus
         if (wait_states_this_time[3:0] != 4'h0)
+        begin
           wait_states_this_time[3:0] = wait_states_this_time[3:0] - 4'h1;
+        end
+        `NO_ELSE;
       end
+      `NO_ELSE;
       target_was_terminated = 1'b0;
       while (target_was_terminated == 1'b0)
       begin
@@ -1207,7 +1217,10 @@ task Execute_Target_PCI_Ref;
         if (do_abort_this_time)
         begin
           if (abort_needs_waitstate)
+          begin
             Execute_Target_Waitstates (drive_ad_bus, ~drive_ad_bus, 4'h1);
+          end
+          `NO_ELSE;
           Execute_Target_Abort_Undrive_DEVSEL (drive_ad_bus,
                                                signal_satisfied_delayed_read);
           target_was_terminated = 1'b1;
@@ -1228,20 +1241,32 @@ task Execute_Target_PCI_Ref;
 //          do_disconnect_this_time = do_disconnect_this_time  // prevent address roll-over
 //                            | (hold_target_address[7:2] == 6'h3F);
           if (reference_type[1:0] == `TEST_TARGET_DOING_CONFIG_READ)
+          begin
             Fetch_Config_Reg_Data_For_Read_Onto_AD_Bus (target_read_data[31:0]);
+          end
+          `NO_ELSE;
           if (reference_type[1:0] == `TEST_TARGET_DOING_SRAM_READ)
+          begin
             Fetch_SRAM_Data_For_Read_Onto_AD_Bus (target_read_data[31:0]);
+          end
+          `NO_ELSE;
           Execute_Target_Ref_Undrive_DEVSEL_On_Any_Termination
                            (drive_ad_bus, do_disconnect_this_time,
                             signal_satisfied_delayed_read, target_read_data[31:0],
                             master_write_data[31:0], master_mask_l[3:0],
                             target_was_terminated); 
           if (reference_type[1:0] == `TEST_TARGET_DOING_CONFIG_WRITE)
+          begin
             Capture_Config_Reg_Data_From_AD_Bus (master_write_data[31:0],
                                                               master_mask_l[3:0]);
+          end
+          `NO_ELSE;
           if (reference_type[1:0] == `TEST_TARGET_DOING_SRAM_WRITE)
+          begin
             Capture_SRAM_Data_From_AD_Bus (master_write_data[31:0],
                                                               master_mask_l[3:0]);
+          end
+          `NO_ELSE;
 // set up for the next transfer                                                        
           wait_states_this_time[3:0] = hold_target_subsequent_waitstates[3:0];
           abort_needs_waitstate = 1'b0;
@@ -1395,15 +1420,19 @@ endtask
           saw_fast_back_to_back = 1'b0;
         end
         if (pci_reset_comb)
+        begin
           saw_fast_back_to_back = 1'b0;
+        end
       end  // saw_fast_back_to_back
     end
+    `NO_ELSE;
 // Because this is sequential code, have to reset all regs if the above falls
 // through due to a reset.  This would not be needed in synthesizable code.
     if (pci_reset_comb)
     begin
       Reset_Target_To_Idle;
     end
+    `NO_ELSE;
   end
 endmodule
 
