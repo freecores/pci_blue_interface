@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: grey_to_binary.v,v 1.6 2001-08-26 11:12:19 bbeaver Exp $
+// $Id: grey_to_binary.v,v 1.7 2001-08-29 11:30:58 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -70,13 +70,13 @@
 // Convert 2-bit up to 16-bit binary value into same sized grey-code value
 
 module bin_to_grey_code (
-  binary_in,
-  grey_code_out
+  grey_code_out,
+  binary_in
 );
   parameter NUM_BITS = 1;  // instantiate as "bin_to_grey_code #(width) instance ()"
 
-  input  [NUM_BITS - 1 : 0] binary_in;
   output [NUM_BITS - 1 : 0] grey_code_out;
+  input  [NUM_BITS - 1 : 0] binary_in;
 
 // Consider the sequences
 //   Binary  Grey Code
@@ -100,7 +100,7 @@ module bin_to_grey_code (
 //               G[0] = B[1] ^ B[0];
 //
 // But how to write that using a parameter?  Well, instead of
-//   figuring it out, how about just making somwthing which works
+//   figuring it out, how about just making something which works
 //   for a range of widths, like 2 to 16?
 
   wire   [15:0] widened_input = {binary_in[NUM_BITS - 1 : 0], {16 - NUM_BITS{1'b0}}};
@@ -148,13 +148,13 @@ endmodule
 // Convert 2-bit up to 16-bit binary value into same sized grey-code value
 
 module grey_code_to_bin (
-  grey_code_in,
-  binary_out
+  binary_out,
+  grey_code_in
 );
   parameter NUM_BITS = 1;  // instantiate as "grey_code_to_bin #(width) instance ()"
 
-  input  [NUM_BITS - 1 : 0] grey_code_in;
   output [NUM_BITS - 1 : 0] binary_out;
+  input  [NUM_BITS - 1 : 0] grey_code_in;
 
 // Consider the sequences
 //   Grey Code   Binary
@@ -178,7 +178,7 @@ module grey_code_to_bin (
 //               B[0] = G[2] ^ G[1] ^ G[0];
 //
 // But how to write that using a parameter?  Well, instead of
-//   figuring it out, how about just making somwthing which works
+//   figuring it out, how about just making something which works
 //   for a range of widths, like 2 to 16?
 
   wire   [15:0] widened_input = {grey_code_in[NUM_BITS - 1 : 0], {16 - NUM_BITS{1'b0}}};
@@ -233,9 +233,9 @@ module grey_code_to_bin (
 // synopsys translate_on
 endmodule
 
-// `define TEST_GREY_CODE
+ `define TEST_GREY_CODE
 `ifdef TEST_GREY_CODE
-module test;
+module test_grey_code;
   reg    [7:0] test_val;
   wire   [1:0] grey_2;
   wire   [2:0] grey_3;
@@ -250,33 +250,51 @@ module test;
     for (test_val = 8'h00; test_val < 8'h04; test_val = test_val + 8'h01)
     begin
       # 0; $display ("test val, result %x %x %x", test_val[1:0], grey_2[1:0], bin_2[1:0]);
-      if (test_val[1:0] != bin_2[1:0])
+      if (test_val[1:0] !== bin_2[1:0])
         $display ("*** Encode, Decode failed %x %x", test_val[1:0], bin_2[1:0]);
     end
     $display (" ");
     for (test_val = 8'h00; test_val < 8'h08; test_val = test_val + 8'h01)
     begin
       # 0; $display ("test val, result %x %x %x", test_val[2:0], grey_3[2:0], bin_3[2:0]);
-      if (test_val[2:0] != bin_3[2:0])
+      if (test_val[2:0] !== bin_3[2:0])
         $display ("*** Encode, Decode failed %x %x", test_val[2:0], bin_3[2:0]);
     end
     $display (" ");
     for (test_val = 8'h00; test_val < 8'h10; test_val = test_val + 8'h01)
     begin
       # 0; $display ("test val, result %x %x %x", test_val[3:0], grey_4[3:0], bin_4[3:0]);
-      if (test_val[3:0] != bin_4[3:0])
+      if (test_val[3:0] !== bin_4[3:0])
         $display ("*** Encode, Decode failed %x %x", test_val[3:0], bin_4[3:0]);
     end
 
   end
 
-  bin_to_grey_code #(2) bin_to_grey_code_2 (test_val[1:0], grey_2[1:0]);
-  bin_to_grey_code #(3) bin_to_grey_code_3 (test_val[2:0], grey_3[2:0]);
-  bin_to_grey_code #(4) bin_to_grey_code_4 (test_val[3:0], grey_4[3:0]);
+bin_to_grey_code #(2) bin_to_grey_code_2 (
+  .grey_code_out              (grey_2[1:0]),
+  .binary_in                  (test_val[1:0])
+);
+bin_to_grey_code #(3) bin_to_grey_code_3 (
+  .grey_code_out              (grey_3[2:0]),
+  .binary_in                  (test_val[2:0])
+);
+bin_to_grey_code #(4) bin_to_grey_code_4 (
+  .grey_code_out              (grey_4[3:0]),
+  .binary_in                  (test_val[3:0])
+);
 
-  grey_code_to_bin #(2) grey_code_to_bin_2 (grey_2[1:0], bin_2[1:0]);
-  grey_code_to_bin #(3) grey_code_to_bin_3 (grey_3[2:0], bin_3[2:0]);
-  grey_code_to_bin #(4) grey_code_to_bin_4 (grey_4[3:0], bin_4[3:0]);
+grey_code_to_bin #(2) grey_code_to_bin_2 (
+  .binary_out                 (bin_2[1:0]),
+  .grey_code_in               (grey_2[1:0])
+);
+grey_code_to_bin #(3) grey_code_to_bin_3 (
+  .binary_out                 (bin_3[2:0]),
+  .grey_code_in               (grey_3[2:0])
+);
+grey_code_to_bin #(4) grey_code_to_bin_4 (
+  .binary_out                 (bin_4[3:0]),
+  .grey_code_in               (grey_4[3:0])
+);
 
 endmodule
 `endif  // TEST_GREY_CODE

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_vendor_lib.v,v 1.15 2001-08-15 10:31:47 bbeaver Exp $
+// $Id: pci_vendor_lib.v,v 1.16 2001-08-29 11:30:59 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -697,7 +697,7 @@ endmodule
 
 // If the vendor has a flop which is particularly good at settling out of
 //   metastability, it should be used here.
-module pci_synchronizer_flop (
+module synchronizer_flop (
   data_in, clk_out, sync_data_out, async_reset
 );
   input   data_in;

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_fifo_flags.v,v 1.11 2001-08-15 10:31:46 bbeaver Exp $
+// $Id: pci_blue_fifo_flags.v,v 1.12 2001-08-29 11:30:59 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -526,25 +526,25 @@ endfunction
 //   the FIFO counter is seen in the Read clock domain the very first time.
 
 // Capture a copy of the Write pointer to use in the Read clock domain
-pci_synchronizer_flop sync_read_counter_0 (
+synchronizer_flop sync_read_counter_0 (
   .data_in                    (read_greycode_counter_R[0]),
   .clk_out                    (write_sync_clk),
   .sync_data_out              (sync_read_greycode_counter_W[0]),
   .async_reset                (reset_flags_async)
 );
-pci_synchronizer_flop sync_read_counter_1 (
+synchronizer_flop sync_read_counter_1 (
   .data_in                    (read_greycode_counter_R[1]),
   .clk_out                    (write_sync_clk),
   .sync_data_out              (sync_read_greycode_counter_W[1]),
   .async_reset                (reset_flags_async)
 );
-pci_synchronizer_flop sync_read_counter_2 (
+synchronizer_flop sync_read_counter_2 (
   .data_in                    (read_greycode_counter_R[2]),
   .clk_out                    (write_sync_clk),
   .sync_data_out              (sync_read_greycode_counter_W[2]),
   .async_reset                (reset_flags_async)
 );
-pci_synchronizer_flop sync_read_counter_3 (
+synchronizer_flop sync_read_counter_3 (
   .data_in                    (read_greycode_counter_R[3]),
   .clk_out                    (write_sync_clk),
   .sync_data_out              (sync_read_greycode_counter_W[3]),
@@ -552,25 +552,25 @@ pci_synchronizer_flop sync_read_counter_3 (
 );
 
 // Capture a copy of the Read pointer to use in the Write clock domain
-pci_synchronizer_flop sync_write_counter_0 (
+synchronizer_flop sync_write_counter_0 (
   .data_in                    (read_side_write_counter_W[0]),
   .clk_out                    (read_sync_clk),
   .sync_data_out              (sync_write_greycode_counter_R[0]),
   .async_reset                (reset_flags_async)
 );
-pci_synchronizer_flop sync_write_counter_1 (
+synchronizer_flop sync_write_counter_1 (
   .data_in                    (read_side_write_counter_W[1]),
   .clk_out                    (read_sync_clk),
   .sync_data_out              (sync_write_greycode_counter_R[1]),
   .async_reset                (reset_flags_async)
 );
-pci_synchronizer_flop sync_write_counter_2 (
+synchronizer_flop sync_write_counter_2 (
   .data_in                    (read_side_write_counter_W[2]),
   .clk_out                    (read_sync_clk),
   .sync_data_out              (sync_write_greycode_counter_R[2]),
   .async_reset                (reset_flags_async)
 );
-pci_synchronizer_flop sync_write_counter_3 (
+synchronizer_flop sync_write_counter_3 (
   .data_in                    (read_side_write_counter_W[3]),
   .clk_out                    (read_sync_clk),
   .sync_data_out              (sync_write_greycode_counter_R[3]),

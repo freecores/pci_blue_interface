@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_master.v,v 1.40 2001-08-19 04:03:21 bbeaver Exp $
+// $Id: pci_blue_master.v,v 1.41 2001-08-29 11:30:59 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -855,7 +855,8 @@ module pci_blue_master (
                       : Master_Retry_Data_Type[2:0];
 
   wire    Request_FIFO_CONTAINS_DATA_MORE =
-               master_to_target_status_loadable  // room for status to Target
+             & master_to_target_status_loadable
+             & master_to_target_status_two_words_free  // room for status to Target
              & (   (   (   proceed_with_new_address_plus_new_data
                          | proceed_with_stored_address_plus_new_data
                          | proceed_with_new_data )
@@ -867,7 +868,8 @@ module pci_blue_master (
                                 PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR));
 
   wire    Request_FIFO_CONTAINS_DATA_LAST =
-               master_to_target_status_loadable  // room for status to Target
+             & master_to_target_status_loadable
+             & master_to_target_status_two_words_free  // room for status to Target
              & (   (   (   proceed_with_new_address_plus_new_data
                          | proceed_with_stored_address_plus_new_data
                          | proceed_with_new_data )
