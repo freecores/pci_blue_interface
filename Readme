@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: Readme,v 1.7 2001-07-06 10:50:59 bbeaver Exp $
+// $Id: Readme,v 1.8 2001-08-30 10:16:42 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -111,7 +111,7 @@
 //   and pci_behaviorial_target.v.  These modules together implement a test
 //   PCI device.
 //
-// The Bahaviorial Master takes commands from the pci_test_commander.
+// The Behaviorial Master takes commands from the pci_test_commander.
 // It can make transfers of different lengths, and can make Address and
 //   Data parity Errors.
 // The Behaviorial Master checks the Data and Error status of the transfers
