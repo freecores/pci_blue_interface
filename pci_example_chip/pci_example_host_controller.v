@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_example_host_controller.v,v 1.2 2001-02-23 13:18:37 bbeaver Exp $
+// $Id: pci_example_host_controller.v,v 1.3 2001-02-24 11:35:38 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -191,6 +191,34 @@ module pci_example_host_controller (
   reg     hold_master_expect_master_abort;
   reg    [31:0] modified_master_address;
 
+// Host Interface Status Register.  This Host Adaptor makes a Status Register
+//   which is read whenever the MSB of the Read Address is 0xDD and the LSB
+//   of the Read Address is 0xFC.  The register is cleared whenever it is written to.
+  reg    [9:0] Host_Interface_Status_Register;
+  reg     Reset_Host_Status_Register;
+  reg     PERR_Detected, SERR_Detected, Master_Abort_Received, Target_Abort_Received;
+  reg     Caused_Target_Abort, Caused_PERR, Discarded_Delayed_Read;
+  reg     Target_Retry_Or_Disconnect, Illegal_Command_Detected_In_Request_FIFO;
+  reg     Illegal_Command_Detected_In_Response_FIFO;
+
+  always @(posedge host_clk)
+  begin
+    if (host_reset)
+    begin
+      Host_Interface_Status_Register[9:0] <= 10'h000;
+    end
+    else
+    begin
+      Host_Interface_Status_Register[9:0] <= ~Reset_Host_Status_Register
+          & (Host_Interface_Status_Register[9:0]
+              | {PERR_Detected,          SERR_Detected,
+                 Master_Abort_Received,  Target_Abort_Received,
+                 Caused_Target_Abort,    Caused_PERR,
+                 Discarded_Delayed_Read, Target_Retry_Or_Disconnect,
+                 Illegal_Command_Detected_In_Request_FIFO,
+                 Illegal_Command_Detected_In_Response_FIFO});
+    end
+  end
 
 // To make this interface interesting as a Target, it includes a small Memory.
 // The Memory can be read and written by the external PCI Masters.
@@ -233,17 +261,20 @@ module pci_example_host_controller (
 `ifdef VERILOGGER_BUG
   always @(posedge host_clk)
   begin
-    Example_Host_Mem_0[mem_address] <= (mem_write_enable & mem_write_byte_enables[0])
-             ? mem_write_data[ 7: 0] : Example_Host_Mem_0[mem_address];
-    Example_Host_Mem_1[mem_address] <= (mem_write_enable & mem_write_byte_enables[1])
-             ? mem_write_data[15: 8] : Example_Host_Mem_1[mem_address];
-    Example_Host_Mem_2[mem_address] <= (mem_write_enable & mem_write_byte_enables[2])
-             ? mem_write_data[23:16] : Example_Host_Mem_2[mem_address];
-    Example_Host_Mem_3[mem_address] <= (mem_write_enable & mem_write_byte_enables[3])
-             ? mem_write_data[31:24] : Example_Host_Mem_3[mem_address];
+    Example_Host_Mem_0[mem_address[5:0]] <= (mem_write_enable & mem_write_byte_enables[0])
+             ? mem_write_data[ 7: 0] : Example_Host_Mem_0[mem_address[5:0]];
+    Example_Host_Mem_1[mem_address[5:0]] <= (mem_write_enable & mem_write_byte_enables[1])
+             ? mem_write_data[15: 8] : Example_Host_Mem_1[mem_address[5:0]];
+    Example_Host_Mem_2[mem_address[5:0]] <= (mem_write_enable & mem_write_byte_enables[2])
+             ? mem_write_data[23:16] : Example_Host_Mem_2[mem_address[5:0]];
+    Example_Host_Mem_3[mem_address[5:0]] <= (mem_write_enable & mem_write_byte_enables[3])
+             ? mem_write_data[31:24] : Example_Host_Mem_3[mem_address[5:0]];
+    Reset_Host_Status_Register <= mem_write_enable & (mem_address[5:0] == 6'h3F);
     mem_read_data[31:0] <= mem_read_enable
-             ? {Example_Host_Mem_3[mem_address], Example_Host_Mem_2[mem_address],
-                Example_Host_Mem_1[mem_address], Example_Host_Mem_0[mem_address]}
+             ? (  (mem_address[5:0] == 6'h3F)
+                  ? {22'h000000, Host_Interface_Status_Register[9:0]}  // read status register
+                  : {Example_Host_Mem_3[mem_address], Example_Host_Mem_2[mem_address],
+                     Example_Host_Mem_1[mem_address], Example_Host_Mem_0[mem_address]})
              : 32'hXXXXXXXX;
     remembered_sram_read_data[31:0] <= hold_master_data[31:0];
     PCI_Bus_Mem_Grant <= ~Host_Mem_Request & PCI_Bus_Mem_Request;
@@ -400,7 +431,6 @@ endtask
     end
   end
 
-
 // This interface does a reference to it's 256-byte local SRAM whenever it sees
 //   an address with the top byte the special value of 8'hDD.
 // A real host adaptor would split off references to the on-chip SRAM at a
@@ -423,7 +453,7 @@ endtask
       Host_Mem_Write_Data[31:0] <= hold_master_data[31:0];
       Host_Mem_Address[5:0] <= modified_master_address[5:0];
       Host_Mem_Write_Byte_Enables[3:0] <=
-          ((hold_master_command[3:0] & `PCI_COMMAND_ANY_WRITE_COMMAND_MASK) != 4'h0)
+          ((hold_master_command[3:0] & `PCI_COMMAND_ANY_WRITE_MASK) != 4'h0)
           ? ~hold_master_byte_enables[3:0] : 4'h0;
     end
     else
@@ -455,9 +485,8 @@ endtask
 //   Read completes is to allow the Write Fence.  No writes are allowed
 //   to occur after a read during which a Write Fence was requested.
 
-  reg     target_requests_write_fence, master_issues_write_fence;
-  reg     host_allows_write_fence;
-  reg     target_sees_write_fence_end;
+  reg     target_requests_write_fence, target_sees_write_fence_end;
+  reg     host_allows_write_fence, master_issues_write_fence;
 
 // top-level write fence state machine.
   always @(posedge host_clk)
@@ -499,7 +528,7 @@ endtask
   reg    [2:0] Example_Host_Master_State;
 
   wire    present_command_is_read =
-            ((hold_master_command[3:0] & `PCI_COMMAND_ANY_WRITE_COMMAND_MASK) == 4'h0);
+            ((hold_master_command[3:0] & `PCI_COMMAND_ANY_WRITE_MASK) == 4'h0);
   wire    present_command_is_write = ~present_command_is_read;
 
   reg    [3:0] pci_master_running_transfer_count;
@@ -510,7 +539,7 @@ endtask
   begin
     if (host_reset)
     begin
-      pci_master_running_transfer_count[3:0] <= 4'h0;
+      pci_master_running_transfer_count[3:0] <= hold_master_size[3:0];  // unimportant
       host_command_finished <= 1'b0;
       master_issues_write_fence <= 1'b0;
       Example_Host_Master_State <= Example_Host_Master_Idle;
@@ -610,6 +639,7 @@ endtask
             host_command_finished <= 1'b1;
             Example_Host_Master_State <= Example_Host_Master_Idle;
           end
+          master_issues_write_fence <= 1'b0;  // not doing write fence, so never.
         end
       default:
         begin
@@ -689,7 +719,7 @@ endtask
                    & host_command_started & ~host_command_finished
                    & pci_host_request_room_available_meta
                    & (modified_master_address[31:24] == 8'hCC))
-              ? `PCI_HOST_REQUEST_READ_WRITE_CONFIG_REGISTER
+              ? `PCI_HOST_REQUEST_INSERT_WRITE_FENCE  // `PCI_HOST_REQUEST_READ_WRITE_CONFIG_REGISTER
               : (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
                    & host_command_started & ~host_command_finished
                    & pci_host_request_room_available_meta
@@ -774,7 +804,7 @@ endtask
     `NO_ELSE;
   end
 
-
+// Host_Target_State_Machine.
 // The Host_Target_State_Machine executes PCI Bus references to the local Memory.
 // The Host_Target_State_Machine can ask the Host_Master_State_Machine to stick
 //   a write fence into the Host Request FIFO in order to correctly implement
@@ -783,7 +813,7 @@ endtask
 // This State Machine is responsible for restarting the Memory Read in the case
 //   of a Delayed Read which is interrupted by a delayed write to the read region.
 //
-// This state machine seems to be stateless.
+// This state machine seems to be mostly stateless.
 // The two bits of state it keeps are that it requested a Write Fence but the
 //   fence has not been sent yet, and that it requested a restart on an SRAM
 //   read but the restart has not happened yet.
@@ -792,265 +822,363 @@ endtask
 // Reads and Writes are tagged, and the information is encoded into the
 //   middle 16 bits of the PCI Address.  The information is used at the end
 //   of a PCI transfer to see if the expected activity occurred.
+//
+// There are two classes of entries in the Response FIFO.
+// Response entries can be caused by progress being made in the Master
+//   side of the interface, reflecting PCI activity initiated by this host.
+// Response entries can be caused by references initiated by external PCI
+//   Masters to this target interface.
+// Most Response FIFO entries are control or documentation entries,
+//   and can be dropped without action if the Host Interface isn't
+//   recording everything to allow protocol violations.
+// Certain Response FIFO entries can only be dropped after it is
+//   assured that the Host Interface has acted on the data.  Specifically,
+//   Address, Write Data, and Read Strobes from an external PCI Master
+//   must be captured before the FIFO is unloaded.  Also, Read Data
+//   returning as normal progress is being made to complete a Master-
+//   initiated Read must be captured before it is dropped.
+//
+// This interface is trying to be High Performance.  It wants to handle
+//   one FIFO entry every 2 processor clocks.  To achieve this, it must
+//   be able to unload a FIFO entry as soon as it becomes available.
+// This cannot be done in a state machine, because of the delays in the
+//   FIFO Flag logic.  Instead, combinational logic below unloads the
+//   FIFO depending on what the FIFO entry Type is, and also depending
+//   on whether the Host Interface can capture the data right now.
 
+// Capture signals needed to request the issuance of a Write Fence
+//   into the Request FIFO.
 // Forward references used to communicate with the Host_Master_State_Machine above:
-// reg     target_requests_write_fence, master_issues_write_fence;
-// reg     target_sees_write_fence_end;
-// reg     target_sees_read_end;
+//  reg     target_requests_write_fence, target_sees_write_fence_end;
 
-// Communication with a Host Interface Status Register.  Not implemented here.
-  reg     PERR_Detected, SERR_Detected, Master_Abort_Received, Target_Abort_Received;
-  reg     Caused_Target_Abort, Caused_PERR, Discarded_Delayed_Read;
-  reg     Target_Retry_Or_Disconnect, Illegal_Command_Detected_In_Request_FIFO;
-  reg     Illegal_Command_Detected_In_Response_FIFO;
-
-// Communication with the Host_Delayed_Read_State_Machine below:
-  reg     delayed_read_start_requested, delayed_read_start_granted;
-  reg     delayed_read_stop_seen;
-  reg     delayed_read_flush_requested, delayed_read_flush_granted;
-
-// Capture signals needed to do local SRAM references and to check Master reference results.
-  reg    [31:0] Captured_Target_Address;
-  reg    [3:0] Captured_Target_Type;
-  reg     target_request_being_serviced;
-  reg    [31:0] Captured_Master_Address_Check;
-  reg    [3:0] Captured_Master_Type_Check;
-  reg     master_results_being_returned;
-
-task Hold_Master_And_Target_Memory_Activity;
-  begin
-    Captured_Target_Address[31:0] <= Captured_Target_Address[31:0];
-    Captured_Target_Type[3:0] <= Captured_Target_Type[3:0];
-    target_request_being_serviced <= target_request_being_serviced;
-    Captured_Master_Address_Check[31:0] <= Captured_Master_Address_Check[31:0];
-    Captured_Master_Type_Check[3:0] <= Captured_Master_Type_Check[3:0];
-    master_results_being_returned <= master_results_being_returned;
-  end
-endtask
-
-task Indicate_Possible_Response_Error;
-  input   Response_Fifo_Command_Invalid;
-  begin
-    PERR_Detected <= 1'b0;
-    SERR_Detected <= 1'b0;
-    Master_Abort_Received <= 1'b0;
-    Target_Abort_Received <= 1'b0;
-    Caused_Target_Abort <= 1'b0;
-    Caused_PERR <= 1'b0;
-    Discarded_Delayed_Read <= 1'b0;
-    Target_Retry_Or_Disconnect <= 1'b0;
-    Illegal_Command_Detected_In_Request_FIFO <= 1'b0;
-    Illegal_Command_Detected_In_Response_FIFO <= Response_Fifo_Command_Invalid;
-  end
-endtask
-
-task Hold_Host_Write_Fence_Request;
-  begin
-    target_requests_write_fence <= target_requests_write_fence
-                                 & ~master_issues_write_fence;
-    target_sees_write_fence_end <= 1'b0;
-    target_sees_read_end <= 1'b0;
-  end
-endtask
-
-task Hold_Host_Delayed_Read_Flush_Request;
-  begin
-    delayed_read_start_requested <= delayed_read_start_requested
-                                  & ~delayed_read_start_granted;
-    delayed_read_stop_seen <= 1'b0;
-    delayed_read_flush_requested <= delayed_read_flush_requested
-                                  & ~delayed_read_flush_granted;
-  end
-endtask
-
-// Host_Target_State_Machine
   always @(posedge host_clk)
   begin
     if (host_reset)
     begin
-      Captured_Target_Address[31:0] <= 32'h00000000;
-      Captured_Target_Type[3:0] <= 4'h0;
-      target_request_being_serviced <= 1'b0;
-      Captured_Master_Address_Check[31:0] <= 32'h00000000;
-      Captured_Master_Type_Check[3:0] <= 4'h0;
-      master_results_being_returned <= 1'b0;
-      Indicate_Possible_Response_Error (1'b0);
       target_requests_write_fence <= 1'b0;
       target_sees_write_fence_end <= 1'b0;
+    end
+    else if (pci_host_response_data_available_meta)
+    begin
+      if (   (pci_host_response_type[3:0] ==
+                      `PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE)
+           & ((pci_host_response_cbe[3:0] & `PCI_COMMAND_ANY_WRITE_MASK) == 4'h0) )  // it's a read!
+      begin
+        target_requests_write_fence <= 1'b1;
+        target_sees_write_fence_end <= 1'b0;
+      end
+      else if (    (pci_host_response_type[3:0] ==
+                                    `PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE)
+                 & (pci_host_response_data[17:16] == 2'b00) )
+      begin
+        target_requests_write_fence <= 1'b0;
+        target_sees_write_fence_end <= 1'b1;
+      end
+      else
+      begin  // FIFO Command does not effect the Write Fence.  Just wait.
+        target_requests_write_fence <= target_requests_write_fence
+                                     & ~master_issues_write_fence;
+        target_sees_write_fence_end <= 1'b0;
+      end
+    end
+    else
+    begin  // No command in FIFO.  Just wait.
+      target_requests_write_fence <= target_requests_write_fence
+                                   & ~master_issues_write_fence;
+      target_sees_write_fence_end <= 1'b0;
+    end
+  end
+
+// Capture signals to indicate that a Read is done to the Master State Machine above
+// Forward references used to communicate with the Host_Master_State_Machine above:
+//  reg     target_sees_read_end;
+  reg     master_read_returning_data_now;
+
+  always @(posedge host_clk)
+  begin
+    if (host_reset)
+    begin
+      master_read_returning_data_now <= 1'b0;
       target_sees_read_end <= 1'b0;
+    end
+    else if (pci_host_response_data_available_meta)
+    begin
+      if (pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_EXECUTED_ADDRESS_COMMAND)
+      begin
+        master_read_returning_data_now <=
+          ((pci_host_response_cbe[3:0] & `PCI_COMMAND_ANY_WRITE_MASK) == 4'h0);  // it's a read!
+        target_sees_read_end <= 1'b0;
+      end
+      else if (master_read_returning_data_now
+                & (pci_host_response_type[3:0] ==
+                                 `PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT) )
+      begin
+        if (   pci_host_response_data[29]    // Master_Abort_Received
+             | pci_host_response_data[28] )  // Target_Abort_Received
+        begin
+          master_read_returning_data_now <= 1'b0;
+          target_sees_read_end <= 1'b1;
+        end
+        else
+        begin
+          master_read_returning_data_now <= master_read_returning_data_now;
+          target_sees_read_end <= 1'b0;
+        end
+      end
+      else if (master_read_returning_data_now
+                & (   (pci_host_response_type[3:0] ==
+                                 `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST)
+                    | (pci_host_response_type[3:0] ==
+                                 `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR)
+                    | (   (pci_host_response_type[3:0] ==
+                                 `PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE)
+                        & pci_host_response_data[17]) ) )  // Config Read done
+      begin
+        master_read_returning_data_now <= 1'b0;
+        target_sees_read_end <= 1'b1;
+      end
+      else
+      begin  // FIFO Command does not effect the Master Read status.  Just wait.
+        master_read_returning_data_now <= master_read_returning_data_now;
+        target_sees_read_end <= 1'b0;
+      end
+    end
+    else
+    begin  // No command in FIFO.  Just wait.
+      master_read_returning_data_now <= master_read_returning_data_now;
+      target_sees_read_end <= 1'b0;
+    end
+  end
+
+// Communication with the Host_Delayed_Read_State_Machine below:
+  reg     delayed_read_start_requested, delayed_read_stop_seen;
+  reg     delayed_read_flush_requested;
+  reg     delayed_read_start_granted, delayed_read_flush_granted;
+
+  always @(posedge host_clk)
+  begin
+    if (host_reset)
+    begin
       delayed_read_start_requested <= 1'b0;
       delayed_read_stop_seen <= 1'b0;
       delayed_read_flush_requested <= 1'b0;
     end
-    else
+    else if (pci_host_response_data_available_meta)
     begin
-// NOTE WORKING
-//  input  [31:0] pci_host_response_data;
-//  input  [3:0] pci_host_response_cbe;
-      if (pci_host_response_data_available_meta)
+      if (   (pci_host_response_type[3:0] ==
+                      `PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE)
+           & ((pci_host_response_cbe[3:0] & `PCI_COMMAND_ANY_WRITE_MASK) == 4'h0) )  // it's a read!
       begin
-        case (pci_host_response_type[3:0])
-        `PCI_HOST_RESPONSE_SPARE:
-          begin  // Unused, Illegal
-            Hold_Master_And_Target_Memory_Activity;
-            Indicate_Possible_Response_Error (1'b1);
-            Hold_Host_Write_Fence_Request;
-            Hold_Host_Delayed_Read_Flush_Request;
-          end
-        `PCI_HOST_RESPONSE_EXECUTED_ADDRESS_COMMAND:
-          begin  // Consumed a Master Reference Address
-            Hold_Master_And_Target_Memory_Activity;
-            Indicate_Possible_Response_Error (1'b0);
-            Hold_Host_Write_Fence_Request;
-            Hold_Host_Delayed_Read_Flush_Request;
-          end
-        `PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT:
-          begin  // Indicated some sort of Error or Status event in the PCI Interface
-            Hold_Master_And_Target_Memory_Activity;
-            PERR_Detected <=              pci_host_response_data[31];
-            SERR_Detected <=              pci_host_response_data[30];
-            Master_Abort_Received <=      pci_host_response_data[29];
-            Target_Abort_Received <=      pci_host_response_data[28];
-            Caused_Target_Abort <=        pci_host_response_data[27];
-            Caused_PERR <=                pci_host_response_data[24];
-            Discarded_Delayed_Read <=     pci_host_response_data[18];
-            Target_Retry_Or_Disconnect <= pci_host_response_data[17];
-            Illegal_Command_Detected_In_Request_FIFO <= pci_host_response_data[16];
-            Illegal_Command_Detected_In_Response_FIFO <= 1'b0;
-            Hold_Host_Write_Fence_Request;
-            Hold_Host_Delayed_Read_Flush_Request;
-          end
-        `PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE:
-          begin  // also `PCI_HOST_RESPONSE_READ_WRITE_CONFIG_REGISTER
-// A write fence unload response will have Bits 16 and 17 both set to 1'b0.
-// Config References can be identified by noticing that Bits 16 or 17 are non-zero.
-// Data Bits [7:0] are the Byte Address of the Config Register being accessed.
-// Data Bits [15:8] are the single-byte Read Data returned when writing the Config Register.
-// Data Bit  [16] indicates that a Config Write has been done.
-// Data Bit  [17] indicates that a Config Read has been done.
-            Hold_Master_And_Target_Memory_Activity;
-            Indicate_Possible_Response_Error (1'b0);
-            Hold_Host_Write_Fence_Request;
-            Hold_Host_Delayed_Read_Flush_Request;
-          end
-        `PCI_HOST_RESPONSE_R_DATA_W_SENT:
-          begin  // Master Data returned on Read, or Write Data consumed
-            Hold_Master_And_Target_Memory_Activity;
-            Indicate_Possible_Response_Error (1'b0);
-            Hold_Host_Write_Fence_Request;
-            Hold_Host_Delayed_Read_Flush_Request;
-          end
-        `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST:
-          begin  // Master Data returned on Read, or Write Data consumed, end of burst
-            Hold_Master_And_Target_Memory_Activity;
-            Indicate_Possible_Response_Error (1'b0);
-            Hold_Host_Write_Fence_Request;
-            Hold_Host_Delayed_Read_Flush_Request;
-          end
-        `PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR:
-          begin  // Master Data returned on Read, or Write Data consumed
-            Hold_Master_And_Target_Memory_Activity;
-            Indicate_Possible_Response_Error (1'b0);
-            Hold_Host_Write_Fence_Request;
-            Hold_Host_Delayed_Read_Flush_Request;
-          end
-        `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR:
-          begin  // Master Data returned on Read, or Write Data consumed, end of burst
-            Hold_Master_And_Target_Memory_Activity;
-            Indicate_Possible_Response_Error (1'b0);
-            Hold_Host_Write_Fence_Request;
-            Hold_Host_Delayed_Read_Flush_Request;
-          end
-        `PCI_HOST_RESPONSE_EXTERNAL_SPARE:
-          begin  // Unused, Illegal
-            Hold_Master_And_Target_Memory_Activity;
-            Indicate_Possible_Response_Error (1'b1);
-            Hold_Host_Write_Fence_Request;
-            Hold_Host_Delayed_Read_Flush_Request;
-          end
-        `PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE:
-          begin  // External PCI Device has started a reference
-            Hold_Master_And_Target_Memory_Activity;
-            Indicate_Possible_Response_Error (1'b0);
-            Hold_Host_Write_Fence_Request;
-            Hold_Host_Delayed_Read_Flush_Request;
-          end
-        `PCI_HOST_RESPONSE_EXT_DELAYED_READ_RESTART:
-          begin  // A write occurred while servicing a Delayed Read.  Start the Read over
-            Hold_Master_And_Target_Memory_Activity;
-            Indicate_Possible_Response_Error (1'b0);
-            Hold_Host_Write_Fence_Request;
-            Hold_Host_Delayed_Read_Flush_Request;
-          end
-        `PCI_HOST_RESPONSE_EXT_READ_UNSUSPENDING:
-          begin  // A Delayed Read was suspended due to Write Traffic.  Continue the Read
-            Hold_Master_And_Target_Memory_Activity;
-            Indicate_Possible_Response_Error (1'b0);
-            Hold_Host_Write_Fence_Request;
-            Hold_Host_Delayed_Read_Flush_Request;
-          end
-        `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK:
-          begin  // Target Data returned on Read, or Write Data consumed
-            Hold_Master_And_Target_Memory_Activity;
-            Indicate_Possible_Response_Error (1'b0);
-            Hold_Host_Write_Fence_Request;
-            Hold_Host_Delayed_Read_Flush_Request;
-          end
-        `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST:
-          begin  // Target Data returned on Read, or Write Data consumed, end of burst
-            Hold_Master_And_Target_Memory_Activity;
-            Indicate_Possible_Response_Error (1'b0);
-            Hold_Host_Write_Fence_Request;
-            Hold_Host_Delayed_Read_Flush_Request;
-          end
-        `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_PERR:
-          begin  // Target Data returned on Read, or Write Data consumed
-            Hold_Master_And_Target_Memory_Activity;
-            Indicate_Possible_Response_Error (1'b0);
-            Hold_Host_Write_Fence_Request;
-            Hold_Host_Delayed_Read_Flush_Request;
-          end
-        `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST_PERR:
-          begin  // Target Data returned on Read, or Write Data consumed, end of burst
-            Hold_Master_And_Target_Memory_Activity;
-            Indicate_Possible_Response_Error (1'b0);
-            Hold_Host_Write_Fence_Request;
-            Hold_Host_Delayed_Read_Flush_Request;
-          end
-        default:
-          begin
-            Captured_Target_Address[31:0] <= 32'h00000000;
-            Captured_Target_Type[3:0] <= 4'h0;
-            target_request_being_serviced <= 1'b0;
-            Captured_Master_Address_Check[31:0] <= 32'h00000000;
-            Captured_Master_Type_Check[3:0] <= 4'h0;
-            master_results_being_returned <= 1'b0;
-            Indicate_Possible_Response_Error (1'b1);
-            target_requests_write_fence <= 1'b0;
-            target_sees_write_fence_end <= 1'b0;
-            target_sees_read_end <= 1'b0;
-            delayed_read_start_requested <= 1'b0;
-            delayed_read_stop_seen <= 1'b0;
-            delayed_read_flush_requested <= 1'b0;
-            $display ("*** Example Host Controller %h - Host_Target_State_Machine FIFO Type invalid %b, at %t",
-                        test_device_id[2:0], pci_host_response_type[3:0], $time);
-            error_detected <= ~error_detected;
-          end
-        endcase
+        delayed_read_start_requested <= 1'b1;
+        delayed_read_stop_seen <= 1'b0;
+        delayed_read_flush_requested <= delayed_read_flush_requested
+                                      & ~delayed_read_flush_granted;
+      end
+      else if (delayed_read_start_requested
+                & (pci_host_response_type[3:0] ==
+                      `PCI_HOST_RESPONSE_EXT_DELAYED_READ_RESTART) )
+      begin
+        delayed_read_start_requested <= delayed_read_start_requested
+                                      & ~delayed_read_start_granted;
+        delayed_read_stop_seen <= 1'b0;
+        delayed_read_flush_requested <= 1'b1;
+      end
+      else if (delayed_read_start_requested
+                & (   (pci_host_response_type[3:0] ==
+                             `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST)
+                    | (pci_host_response_type[3:0] ==
+                             `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST_PERR) ) )
+      begin
+        delayed_read_start_requested <= delayed_read_start_requested
+                                      & ~delayed_read_start_granted;
+        delayed_read_stop_seen <= 1'b1;
+        delayed_read_flush_requested <= delayed_read_flush_requested
+                                      & ~delayed_read_flush_granted;
       end
       else
-      begin  // Nothing in FIFO, so just sit in present state
-        Hold_Master_And_Target_Memory_Activity;
-        Indicate_Possible_Response_Error (1'b0);
-        Hold_Host_Write_Fence_Request;
-        Hold_Host_Delayed_Read_Flush_Request;
+      begin  // FIFO Command does not effect the Delayed Read status.  Just wait.
+        delayed_read_start_requested <= delayed_read_start_requested
+                                      & ~delayed_read_start_granted;
+        delayed_read_stop_seen <= 1'b0;
+        delayed_read_flush_requested <= delayed_read_flush_requested
+                                      & ~delayed_read_flush_granted;
+      end
+    end
+    else
+    begin  // No command in FIFO.  Just wait.
+      delayed_read_start_requested <= delayed_read_start_requested
+                                    & ~delayed_read_start_granted;
+      delayed_read_stop_seen <= 1'b0;
+      delayed_read_flush_requested <= delayed_read_flush_requested
+                                    & ~delayed_read_flush_granted;
+    end
+  end
+
+// Capture signals needed to do local SRAM references
+  reg    [31:0] Captured_Target_Address;
+  reg    [3:0] Captured_Target_Type;
+  reg     target_request_being_serviced;
+
+  always @(posedge host_clk)
+  begin
+    if (host_reset)
+    begin
+      Captured_Target_Address[31:0] <= Captured_Target_Address[31:0];
+      Captured_Target_Type[3:0] <= Captured_Target_Type[3:0];
+      target_request_being_serviced <= target_request_being_serviced;
+    end
+    else
+    begin
+      if (pci_host_response_data_available_meta)
+      begin  // NOTE WORKING
+        Captured_Target_Address[31:0] <= Captured_Target_Address[31:0];
+        Captured_Target_Type[3:0] <= Captured_Target_Type[3:0];
+        target_request_being_serviced <= target_request_being_serviced;
+      end
+      else
+      begin
+        Captured_Target_Address[31:0] <= Captured_Target_Address[31:0];
+        Captured_Target_Type[3:0] <= Captured_Target_Type[3:0];
+        target_request_being_serviced <= target_request_being_serviced;
       end
     end
   end
 
+// Capture signals needed to check Master reference results.
+  reg    [31:0] Captured_Master_Address_Check;
+  reg    [3:0] Captured_Master_Type_Check;
+  reg     master_results_being_returned;
+
+  always @(posedge host_clk)
+  begin
+    if (host_reset)
+    begin
+      Captured_Master_Address_Check[31:0] <= Captured_Master_Address_Check[31:0];
+      Captured_Master_Type_Check[3:0] <= Captured_Master_Type_Check[3:0];
+      master_results_being_returned <= 1'b0;
+    end
+    else
+    begin
+      if (pci_host_response_data_available_meta)
+      begin  // NOTE WORKING
+        Captured_Master_Address_Check[31:0] <= Captured_Master_Address_Check[31:0];
+        Captured_Master_Type_Check[3:0] <= Captured_Master_Type_Check[3:0];
+        master_results_being_returned <= master_results_being_returned;
+      end
+      else
+      begin
+        Captured_Master_Address_Check[31:0] <= Captured_Master_Address_Check[31:0];
+        Captured_Master_Type_Check[3:0] <= Captured_Master_Type_Check[3:0];
+        master_results_being_returned <= master_results_being_returned;
+      end
+    end
+  end
+
+// Capture Error bits in Host Status Register.
+  always @(posedge host_clk)
+  begin
+    if (pci_host_response_data_available_meta)
+    begin
+      if (   ((pci_host_response_type[3:0] ==
+                            `PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT)
+                & pci_host_response_data[31])
+           | (pci_host_response_type[3:0] ==
+                            `PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR)
+           | (pci_host_response_type[3:0] ==
+                            `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR)
+           | (pci_host_response_type[3:0] ==
+                            `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_PERR)
+           | (pci_host_response_type[3:0] ==
+                            `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST_PERR) )
+      begin
+        PERR_Detected <= 1'b1;
+      end
+      else
+      begin
+        PERR_Detected <= 1'b0;
+      end
+
+      if (pci_host_response_type[3:0] ==
+                         `PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT)
+      begin
+        SERR_Detected <=              pci_host_response_data[30];
+        Master_Abort_Received <=      pci_host_response_data[29];
+        Target_Abort_Received <=      pci_host_response_data[28];
+        Caused_Target_Abort <=        pci_host_response_data[27];
+        Caused_PERR <=                pci_host_response_data[24];
+        Discarded_Delayed_Read <=     pci_host_response_data[18];
+        Target_Retry_Or_Disconnect <= pci_host_response_data[17];
+        Illegal_Command_Detected_In_Request_FIFO <= pci_host_response_data[16];
+      end
+      else
+      begin
+        SERR_Detected <= 1'b0;
+        Master_Abort_Received <= 1'b0;
+        Target_Abort_Received <= 1'b0;
+        Caused_Target_Abort <= 1'b0;
+        Caused_PERR <= 1'b0;
+        Discarded_Delayed_Read <= 1'b0;
+        Target_Retry_Or_Disconnect <= 1'b0;
+        Illegal_Command_Detected_In_Request_FIFO <= 1'b0;
+      end
+
+      Illegal_Command_Detected_In_Response_FIFO <=
+         (   (pci_host_response_type[3:0] == `PCI_HOST_RESPONSE_SPARE)
+           | (pci_host_response_type[3:0] == `PCI_HOST_RESPONSE_EXTERNAL_SPARE) );
+    end
+    else
+    begin
+      PERR_Detected <= 1'b0;
+      SERR_Detected <= 1'b0;
+      Master_Abort_Received <= 1'b0;
+      Target_Abort_Received <= 1'b0;
+      Caused_Target_Abort <= 1'b0;
+      Caused_PERR <= 1'b0;
+      Discarded_Delayed_Read <= 1'b0;
+      Target_Retry_Or_Disconnect <= 1'b0;
+      Illegal_Command_Detected_In_Request_FIFO <= 1'b0;
+      Illegal_Command_Detected_In_Response_FIFO <= 1'b0;
+    end
+  end
+
+
 // NOTE WORKING
 // Unload Response FIFO when it is possible to pass its contents to all interested parties.
-  assign  pci_host_response_unload = 1'b0;
+  assign  pci_host_response_unload = pci_host_response_data_available_meta
+             & (   ((pci_host_response_type[3:0] == `PCI_HOST_RESPONSE_SPARE))
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_EXECUTED_ADDRESS_COMMAND))
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT))
+                 | ((pci_host_response_type[3:0] ==// PCI_HOST_RESPONSE_READ_WRITE_CONFIG_REGISTER
+                                   `PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE))
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_R_DATA_W_SENT))
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST))
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR))
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR))
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_EXTERNAL_SPARE))
+                 | ((pci_host_response_type[3:0] ==
+                        `PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE))  // wait!
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_EXT_DELAYED_READ_RESTART))  // wait!
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_EXT_READ_UNSUSPENDING))
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK))  // wait!
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST))  // wait!
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_PERR))  // wait!
+                 | ((pci_host_response_type[3:0] ==
+                               `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST_PERR))   // wait!
+               );
+
 
 // NOTE WORKING
 // Get the next Host Data during a Burst.  In this example Host Interface,
@@ -1059,10 +1187,16 @@ endtask
 // it during compares.
   wire    Calculate_Next_Host_Data_During_Reads = 1'b0;
 
-
 // Check for errors in the Host_Target_State_Machine
   always @(posedge host_clk)
   begin
+    if ((^pci_host_response_type[3:0]) === 1'bX)
+    begin
+      $display ("*** Example Host Controller %h - Host_Target_State_Machine FIFO Type invalid %b, at %t",
+                  test_device_id[2:0], pci_host_response_type[3:0], $time);
+      error_detected <= ~error_detected;
+    end
+    `NO_ELSE;
     if (pci_host_response_error)
     begin
       $display ("*** Example Host Controller %h - Response FIFO reports Error, at %t",
@@ -1095,7 +1229,26 @@ endtask
   assign  Expose_Next_Data_In_Burst = Offer_Next_Host_Data_During_Writes
                                     | Calculate_Next_Host_Data_During_Reads;
 
+
 // Host_Delayed_Read_State_Machine
+// This state machine is given an address by the Host_Respons_FIFO.
+// One of two things can happen.
+//   1) Interface knows all data is prefetchable, so this starts reading immediately.
+//   2) Interface knows that data is NOT prefetchable, so this waits until the
+//      Byte Enables arrive fron the external PCI Master.
+//      If this state machine is lucky, it notices that only a single-word
+//      Read is being done, so it does not waste memory bandwidth by
+//      fetching data the remote PCI Master.
+//
+// This state machine gets notice from the Response FIFO State Machine that
+//   the External PCI Master has requested it's last data.  If this state
+//   machine is pre-fetching, it should stop and insert a last data item
+//   into the prefetch FIFO.
+// This state machine must ALWAYS insert a last data item whenever it is
+//   asked to restart a transfer (even if no real data has been transfered)
+//   and when the external PCI Target finishes it's burst.  This is because
+//   the PCI Interface will flush the FIFO until it sees a last data item.
+
   always @(posedge host_clk)
   begin
     if (host_reset)
@@ -1240,4 +1393,79 @@ monitor_pci_interface_host_port monitor_pci_interface_host_port (
   .host_clk                   (host_clk)
 );
 endmodule
+
+/*
+NOTE WORKING comments which should be deleted later
+
+        `PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE:
+          begin  // also `PCI_HOST_RESPONSE_READ_WRITE_CONFIG_REGISTER
+// A write fence unload response will have Bits 16 and 17 both set to 1'b0.
+// Config References can be identified by noticing that Bits 16 or 17 are non-zero.
+// Data Bits [7:0] are the Byte Address of the Config Register being accessed.
+// Data Bits [15:8] are the single-byte Read Data returned when writing the Config Register.
+// Data Bit  [16] indicates that a Config Write has been done.
+// Data Bit  [17] indicates that a Config Read has been done.
+            Hold_Host_Write_Fence_Request;
+          end
+        `PCI_HOST_RESPONSE_R_DATA_W_SENT:
+          begin  // Master Data returned on Read, or Write Data consumed
+            Hold_Host_Write_Fence_Request;
+          end
+        `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST:
+          begin  // Master Data returned on Read, or Write Data consumed, end of burst
+            Hold_Host_Write_Fence_Request;
+          end
+        `PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR:
+          begin  // Master Data returned on Read, or Write Data consumed
+            Hold_Host_Write_Fence_Request;
+          end
+        `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR:
+          begin  // Master Data returned on Read, or Write Data consumed, end of burst
+            Hold_Host_Write_Fence_Request;
+          end
+        `PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE:
+          begin  // External PCI Device has started a reference
+            Hold_Host_Write_Fence_Request;
+          end
+        `PCI_HOST_RESPONSE_EXT_DELAYED_READ_RESTART:
+          begin  // A write occurred while servicing a Delayed Read.  Start the Read over
+            Hold_Host_Write_Fence_Request;
+          end
+        `PCI_HOST_RESPONSE_EXT_READ_UNSUSPENDING:
+          begin  // A Delayed Read was suspended due to Write Traffic.  Continue the Read
+            Hold_Host_Write_Fence_Request;
+          end
+        `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK:
+          begin  // Target Data returned on Read, or Write Data consumed
+            Hold_Host_Write_Fence_Request;
+          end
+        `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST:
+          begin  // Target Data returned on Read, or Write Data consumed, end of burst
+            Hold_Host_Write_Fence_Request;
+          end
+        `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_PERR:
+          begin  // Target Data returned on Read, or Write Data consumed
+            Hold_Host_Write_Fence_Request;
+          end
+        `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST_PERR:
+          begin  // Target Data returned on Read, or Write Data consumed, end of burst
+            Hold_Host_Write_Fence_Request;
+          end
+        default:
+          begin
+            target_sees_read_end <= 1'b0;
+            delayed_read_start_requested <= 1'b0;
+            delayed_read_stop_seen <= 1'b0;
+            delayed_read_flush_requested <= 1'b0;
+
+          end
+        endcase
+      end
+      else
+      begin  // Nothing in FIFO, so just sit in present state
+        Hold_Host_Write_Fence_Request;
+      end
+    end
+  end
+*/
 
