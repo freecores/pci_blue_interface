@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_master.v,v 1.25 2001-09-02 11:32:42 bbeaver Exp $
+// $Id: test_pci_master.v,v 1.26 2001-09-07 11:28:52 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -449,27 +449,27 @@ endtask
 
 // Make shorthand command task so that it is easier to set things up.
 // CRITICAL WRITE must always be READ + 1.  Used in _pair task below.
-parameter noop = 0;
-parameter REG_READ  =        1;
-parameter REG_WRITE =        2;
-parameter FENCE =            3;
-parameter CONFIG_READ  =     4;
-parameter CONFIG_WRITE =     5;
-parameter MEM_READ =         6;
-parameter MEM_WRITE =        7;
-parameter MEM_READ_SERR =    8;
-parameter MEM_WRITE_SERR =   9;
+  parameter noop = 0;
+  parameter REG_READ  =        1;
+  parameter REG_WRITE =        2;
+  parameter FENCE =            3;
+  parameter CONFIG_READ  =     4;
+  parameter CONFIG_WRITE =     5;
+  parameter MEM_READ =         6;
+  parameter MEM_WRITE =        7;
+  parameter MEM_READ_SERR =    8;
+  parameter MEM_WRITE_SERR =   9;
 
-parameter DATA =            10;
-parameter DATA_PERR =       11;
-parameter DATA_LAST =       12;
-parameter DATA_LAST_PERR =  13;
+  parameter DATA =            10;
+  parameter DATA_PERR =       11;
+  parameter DATA_LAST =       12;
+  parameter DATA_LAST_PERR =  13;
 
-parameter DEV =                      1;
-parameter DEV_TRANSFER_DATA =        2;
-parameter DEV_RETRY_WITH_OLD_DATA =  3;
-parameter DEV_RETRY_WITH_NEW_DATA =  4;
-parameter TARGET_ABORT =             5;
+  parameter DEV =                      1;
+  parameter DEV_TRANSFER_DATA =        2;
+  parameter DEV_RETRY_WITH_OLD_DATA =  3;
+  parameter DEV_RETRY_WITH_NEW_DATA =  4;
+  parameter TARGET_ABORT =             5;
 
 task do_master_test;
   input  [7:0] total_time;
@@ -773,7 +773,7 @@ task do_master_test;
         if (target_time_5[7:0] != 8'h00)
         begin
           for (dts5 = 8'h00; dts5 <= target_time_5[7:0]; dts5 = dts5 + 8'h01) @(negedge pci_clk);
-          if (target_dts_1[2:0] == DEV)
+          if (target_dts_5[2:0] == DEV)
           begin  pci_devsel;  end
           else if (target_dts_5[2:0] == DEV_TRANSFER_DATA)
           begin  pci_devsel;  pci_trdy;  end
@@ -889,19 +889,6 @@ task do_test_master_read_write_pair;
   end
 endtask
 
-// delay signals like the Pads delay them
-  always @(posedge pci_clk)
-  begin
-    pci_gnt_in_prev <= pci_gnt_in_critical;
-    pci_ad_in_prev[PCI_BUS_DATA_RANGE:0] <= pci_ad_in_comb[PCI_BUS_DATA_RANGE:0];
-    pci_devsel_in_prev <= pci_devsel_in_critical;
-    pci_frame_in_prev <= pci_frame_in_critical;
-    pci_irdy_in_prev <= pci_irdy_in_critical;
-    pci_trdy_in_prev <= pci_trdy_in_critical;
-    pci_stop_in_prev <= pci_stop_in_critical;
-    pci_perr_in_prev <= pci_perr_in_comb;
-  end
-
 // Initialize signals which are set for 1 clock by tasks to create activity
   initial
   begin
@@ -922,6 +909,19 @@ endtask
     pci_stop_in_critical <= 1'b0;
     pci_stop_in_prev <= pci_stop_in_critical;
     pci_perr_in_prev <= 1'b0;
+  end
+
+// delay signals like the Pads delay them
+  always @(posedge pci_clk)
+  begin
+    pci_gnt_in_prev <= pci_gnt_in_critical;
+    pci_ad_in_prev[PCI_BUS_DATA_RANGE:0] <= pci_ad_in_comb[PCI_BUS_DATA_RANGE:0];
+    pci_devsel_in_prev <= pci_devsel_in_critical;
+    pci_frame_in_prev <= pci_frame_in_critical;
+    pci_irdy_in_prev <= pci_irdy_in_critical;
+    pci_trdy_in_prev <= pci_trdy_in_critical;
+    pci_stop_in_prev <= pci_stop_in_critical;
+    pci_perr_in_prev <= pci_perr_in_comb;
   end
 
 // Remove signals which are set for 1 clock by tasks to create activity

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_target.v,v 1.5 2001-09-04 04:51:56 bbeaver Exp $
+// $Id: test_pci_target.v,v 1.6 2001-09-07 11:28:53 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -59,8 +59,6 @@
 // NOTE:  This module is for development purposes only.
 //        The waveforms will be examined to determine pass
 //        or fail.
-//
-// NOTE: NOT WORKED ON YET.  A copy of TEST_PCI_MASTER!
 //
 //===========================================================================
 
@@ -153,6 +151,7 @@ module pci_test_target (
   output  new_data;
   output  inc;     // TEMPORARY
 
+// `define TARGET_INCLUDED
 `ifdef TARGET_INCLUDED
 // GROSS debugging signal. Only here to put signal in waveform.
   assign  pci_state[4:0]        = pci_blue_target.PCI_Master_State[4:0];                  // TEMPORARY
@@ -360,6 +359,9 @@ endtask
 task write_reg;
   input  [PCI_BUS_CBE_RANGE:0] ref_type;
   begin
+    pci_ad_in_comb[PCI_BUS_DATA_RANGE:0] = `PCI_BUS_DATA_X;
+    pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0] = ref_type[PCI_BUS_CBE_RANGE:0];
+    pci_frame;
   end
 endtask
 
@@ -367,6 +369,10 @@ task write_addr;
   input  [PCI_BUS_CBE_RANGE:0] ref_type;
   input   serr_requested;
   begin
+    pci_ad_in_comb[PCI_BUS_DATA_RANGE:0] = `PCI_BUS_DATA_X;
+    pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0] = ref_type[PCI_BUS_CBE_RANGE:0];
+    pci_frame;
+    inc_ext_addr;
   end
 endtask
 
@@ -374,6 +380,16 @@ task read_be;
   input  [PCI_BUS_CBE_RANGE:0] byte_enables;
   input   last_requested;
   begin
+    pci_ad_in_comb[PCI_BUS_DATA_RANGE:0] = `PCI_BUS_DATA_X;
+    pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0] = byte_enables[PCI_BUS_CBE_RANGE:0];
+    if (last_requested == 1'b1)
+    begin
+      pci_irdy;
+    end
+    else
+    begin
+      pci_frame;  pci_irdy;
+    end
   end
 endtask
 
@@ -382,6 +398,17 @@ task write_data;
   input   last_requested;
   input   perr_requested;
   begin
+    pci_ad_in_comb[PCI_BUS_DATA_RANGE:0] = `PCI_BUS_DATA_X;
+    pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0] = byte_enables[PCI_BUS_CBE_RANGE:0];
+    if (last_requested == 1'b1)
+    begin
+      pci_irdy;
+    end
+    else
+    begin
+      pci_frame;  pci_irdy;
+    end
+    inc_ext_data;
   end
 endtask
 
@@ -787,19 +814,6 @@ task do_test_target_read_write_pair;
   end
 endtask
 
-// delay signals like the Pads delay them
-  always @(posedge pci_clk)
-  begin
-    pci_ad_in_prev[PCI_BUS_DATA_RANGE:0] <= pci_ad_in_comb[PCI_BUS_DATA_RANGE:0];
-    pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] <= pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0];
-    pci_frame_in_prev  <= pci_frame_in_critical;
-    pci_irdy_in_prev   <= pci_irdy_in_critical;
-    pci_devsel_in_prev <= pci_devsel_in_critical;
-    pci_trdy_in_prev   <= pci_trdy_in_critical;
-    pci_stop_in_prev   <= pci_stop_in_critical;
-    pci_perr_in_prev   <= pci_perr_in_comb;
-  end
-
 // Initialize signals which are set for 1 clock by tasks to create activity
   initial
   begin
@@ -817,6 +831,19 @@ endtask
     pci_stop_in_critical   <= 1'b0;
     pci_stop_in_prev       <= 1'b0;
     pci_perr_in_prev       <= 1'b0;
+  end
+
+// delay signals like the Pads delay them
+  always @(posedge pci_clk)
+  begin
+    pci_ad_in_prev[PCI_BUS_DATA_RANGE:0] <= pci_ad_in_comb[PCI_BUS_DATA_RANGE:0];
+    pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] <= pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0];
+    pci_frame_in_prev  <= pci_frame_in_critical;
+    pci_irdy_in_prev   <= pci_irdy_in_critical;
+    pci_devsel_in_prev <= pci_devsel_in_critical;
+    pci_trdy_in_prev   <= pci_trdy_in_critical;
+    pci_stop_in_prev   <= pci_stop_in_critical;
+    pci_perr_in_prev   <= pci_perr_in_comb;
   end
 
 // Remove signals which are set for 1 clock by tasks to create activity
@@ -969,7 +996,9 @@ endtask
 
 `endif  // NORMAL_OPS
 
+`ifdef TARGET_INCLUDED
     pci_blue_target.report_missing_transitions;
+`endif  // TARGET_INCLUDED
 
     do_reset;
       do_clocks (4'h4);
