@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: ecc_hamming.v,v 1.2 2001-08-19 13:49:08 bbeaver Exp $
+// $Id: ecc_hamming.v,v 1.3 2001-08-20 06:15:57 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -91,9 +91,10 @@
 // Given 64 bits, calculate 7 bits of ECC check bits and 1 bit of parity.
 // NOTE: Why a module and not a function?  No idea.
 
-module ecc_hamming_calculate_check_bits_internal (
+module ecc_hamming_calculate_check_bits_private (
   data_in,
-  check_bits_out
+  check_bits_out,
+  par_if_inserting_check_bits_out
 );
 
   parameter NUM_DATA_BITS = 64;  // do not override in the instantiation.
@@ -101,6 +102,7 @@ module ecc_hamming_calculate_check_bits_internal (
 
   input  [NUM_DATA_BITS + NUM_CHECK_BITS - 1 : 0] data_in;
   output [NUM_CHECK_BITS - 1 : 0] check_bits_out;
+  output  par_if_inserting_check_bits_out;
 
 // LSB of Check Bits depends on every other input bit.
   wire    parity_1_3_5_7     = data_in[1]  ^ data_in[3]  ^ data_in[5]  ^ data_in[7];
@@ -192,18 +194,29 @@ module ecc_hamming_calculate_check_bits_internal (
   wire    parity_32_35_36_39_40_43 = parity_32_35 ^ parity_36_39 ^ parity_40_43;
   wire    parity_44_47_48_51_52_55 = parity_44_47 ^ parity_48_51 ^ parity_52_55;
 
-  assign  check_bits_out[5] = parity_32_35_36_39_40_43
+  wire    parity_second_quarter = parity_32_35_36_39_40_43
                             ^ parity_44_47_48_51_52_55
                             ^ parity_56_59_60_63;
 
-  assign  check_bits_out[6] = parity_64_67 ^ parity_68_71;
+  assign  check_bits_out[5] = parity_second_quarter;
 
-// NOTE: Very odd.  Want parity across all bits, including Check bits!
-//       BUT the ECC bits contain XOR's of bits in the data.  If you
+  wire    parity_third_quarter = parity_64_67 ^ parity_68_71;
+
+  assign  check_bits_out[6] = parity_third_quarter;
+
+// NOTE: In the generate case, the Check Bit inputs to this function come in
+//         as all 0's.  The generator wants to calculate parity across all bits,
+//         including Check Bits!
+//       The slow, inexpensive way to do this is to calculate the odd parity of
+//         the data including 0's for Check Bits, then XOR that with all of
+//         the check bits to get the actual word checksum.
+//       A faster way to do this is to calculate the final checksum directly.
+//       This starts out by XOR'ing all the Data Bits together.  BUT notice
+//         that the ECC bits contain XOR's of bits in the data.  If you
 //         XOR the Check Bits with the XOR of the Data Bits, some of the
 //         dependencies on certain data bits go away!
-// Could calculate the results using the outputs of the check_bits calculations.
-// Instead, start from scratch and calculate the remaining terms.
+//       This function therefore only bothers to calculate the XOR of the bits
+//         which are not rendered don't cares by the XORing of the check bits.
 
   wire    parity_0_3_5_6 =     data_in[0]  ^ data_in[3]  ^ data_in[5]  ^ data_in[6];
   wire    parity_9_10_12_15 =  data_in[9]  ^ data_in[10] ^ data_in[12] ^ data_in[15];
@@ -213,17 +226,33 @@ module ecc_hamming_calculate_check_bits_internal (
   wire    parity_40_43_45_46 = data_in[40] ^ data_in[43] ^ data_in[45] ^ data_in[46];
   wire    parity_48_51_53_54 = data_in[48] ^ data_in[51] ^ data_in[53] ^ data_in[54];
   wire    parity_57_58_60_63 = data_in[57] ^ data_in[58] ^ data_in[60] ^ data_in[63];
+  wire    parity_65_66_68_71 = data_in[65] ^ data_in[66] ^ data_in[68] ^ data_in[71];
 
   wire    parity_0_3_5_6_9_10_12_15_17_18_20_23 =
                  parity_0_3_5_6 ^ parity_9_10_12_15 ^ parity_17_18_20_23;
   wire    parity_24_27_29_30_33_34_36_39_40_43_45_46 =
                  parity_24_27_29_30 ^ parity_33_34_36_39 ^ parity_40_43_45_46;
   wire    parity_48_51_53_54_57_58_60_63 =
-                 parity_48_51_53_54 ^ parity_57_58_60_63;
+                 parity_48_51_53_54 ^ parity_57_58_60_63 ^ parity_65_66_68_71;
 
-  assign  check_bits_out[7] = parity_0_3_5_6_9_10_12_15_17_18_20_23  // parity for 71 bits
+  assign  par_if_inserting_check_bits_out =
+                              parity_0_3_5_6_9_10_12_15_17_18_20_23
                             ^ parity_24_27_29_30_33_34_36_39_40_43_45_46
                             ^ parity_48_51_53_54_57_58_60_63;
+
+// The module which checks ECC values actually has to look at all the data.
+// Reuse calculations which have already been done.
+
+  wire    parity_0_3_8_11_16_19 =    parity_0_3   ^ parity_8_11  ^ parity_16_19;
+  wire    parity_24_27_28_31 =       parity_24_27 ^ parity_28_31;
+
+  wire    parity_first_quarter = parity_0_3_8_11_16_19
+                               ^ parity_4_7_12_15_20_23
+                               ^ parity_24_27_28_31;
+
+  assign  check_bits_out[7] = parity_first_quarter
+                            ^ parity_second_quarter
+                            ^ parity_third_quarter;
 endmodule
 
 // Given a 64-bit word (with no errors), calculate the 72-bit word which
@@ -250,23 +279,28 @@ module ecc_hamming_generate_word_with_check_bits (
                data_in[10:4],  1'b0,   // check digit 3, bit 8
                data_in[3:1],   1'b0,   // check digit 2, bit 4
                data_in[0],     1'b0,   // check digit 1, bit 2
-               1'b0,           1'b1};  // check digit 0, bit 0 forces odd parity
+               1'b0,           1'b1};  // check digit 0, bit 0 == 1 says odd parity
 
-  wire   [NUM_CHECK_BITS - 1 : 0] check_bits;
+  wire   [NUM_CHECK_BITS - 1 : 0] check_bits_out;
+  wire    par_if_inserting_check_bits_out;
 
-ecc_hamming_calculate_check_bits_internal generate_ecc_bits (
+ecc_hamming_calculate_check_bits_private generate_ecc_bits (
   .data_in                    (input_vector[NUM_DATA_BITS + NUM_CHECK_BITS - 1 : 0]),
-  .check_bits_out             (check_bits[NUM_CHECK_BITS - 1 : 0])
+  .check_bits_out             (check_bits_out[NUM_CHECK_BITS - 1 : 0]),
+  .par_if_inserting_check_bits_out (par_if_inserting_check_bits_out)
 );
 
+// Insert check bits into their nice power-of-2 locations, so they can call
+//   themselves out if they read in error.
   wire   [NUM_DATA_BITS + NUM_CHECK_BITS - 1 : 0] reordered_data_plus_ecc =
-              {data_in[63:57], check_bits[6],   // check digit 6, bit 64
-               data_in[56:26], check_bits[5],   // check digit 5, bit 32
-               data_in[25:11], check_bits[4],   // check digit 4, bit 16
-               data_in[10:4],  check_bits[3],   // check digit 3, bit 8
-               data_in[3:1],   check_bits[2],   // check digit 2, bit 4
-               data_in[0],     check_bits[1],   // check digit 1, bit 2
-               check_bits[0],  check_bits[7]};  // check digit 0, odd parity
+              {data_in[63:57], check_bits_out[6],  // check digit 6, bit 64
+               data_in[56:26], check_bits_out[5],  // check digit 5, bit 32
+               data_in[25:11], check_bits_out[4],  // check digit 4, bit 16
+               data_in[10:4],  check_bits_out[3],  // check digit 3, bit 8
+               data_in[3:1],   check_bits_out[2],  // check digit 2, bit 4
+               data_in[0],     check_bits_out[1],  // check digit 1, bit 2
+               check_bits_out[0],                  // check digit 0, bit 1
+                           par_if_inserting_check_bits_out};   // odd parity, bit 0
 
   reg    [NUM_DATA_BITS + NUM_CHECK_BITS - 1 : 0] data_plus_ecc_out;
 
@@ -304,6 +338,7 @@ endmodule
 module ecc_hamming_correct (
   data_plus_ecc_in,
   corrected_data_out,
+  corrected_check_bits_out,
   single_bit_error_corrected,
   double_bit_error_detected,
   error_address,
@@ -316,6 +351,7 @@ module ecc_hamming_correct (
   input  [NUM_DATA_BITS  + NUM_CHECK_BITS - 1 : 0] data_plus_ecc_in;
 
   output [NUM_DATA_BITS - 1 : 0] corrected_data_out;
+  output [NUM_CHECK_BITS - 1 : 0] corrected_check_bits_out;
 
   output  single_bit_error_corrected;
   output  double_bit_error_detected;
@@ -326,24 +362,30 @@ module ecc_hamming_correct (
 
 // If there is an error, the XOR of the calculated and stored Check Bits
 //   gives the address of the failing bit.
-// HOWEVER, the parity also has something to say.  If there is an error
-//   AND the parity matches, that means that there were at least 2 errors!
+// The calculate_check_bits module, when applied to a word containing check bits,
+//   will do the XOR automatically.  The output is the address of the failing bit.
   wire   [NUM_CHECK_BITS - 1 : 0] check_bits;
+  wire    par_if_inserting_check_bits_out;  // ignore
 
-ecc_hamming_calculate_check_bits_internal check_ecc_bits (
+ecc_hamming_calculate_check_bits_private check_ecc_bits (
   .data_in                    (data_plus_ecc_in[NUM_DATA_BITS + NUM_CHECK_BITS - 1 : 0]),
-  .check_bits_out             (check_bits[NUM_CHECK_BITS - 1 : 0])
+  .check_bits_out             (check_bits[NUM_CHECK_BITS - 1 : 0]),
+  .par_if_inserting_check_bits_out (par_if_inserting_check_bits_out)
 );
 
-  wire    parity_error_detected = (check_bits[7] == data_plus_ecc_in[0]);
+  wire    parity_error_detected = ~check_bits[7];  // If data was Odd Parity, return 1'b1;
 
-  wire    correction_needed = (check_bits[6:0] != 7'h00);  // non-zero bit to correct
+  wire    parity_bit_wrong = (check_bits[6:0] == 7'h00) & parity_error_detected;
 
-  wire    unexpected_error_address = (check_bits[6:0] >= 8'h48);  // greater than 72
+  wire    correction_needed = (check_bits[6:0] != 7'h00)  // non-zero means correct!
+                            | parity_bit_wrong;
+
+  wire    unexpected_error_address = (check_bits[6:0] >= 8'h48);  // >= 72
 
 // If there is an error, need to make a mask to XOR with the data in order to
 //   get the corrected data back.
 // Verilogger seems to be in a core-dumping mood with a straight-forward shift.
+// Doing things manually will result in better logic, anyway.
   wire   [1:0] mask_0  = check_bits[0] ? 2'b10 : 2'b01;
   wire   [3:0] mask_1  = check_bits[1]
                          ? {mask_0[1:0], 2'b00}
@@ -365,7 +407,8 @@ ecc_hamming_calculate_check_bits_internal check_ecc_bits (
                          : {8'h00, mask_5[63:0]};
 
   wire   [NUM_DATA_BITS + NUM_CHECK_BITS - 1 : 0] error_corrected_data =
-            data_plus_ecc_in[NUM_DATA_BITS + NUM_CHECK_BITS - 1 : 0] ^ mask_6[71:0];
+              data_plus_ecc_in[NUM_DATA_BITS + NUM_CHECK_BITS - 1 : 0]
+            ^ {mask_6[71:1], parity_bit_wrong};
 
   wire   [NUM_DATA_BITS - 1 : 0] reordered_corrected_data =
               {error_corrected_data[71:65],
@@ -375,7 +418,18 @@ ecc_hamming_calculate_check_bits_internal check_ecc_bits (
                error_corrected_data[7:5],
                error_corrected_data[3]};
 
+  wire   [NUM_CHECK_BITS - 1 : 0] reordered_corrected_check_bits =
+              {error_corrected_data[0],
+               error_corrected_data[64],
+               error_corrected_data[32],
+               error_corrected_data[16],
+               error_corrected_data[8],
+               error_corrected_data[4],
+               error_corrected_data[2],
+               error_corrected_data[1]};
+
   reg    [NUM_DATA_BITS - 1 : 0] corrected_data_out;
+  reg    [NUM_CHECK_BITS - 1 : 0] corrected_check_bits_out;
   reg     single_bit_error_corrected;
   reg     double_bit_error_detected;
   reg    [6:0] error_address;
@@ -384,29 +438,38 @@ ecc_hamming_calculate_check_bits_internal check_ecc_bits (
   begin
     corrected_data_out[NUM_DATA_BITS - 1 : 0] <=
                                  reordered_corrected_data[NUM_DATA_BITS - 1 : 0];
-    single_bit_error_corrected <= correction_needed & parity_error_detected;
+    corrected_check_bits_out[NUM_CHECK_BITS - 1 : 0] <=
+                          reordered_corrected_check_bits[NUM_CHECK_BITS - 1 : 0];
+    single_bit_error_corrected <= correction_needed &  parity_error_detected;
     double_bit_error_detected <= (correction_needed & ~parity_error_detected)
                                | unexpected_error_address;
-    error_address[6:0] <= check_bits[6:0];  // NOTE: work parity errors in here too.
+    error_address[6:0] <= parity_bit_wrong
+                        ? 8'h48  // 72
+                        : check_bits[6:0];
   end
 endmodule
 
-`define TEST_ECC_CODE
+//  `define TEST_ECC_CODE
 `ifdef TEST_ECC_CODE
 module test_ecc ();
+
+  parameter NUM_DATA_BITS = 64;  // do not override in the instantiation.
+  parameter NUM_CHECK_BITS = 8;
+
   reg     clk;
-  reg    [63:0] data_in;
-  wire   [71:0] data_plus_ecc_out;
-  wire   [71:0] data_plus_ecc_in;
-  reg    [71:0] force_error;
-  wire   [63:0] corrected_data_out;
+  reg    [NUM_DATA_BITS - 1 : 0] data_in;
+  wire   [NUM_DATA_BITS + NUM_CHECK_BITS - 1 : 0] data_plus_ecc_out;
+  wire   [NUM_DATA_BITS + NUM_CHECK_BITS - 1 : 0] data_plus_ecc_in;
+  reg    [NUM_DATA_BITS + NUM_CHECK_BITS - 1 : 0] force_error;
+  wire   [NUM_DATA_BITS - 1 : 0] corrected_data_out;
+  wire   [NUM_CHECK_BITS - 1 : 0] corrected_check_bits_out;
   wire    single_bit_error_corrected;
   wire    double_bit_error_detected;
   wire   [6:0] error_address;
 
-  reg    [63:0] data_pattern;
-  reg    [71:0] error_mask_1;
-  reg    [71:0] error_mask_2;
+  reg    [NUM_DATA_BITS - 1 : 0] data_pattern;
+  reg    [NUM_DATA_BITS + NUM_CHECK_BITS - 1 : 0] error_mask_1;
+  reg    [NUM_DATA_BITS + NUM_CHECK_BITS - 1 : 0] error_mask_2;
   integer cnt;
 
 task make_clk;
@@ -418,6 +481,16 @@ task make_clk;
     # 1;
   end
 endtask
+
+  wire   [NUM_CHECK_BITS - 1 : 0] original_check_bits =
+              {data_plus_ecc_out[0],
+               data_plus_ecc_out[64],
+               data_plus_ecc_out[32],
+               data_plus_ecc_out[16],
+               data_plus_ecc_out[8],
+               data_plus_ecc_out[4],
+               data_plus_ecc_out[2],
+               data_plus_ecc_out[1]};
 
   initial
   begin
@@ -433,8 +506,10 @@ endtask
       force_error = 72'h00_00000000_00000000;
       make_clk;
       make_clk;
-      if (corrected_data_out !== data_in)
+      if (data_in !== corrected_data_out)
         $display ("Data In != Data Out %x %x", data_in, corrected_data_out);
+      if (original_check_bits !== corrected_check_bits_out)
+        $display ("Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
       if (single_bit_error_corrected !== 1'b0)
         $display ("Unexpected Single Bit Error Detected %x %x %x",
                    single_bit_error_corrected, data_pattern, data_plus_ecc_in);
@@ -455,6 +530,28 @@ endtask
       make_clk;
       if (corrected_data_out !== data_in)
         $display ("Data In != Data Out %x %x", data_in, corrected_data_out);
+      if (original_check_bits !== corrected_check_bits_out)
+        $display ("Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
+      if (single_bit_error_corrected !== 1'b0)
+        $display ("Unexpected Single Bit Error Detected %x %x %x",
+                   single_bit_error_corrected, data_pattern, data_plus_ecc_in);
+      if (double_bit_error_detected !== 1'b0)
+        $display ("Unexpected Double Bit Error Detected %x %x %x",
+                   double_bit_error_detected, data_pattern, data_plus_ecc_in);
+    end
+
+    $display ("Sending Random Data");
+// need to check that walking 0 bit goes through correctly.
+    for (cnt = 0; cnt < 1000; cnt = cnt + 1)
+    begin
+      data_in = {$random, $random};
+      force_error = 72'h00_00000000_00000000;
+      make_clk;
+      make_clk;
+      if (corrected_data_out !== data_in)
+        $display ("Data In != Data Out %x %x", data_in, corrected_data_out);
+      if (original_check_bits !== corrected_check_bits_out)
+        $display ("Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
       if (single_bit_error_corrected !== 1'b0)
         $display ("Unexpected Single Bit Error Detected %x %x %x",
                    single_bit_error_corrected, data_pattern, data_plus_ecc_in);
@@ -475,12 +572,26 @@ endtask
       make_clk;
       if (corrected_data_out !== data_in)
         $display ("Data In != Data Out %x %x", data_in, corrected_data_out);
+      if (original_check_bits !== corrected_check_bits_out)
+        $display ("Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
       if (single_bit_error_corrected !== 1'b1)
         $display ("Expected Single Bit Error Missed %x %x %x",
                    single_bit_error_corrected, error_mask_1, data_plus_ecc_in);
       if (double_bit_error_detected !== 1'b0)
         $display ("Unexpected Double Bit Error Detected %x %x %x",
                    double_bit_error_detected, error_mask_1, data_plus_ecc_in);
+      if (   (error_mask_1 == 72'h00_00000000_00000001)
+           & (error_address != 8'h48) )
+        $display ("Parity Error calls out wrong bit offset %x %x",
+                   error_address, data_plus_ecc_in);
+      if (   (error_mask_1 == 72'h00_00000000_00000001)
+           & (error_address != 8'h48) )
+        $display ("Bit 0 calls out wrong bit offset %x %x",
+                   error_address, data_plus_ecc_in);
+      if (   (error_mask_1 == 72'h80_00000000_00000000)
+           & (error_address != 8'h47) )
+        $display ("Bit 71 calls out wrong bit offset %x %x",
+                   error_address, data_plus_ecc_in);
     end
 
     $display ("Making 0 go to 1, odd parity, error check");
@@ -495,12 +606,26 @@ endtask
       make_clk;
       if (corrected_data_out !== data_in)
         $display ("Data In != Data Out %x %x", data_in, corrected_data_out);
+      if (original_check_bits !== corrected_check_bits_out)
+        $display ("Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
       if (single_bit_error_corrected !== 1'b1)
         $display ("Expected Single Bit Error Missed %x %x %x",
                    single_bit_error_corrected, error_mask_1, data_plus_ecc_in);
       if (double_bit_error_detected !== 1'b0)
         $display ("Unexpected Double Bit Error Detected %x %x %x",
                    double_bit_error_detected, error_mask_1, data_plus_ecc_in);
+      if (   (error_mask_1 == 72'h00_00000000_00000001)
+           & (error_address != 8'h48) )
+        $display ("Parity Error calls out wrong bit offset %x %x",
+                   error_address, data_plus_ecc_in);
+      if (   (error_mask_1 == 72'h00_00000000_00000001)
+           & (error_address != 8'h48) )
+        $display ("Bit 0 calls out wrong bit offset %x %x",
+                   error_address, data_plus_ecc_in);
+      if (   (error_mask_1 == 72'h80_00000000_00000000)
+           & (error_address != 8'h47) )
+        $display ("Bit 71 calls out wrong bit offset %x %x",
+                   error_address, data_plus_ecc_in);
     end
 
     $display ("Making 1 go to 0, even parity, error check");
@@ -515,12 +640,26 @@ endtask
       make_clk;
       if (corrected_data_out !== data_in)
         $display ("Data In != Data Out %x %x", data_in, corrected_data_out);
+      if (original_check_bits !== corrected_check_bits_out)
+        $display ("Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
       if (single_bit_error_corrected !== 1'b1)
         $display ("Expected Single Bit Error Missed %x %x %x",
                    single_bit_error_corrected, error_mask_1, data_plus_ecc_in);
       if (double_bit_error_detected !== 1'b0)
         $display ("Unexpected Double Bit Error Detected %x %x %x",
                    double_bit_error_detected, error_mask_1, data_plus_ecc_in);
+      if (   (error_mask_1 == 72'h00_00000000_00000001)
+           & (error_address != 8'h48) )
+        $display ("Parity Error calls out wrong bit offset %x %x",
+                   error_address, data_plus_ecc_in);
+      if (   (error_mask_1 == 72'h00_00000000_00000001)
+           & (error_address != 8'h48) )
+        $display ("Bit 0 calls out wrong bit offset %x %x",
+                   error_address, data_plus_ecc_in);
+      if (   (error_mask_1 == 72'h80_00000000_00000000)
+           & (error_address != 8'h47) )
+        $display ("Bit 71 calls out wrong bit offset %x %x",
+                   error_address, data_plus_ecc_in);
     end
 
     $display ("Making 1 go to 0, odd parity, error check");
@@ -535,12 +674,26 @@ endtask
       make_clk;
       if (corrected_data_out !== data_in)
         $display ("Data In != Data Out %x %x", data_in, corrected_data_out);
+      if (original_check_bits !== corrected_check_bits_out)
+        $display ("Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
       if (single_bit_error_corrected !== 1'b1)
         $display ("Expected Single Bit Error Missed %x %x %x",
                    single_bit_error_corrected, error_mask_1, data_plus_ecc_in);
       if (double_bit_error_detected !== 1'b0)
         $display ("Unexpected Double Bit Error Detected %x %x %x",
                    double_bit_error_detected, error_mask_1, data_plus_ecc_in);
+      if (   (error_mask_1 == 72'h00_00000000_00000001)
+           & (error_address != 8'h48) )
+        $display ("Parity Error calls out wrong bit offset %x %x",
+                   error_address, data_plus_ecc_in);
+      if (   (error_mask_1 == 72'h00_00000000_00000001)
+           & (error_address != 8'h48) )
+        $display ("Bit 0 calls out wrong bit offset %x %x",
+                   error_address, data_plus_ecc_in);
+      if (   (error_mask_1 == 72'h80_00000000_00000000)
+           & (error_address != 8'h47) )
+        $display ("Bit 71 calls out wrong bit offset %x %x",
+                   error_address, data_plus_ecc_in);
     end
 
     $display ("Walking error, random data, error check");
@@ -549,7 +702,7 @@ endtask
          error_mask_1 != 72'h0;
          error_mask_1 = error_mask_1 << 1)
     begin
-      for (cnt = 0; cnt < 2; cnt = cnt + 1)
+      for (cnt = 0; cnt < 25; cnt = cnt + 1)
       begin
         data_in = {$random, $random};
         force_error = error_mask_1;
@@ -557,19 +710,33 @@ endtask
         make_clk;
         if (corrected_data_out !== data_in)
           $display ("Data In != Data Out %x %x", data_in, corrected_data_out);
+        if (original_check_bits !== corrected_check_bits_out)
+          $display ("Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
         if (single_bit_error_corrected !== 1'b1)
           $display ("Expected Single Bit Error Missed %x %x %x",
                      single_bit_error_corrected, error_mask_1, data_plus_ecc_in);
         if (double_bit_error_detected !== 1'b0)
           $display ("Unexpected Double Bit Error Detected %x %x %x",
                      double_bit_error_detected, error_mask_1, data_plus_ecc_in);
+      if (   (error_mask_1 == 72'h00_00000000_00000001)
+           & (error_address != 8'h48) )
+        $display ("Parity Error calls out wrong bit offset %x %x",
+                   error_address, data_plus_ecc_in);
+      if (   (error_mask_1 == 72'h00_00000000_00000001)
+           & (error_address != 8'h48) )
+        $display ("Bit 0 calls out wrong bit offset %x %x",
+                   error_address, data_plus_ecc_in);
+      if (   (error_mask_1 == 72'h80_00000000_00000000)
+           & (error_address != 8'h47) )
+        $display ("Bit 71 calls out wrong bit offset %x %x",
+                   error_address, data_plus_ecc_in);
       end
     end
 
     $display ("testing 2-bit errors, random data, error check");
 // need to check 2 bit errors detected.
     for (error_mask_1 = 72'h00_00000000_00000001;
-         error_mask_1 != 72'h0;
+         error_mask_1 != 72'h80_00000000_00000000;
          error_mask_1 = error_mask_1 << 1)
     begin
       for (error_mask_2 = error_mask_1 << 1;
@@ -578,11 +745,19 @@ endtask
       begin
         if (error_mask_1 != error_mask_2)
         begin
+          data_in = {$random, $random};
           force_error = error_mask_1 | error_mask_2;
+          make_clk;
+          make_clk;
+          if (single_bit_error_corrected !== 1'b0)
+            $display ("Unexpected Single Bit Error Detected %x %x %x",
+                       single_bit_error_corrected, error_mask_1, data_plus_ecc_in);
+          if (double_bit_error_detected !== 1'b1)
+            $display ("Expected Double Bit Error Missed %x %x %x",
+                       double_bit_error_detected, error_mask_1, data_plus_ecc_in);
         end
       end
     end
-
   end
 
 ecc_hamming_generate_word_with_check_bits generate (
@@ -596,6 +771,7 @@ ecc_hamming_generate_word_with_check_bits generate (
 ecc_hamming_correct correct (
   .data_plus_ecc_in           (data_plus_ecc_in),
   .corrected_data_out         (corrected_data_out),
+  .corrected_check_bits_out   (corrected_check_bits_out),
   .single_bit_error_corrected (single_bit_error_corrected),
   .double_bit_error_detected  (double_bit_error_detected),
   .error_address              (error_address),
