@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_constants.vh,v 1.2 2001-02-23 13:18:35 bbeaver Exp $
+// $Id: pci_blue_constants.vh,v 1.3 2001-02-24 11:29:37 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -79,7 +79,7 @@
 `define PCI_COMMAND_DUAL_ADDRESS_CYCLE         (4'b1101)
 `define PCI_COMMAND_MEMORY_READ_LINE           (4'b1110)
 `define PCI_COMMAND_MEMORY_WRITE_INVALIDATE    (4'b1111)
-`define PCI_COMMAND_ANY_WRITE_COMMAND_MASK     (4'b0001)
+`define PCI_COMMAND_ANY_WRITE_MASK             (4'b0001)
 
 
 // Config Register Area consists of:
@@ -155,7 +155,7 @@
 // Data Bit  [16] indicates that a Config Write should be done.
 // Data Bit  [17] indicates that a Config Read should be done.
 // This Request must be issued with either Data Bits 16 or 17 set to 1'b1.
-`define PCI_HOST_REQUEST_READ_WRITE_CONFIG_REGISTER      (3'h3)
+// `define PCI_HOST_REQUEST_READ_WRITE_CONFIG_REGISTER      (3'h3)
 // Fifth, Requests saying Write Data, Read or Write Byte Masks, and End Burst.
 `define PCI_HOST_REQUEST_W_DATA_RW_MASK                  (3'h4)
 `define PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST             (3'h5)
@@ -199,7 +199,7 @@
 // Data Bit  [16] indicates that a Config Write has been done.
 // Data Bit  [17] indicates that a Config Read has been done.
 // This Response will be issued with either Data Bits 16 or 17 set to 1'b1.
-`define PCI_HOST_RESPONSE_READ_WRITE_CONFIG_REGISTER     (4'h3)
+// `define PCI_HOST_RESPONSE_READ_WRITE_CONFIG_REGISTER     (4'h3)
 // Sixth, Responses indicating that Write Data was delivered, Read Data is available,
 //   End Of Burst, and that a Parity Error occurred the previous data cycle.
 `define PCI_HOST_RESPONSE_R_DATA_W_SENT                  (4'h4)
