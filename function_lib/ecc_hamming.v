@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: ecc_hamming.v,v 1.7 2001-08-26 11:12:19 bbeaver Exp $
+// $Id: ecc_hamming.v,v 1.8 2001-08-30 10:08:46 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //

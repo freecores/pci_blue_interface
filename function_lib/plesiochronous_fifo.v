@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: plesiochronous_fifo.v,v 1.3 2001-08-29 11:30:58 bbeaver Exp $
+// $Id: plesiochronous_fifo.v,v 1.4 2001-08-30 10:08:46 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //

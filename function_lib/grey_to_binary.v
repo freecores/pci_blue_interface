@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: grey_to_binary.v,v 1.7 2001-08-29 11:30:58 bbeaver Exp $
+// $Id: grey_to_binary.v,v 1.8 2001-08-30 10:08:46 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
