@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_fifo_flags.v,v 1.7 2001-07-01 06:39:03 bbeaver Exp $
+// $Id: pci_blue_fifo_flags.v,v 1.8 2001-07-03 09:20:53 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -198,6 +198,7 @@ module pci_blue_fifo_flags (
   read_flag_before_data_const,
   read_clk, read_sync_clk, read_remove, read_enable,
   read_data_available_meta,  // NOTE Needs extra settling time to avoid metastability
+  read_two_words_available_meta,
   read_address,
   read_error
 );
@@ -215,6 +216,7 @@ module pci_blue_fifo_flags (
   input   read_remove;  // from side which is removing data
   output  read_enable;  // to data storage elements (to power up?)
   output  read_data_available_meta;
+  output  read_two_words_available_meta;
   output [3:0] read_address;
   output  read_error;
 
@@ -265,7 +267,7 @@ function  [3:0] grey_code_counter_inc;
 // synopsys translate_off
         if ($time > 0)
         begin
-          $display ("*** fifo pointer has invalid value %h, at %t",
+          $display ("*** %m fifo pointer has invalid value %h, at %t",
                                                  counter_in[3:0], $time);
         end
         `NO_ELSE;
@@ -289,7 +291,7 @@ function  [3:0] grey_code_counter_inc;
 // synopsys translate_off
         if ($time > 0)
         begin
-          $display ("*** fifo pointer has invalid value %h, at %t",
+          $display ("*** %m fifo pointer has invalid value %h, at %t",
                                                  counter_in[3:0], $time);
         end
         `NO_ELSE;
@@ -315,7 +317,7 @@ function  [3:0] grey_code_counter_inc;
 // synopsys translate_off
         if ($time > 0)
         begin
-          $display ("*** fifo pointer has invalid value %h, at %t",
+          $display ("*** %m fifo pointer has invalid value %h, at %t",
                                                  counter_in[3:0], $time);
         end
         `NO_ELSE;
@@ -348,7 +350,7 @@ function  [3:0] grey_code_counter_inc;
 // synopsys translate_off
         if ($time > 0)
         begin
-          $display ("*** fifo pointer has invalid value %h, at %t",
+          $display ("*** %m fifo pointer has invalid value %h, at %t",
                                                  counter_in[3:0], $time);
         end
         `NO_ELSE;
@@ -457,11 +459,16 @@ endfunction
   wire   [3:0] selected_sync_write_greycode_counter = read_flag_before_data_const
                                        ? double_sync_write_greycode_counter[3:0]
                                        : sync_write_greycode_counter[3:0];
+  wire   [3:0] next_read_greycode_counter =
+                          grey_code_counter_inc (read_greycode_counter[3:0]);
   wire    read_side_not_empty = (read_greycode_counter[3:0]
                                       != selected_sync_write_greycode_counter[3:0]);
 
 // Tell outside world data available.  NOTE possible metastability!
   assign  read_data_available_meta = read_side_not_empty;
+  assign  read_two_words_available_meta = read_side_not_empty
+                              & (next_read_greycode_counter[3:0]
+                                      != selected_sync_write_greycode_counter[3:0]);
 
 // Either read constantly if Read Data needs to be available at the same time as
 //   the Flag is seen as valid, or only read whenever Data is known to be available.
@@ -481,8 +488,7 @@ endfunction
     begin
       if (read_remove & read_side_not_empty)
       begin
-        read_greycode_counter[3:0] <=
-                   grey_code_counter_inc (read_greycode_counter[3:0]);
+        read_greycode_counter[3:0] <= next_read_greycode_counter[3:0];
         read_address[3:0] <= address_inc (read_address[3:0]);
       end
       else
@@ -558,7 +564,7 @@ pci_synchronizer_flop sync_write_counter_3 (
   begin
     if (($time > 0) & ~write_data_before_flag_const & ~read_flag_before_data_const)
     begin
-      $display ("*** pci_fifo_flags - ASYNC FIFO must either write Data before Flag, or read Data after Flag, at %t",
+      $display ("*** %m - ASYNC FIFO must either write Data before Flag, or read Data after Flag, at %t",
                   $time);
     end
     `NO_ELSE;
@@ -568,7 +574,7 @@ pci_synchronizer_flop sync_write_counter_3 (
   begin
     if (($time > 0) & ~reset_flags_async & ((write_submit ^ write_submit) === 1'bX))
     begin
-      $display ("*** pci_fifo_flags - Write_Submit invalid, at %t",
+      $display ("*** %m - Write_Submit invalid, at %t",
                   write_submit, $time);
     end
     `NO_ELSE;
@@ -577,7 +583,7 @@ pci_synchronizer_flop sync_write_counter_3 (
   begin
     if (($time > 0) & ~reset_flags_async & ((read_remove ^ read_remove) === 1'bX))
     begin
-      $display ("*** pci_fifo_flags - Read_Remove invalid, at %t",
+      $display ("*** %m - Read_Remove invalid, at %t",
                   read_remove, $time);
     end
     `NO_ELSE;

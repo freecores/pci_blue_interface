@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_target_pads.v,v 1.7 2001-06-25 08:50:04 bbeaver Exp $
+// $Id: pci_target_pads.v,v 1.8 2001-07-03 09:21:30 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -112,8 +112,8 @@ module pci_target_pads (
   pci_clk
 );
 
-  inout  [31:0] pci_ext_ad;
-  inout  [3:0] pci_ext_cbe_l;
+  inout  [`PCI_BUS_DATA_RANGE] pci_ext_ad;
+  inout  [`PCI_BUS_CBE_RANGE] pci_ext_cbe_l;
   inout   pci_ext_par;
   inout   pci_ext_frame_l;
   inout   pci_ext_irdy_l;
@@ -126,13 +126,13 @@ module pci_target_pads (
   input   pci_ext_idsel;
 `endif // PCI_EXTERNAL_IDSEL
 
-  output [31:0] pci_ad_in_prev;
-  input  [31:0] pci_ad_out_next;
+  output [`PCI_BUS_DATA_RANGE] pci_ad_in_prev;
+  input  [`PCI_BUS_DATA_RANGE] pci_ad_out_next;
   input   pci_ad_out_en_next;
   input   pci_ad_out_oe_comb;
-  output [3:0] pci_cbe_l_in_comb;
-  output [3:0] pci_cbe_l_in_prev;
-  input  [3:0] pci_cbe_l_out_next;
+  output [`PCI_BUS_CBE_RANGE] pci_cbe_l_in_comb;
+  output [`PCI_BUS_CBE_RANGE] pci_cbe_l_in_prev;
+  input  [`PCI_BUS_CBE_RANGE] pci_cbe_l_out_next;
   input   pci_cbe_out_en_next;
   input   pci_cbe_out_oe_comb;
   output  pci_par_in_prev;
@@ -189,7 +189,7 @@ module pci_target_pads (
   assign  pci_perr_l_out_next =   ~pci_perr_out_next;
 
 // Make no-connect wires to connect to unused pad combinational outputs
-  wire   [31:0] discard_data_in;
+  wire   [`PCI_BUS_DATA_RANGE] discard_data_in;
   wire    discard_par_in, discard_idsel_in;
   wire    discard_devsel_l_in;
   wire    discard_serr_l_in, discard_perr_l_in;

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_bus_monitor.v,v 1.8 2001-06-21 10:06:08 bbeaver Exp $
+// $Id: pci_bus_monitor.v,v 1.9 2001-07-03 09:21:25 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -85,8 +85,8 @@ module pci_bus_monitor (
   test_observe_2_oe_sigs, test_observe_3_oe_sigs,
   pci_ext_reset_l, pci_ext_clk
 );
-  input  [31:0] pci_ext_ad;
-  input  [3:0] pci_ext_cbe_l;
+  input  [`PCI_BUS_DATA_RANGE] pci_ext_ad;
+  input  [`PCI_BUS_CBE_RANGE] pci_ext_cbe_l;
   input   pci_ext_par;
   input   pci_ext_frame_l, pci_ext_irdy_l;
   input   pci_ext_devsel_l, pci_ext_trdy_l, pci_ext_stop_l;
@@ -146,17 +146,17 @@ module pci_bus_monitor (
   begin
   if ($time > 0)
     begin
-      if (pci_ext_ad !== 32'hzzzzzzzz)
+      if (pci_ext_ad[`PCI_BUS_DATA_RANGE] !== `PCI_BUS_DATA_Z)
       begin
         $display ("*** monitor - PCI External AD not high-Z 'h%x, at %t",
-                    pci_ext_ad, $time);
+                    pci_ext_ad[`PCI_BUS_DATA_RANGE], $time);
         error_detected <= ~error_detected;
       end
       `NO_ELSE;
-      if (pci_ext_cbe_l !== 4'hz)
+      if (pci_ext_cbe_l[`PCI_BUS_CBE_RANGE] !== `PCI_BUS_CBE_Z)
       begin
         $display ("*** monitor - PCI External CBE_L not high-Z 'h%x, at %t",
-                    pci_ext_cbe_l, $time);
+                    pci_ext_cbe_l[`PCI_BUS_CBE_RANGE], $time);
         error_detected <= ~error_detected;
       end
       `NO_ELSE;
@@ -457,8 +457,8 @@ endtask
 // Ignore Dual Access Cycle, as mentioned in the PCI Local Bus Spec
 // Revision 2.2 section 3.1.1.
   reg    [4:0] grant_prev;
-  reg    [31:0] ad_prev;
-  reg    [3:0] cbe_l_prev;
+  reg    [`PCI_BUS_DATA_RANGE] ad_prev;
+  reg    [`PCI_BUS_CBE_RANGE] cbe_l_prev;
   reg     frame_prev, irdy_prev, devsel_prev, trdy_prev, stop_prev;
   reg     address_phase_prev, read_operation_prev;
 
@@ -467,8 +467,8 @@ endtask
     if (pci_ext_reset_l == 1'b0)
     begin
       grant_prev <= 5'h00;
-      ad_prev <= 32'hXXXXXXXX;
-      cbe_l_prev <= 4'hX;
+      ad_prev[`PCI_BUS_DATA_RANGE] <= `PCI_BUS_DATA_X;
+      cbe_l_prev[`PCI_BUS_CBE_RANGE] <= `PCI_BUS_CBE_X;
       frame_prev <= 1'b0;
       irdy_prev <= 1'b0;
       devsel_prev <= 1'b0;
@@ -480,8 +480,8 @@ endtask
     else
     begin
       grant_prev <= {pci_ext_gnt_l[3:0], pci_real_gnt_l};
-      ad_prev <= pci_ext_ad[31:0];
-      cbe_l_prev <= pci_ext_cbe_l[3:0];
+      ad_prev[`PCI_BUS_DATA_RANGE] <= pci_ext_ad[`PCI_BUS_DATA_RANGE];
+      cbe_l_prev[`PCI_BUS_CBE_RANGE] <= pci_ext_cbe_l[`PCI_BUS_CBE_RANGE];
       frame_prev <= frame_now;
       irdy_prev <= irdy_now;
       devsel_prev <= devsel_now;
@@ -489,7 +489,7 @@ endtask
       stop_prev <= stop_now;
 
       if (frame_now & ~frame_prev
-                && (pci_ext_cbe_l[3:0] != `PCI_COMMAND_DUAL_ADDRESS_CYCLE))
+                && (pci_ext_cbe_l[`PCI_BUS_CBE_RANGE] != `PCI_COMMAND_DUAL_ADDRESS_CYCLE))
       begin
         address_phase_prev <= 1'b1;
         read_operation_prev <= ~pci_ext_cbe_l[0];  // reads have LSB == 0;
@@ -649,12 +649,13 @@ endtask
   reg     prev_prev_calculated_ad_cbe_parity, read_operation_prev_prev;
   reg     prev_prev_devsel, prev_prev_trdy, prev_prev_irdy, prev_pci_ext_par;
   reg     ad_prev_address_phase;
-  reg    [31:0] ad_prev_prev;
-  reg    [3:0] cbe_l_prev_prev;
+  reg    [`PCI_BUS_DATA_RANGE] ad_prev_prev;
+  reg    [`PCI_BUS_CBE_RANGE] cbe_l_prev_prev;
   always @(posedge pci_ext_clk)
   begin
 // calculate 1 if an odd number of bits is set, 0 if an even number is set
-    prev_calculated_ad_cbe_parity <= (^pci_ext_ad[31:0]) ^ (^pci_ext_cbe_l[3:0]);
+    prev_calculated_ad_cbe_parity <= (^pci_ext_ad[`PCI_BUS_DATA_RANGE])
+                                   ^ (^pci_ext_cbe_l[`PCI_BUS_CBE_RANGE]);
     prev_prev_calculated_ad_cbe_parity <= prev_calculated_ad_cbe_parity;
     read_operation_prev_prev <= read_operation_prev;
     ad_prev_address_phase <= address_phase_prev;
@@ -662,8 +663,8 @@ endtask
     prev_prev_trdy <= trdy_prev;
     prev_prev_irdy <= irdy_prev;
     prev_pci_ext_par <= pci_ext_par;
-    ad_prev_prev[31:0] <= ad_prev[31:0];
-    cbe_l_prev_prev[3:0] <= cbe_l_prev[3:0];
+    ad_prev_prev[`PCI_BUS_DATA_RANGE] <= ad_prev[`PCI_BUS_DATA_RANGE];
+    cbe_l_prev_prev[`PCI_BUS_CBE_RANGE] <= cbe_l_prev[`PCI_BUS_CBE_RANGE];
     if (($time > 0) && (pci_ext_reset_l !== 1'b0))
     begin
       if (ad_prev_address_phase)
@@ -924,59 +925,59 @@ endtask
     if (($time > 0) && (pci_ext_reset_l !== 1'b0) && address_phase_prev)
     begin
 // command list taken from PCI Local Bus Spec Revision 2.2 section 3.1.1.
-      case (cbe_l_prev[3:0])
+      case (cbe_l_prev[`PCI_BUS_CBE_RANGE])
       `PCI_COMMAND_INTERRUPT_ACKNOWLEDGE:
         $display (" monitor - Interrupt Acknowledge started, AD: 'h%x, CBE: 'h%x, at time %t",
-                    ad_prev[31:0], cbe_l_prev[3:0], $time);
+                    ad_prev[`PCI_BUS_DATA_RANGE], cbe_l_prev[`PCI_BUS_CBE_RANGE], $time);
       `PCI_COMMAND_SPECIAL_CYCLE:
         $display (" monitor - Special Cycle started, AD: 'h%x, CBE: 'h%x, at time %t",
-                    ad_prev[31:0], cbe_l_prev[3:0], $time);
+                    ad_prev[`PCI_BUS_DATA_RANGE], cbe_l_prev[`PCI_BUS_CBE_RANGE], $time);
       `PCI_COMMAND_IO_READ:
         $display (" monitor - IO Read started, AD: 'h%x, CBE: 'h%x, at time %t",
-                    ad_prev[31:0], cbe_l_prev[3:0], $time);
+                    ad_prev[`PCI_BUS_DATA_RANGE], cbe_l_prev[`PCI_BUS_CBE_RANGE], $time);
       `PCI_COMMAND_IO_WRITE:
         $display (" monitor - IO Write started, AD: 'h%x, CBE: 'h%x, at time %t",
-                    ad_prev[31:0], cbe_l_prev[3:0], $time);
+                    ad_prev[`PCI_BUS_DATA_RANGE], cbe_l_prev[`PCI_BUS_CBE_RANGE], $time);
       `PCI_COMMAND_RESERVED_4:
         $display (" monitor - Reserved started, AD: 'h%x, CBE: 'h%x, at time %t",
-                    ad_prev[31:0], cbe_l_prev[3:0], $time);
+                    ad_prev[`PCI_BUS_DATA_RANGE], cbe_l_prev[`PCI_BUS_CBE_RANGE], $time);
       `PCI_COMMAND_RESERVED_5:
         $display (" monitor - Reserved started, AD: 'h%x, CBE: 'h%x, at time %t",
-                    ad_prev[31:0], cbe_l_prev[3:0], $time);
+                    ad_prev[`PCI_BUS_DATA_RANGE], cbe_l_prev[`PCI_BUS_CBE_RANGE], $time);
       `PCI_COMMAND_MEMORY_READ:
         $display (" monitor - Memory Read started, AD: 'h%x, CBE: 'h%x, at time %t",
-                    ad_prev[31:0], cbe_l_prev[3:0], $time);
+                    ad_prev[`PCI_BUS_DATA_RANGE], cbe_l_prev[`PCI_BUS_CBE_RANGE], $time);
       `PCI_COMMAND_MEMORY_WRITE:
         $display (" monitor - Memory Write started, AD: 'h%x, CBE: 'h%x, at time %t",
-                    ad_prev[31:0], cbe_l_prev[3:0], $time);
+                    ad_prev[`PCI_BUS_DATA_RANGE], cbe_l_prev[`PCI_BUS_CBE_RANGE], $time);
       `PCI_COMMAND_RESERVED_8:
         $display (" monitor - Reserved started, AD: 'h%x, CBE: 'h%x, at time %t",
-                    ad_prev[31:0], cbe_l_prev[3:0], $time);
+                    ad_prev[`PCI_BUS_DATA_RANGE], cbe_l_prev[`PCI_BUS_CBE_RANGE], $time);
       `PCI_COMMAND_RESERVED_9:
         $display (" monitor - Reserved started, AD: 'h%x, CBE: 'h%x, at time %t",
-                    ad_prev[31:0], cbe_l_prev[3:0], $time);
+                    ad_prev[`PCI_BUS_DATA_RANGE], cbe_l_prev[`PCI_BUS_CBE_RANGE], $time);
       `PCI_COMMAND_CONFIG_READ:
         $display (" monitor - Configuration Read started, AD: 'h%x, CBE: 'h%x, at time %t",
-                    ad_prev[31:0], cbe_l_prev[3:0], $time);
+                    ad_prev[`PCI_BUS_DATA_RANGE], cbe_l_prev[`PCI_BUS_CBE_RANGE], $time);
       `PCI_COMMAND_CONFIG_WRITE:
         $display (" monitor - Configuration Write started, AD: 'h%x, CBE: 'h%x, at time %t",
-                    ad_prev[31:0], cbe_l_prev[3:0], $time);
+                    ad_prev[`PCI_BUS_DATA_RANGE], cbe_l_prev[`PCI_BUS_CBE_RANGE], $time);
       `PCI_COMMAND_MEMORY_READ_MULTIPLE:
         $display (" monitor - Memory Read Multiple started, AD: 'h%x, CBE: 'h%x, at time %t",
-                    ad_prev[31:0], cbe_l_prev[3:0], $time);
+                    ad_prev[`PCI_BUS_DATA_RANGE], cbe_l_prev[`PCI_BUS_CBE_RANGE], $time);
       `PCI_COMMAND_DUAL_ADDRESS_CYCLE:
         $display (" monitor - Dual Address Cycle started, AD: 'h%x, CBE: 'h%x, at time %t",
-                    ad_prev[31:0], cbe_l_prev[3:0], $time);
+                    ad_prev[`PCI_BUS_DATA_RANGE], cbe_l_prev[`PCI_BUS_CBE_RANGE], $time);
       `PCI_COMMAND_MEMORY_READ_LINE:
         $display (" monitor - Memory Read Line started, AD: 'h%x, CBE: 'h%x, at time %t",
-                    ad_prev[31:0], cbe_l_prev[3:0], $time);
+                    ad_prev[`PCI_BUS_DATA_RANGE], cbe_l_prev[`PCI_BUS_CBE_RANGE], $time);
       `PCI_COMMAND_MEMORY_WRITE_INVALIDATE:
         $display (" monitor - Memory Write and Invalidate started, AD: 'h%x, CBE: 'h%x, at time %t",
-                    ad_prev[31:0], cbe_l_prev[3:0], $time);
+                    ad_prev[`PCI_BUS_DATA_RANGE], cbe_l_prev[`PCI_BUS_CBE_RANGE], $time);
       default:
         begin
           $display ("*** monitor - Unknown operation started, AD: 'h%x, CBE: 'h%x, at time %t",
-                      ad_prev[31:0], cbe_l_prev[3:0], $time);
+                      ad_prev[`PCI_BUS_DATA_RANGE], cbe_l_prev[`PCI_BUS_CBE_RANGE], $time);
           error_detected <= ~error_detected;
         end
       endcase

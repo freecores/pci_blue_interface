@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_master.v,v 1.3 2001-07-01 10:34:42 bbeaver Exp $
+// $Id: test_pci_master.v,v 1.4 2001-07-03 09:21:17 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -101,17 +101,17 @@ module pci_test_master (
   output  pci_host_request_submit;
   output  pci_request_fifo_error;
   output [2:0] master_to_target_status_type;
-  output [3:0] master_to_target_status_cbe;
-  output [31:0] master_to_target_status_data;
+  output [`PCI_BUS_CBE_RANGE] master_to_target_status_cbe;
+  output [`PCI_BUS_DATA_RANGE] master_to_target_status_data;
   output  master_to_target_status_available;
   output  master_to_target_status_unload;
   output  pci_req_out_next;
   output  pci_req_out_oe_comb;
   output  pci_gnt_in_comb;
-  output [31:0] pci_ad_in_prev;
-  output [31:0] pci_master_ad_out_next;
+  output [`PCI_BUS_DATA_RANGE] pci_ad_in_prev;
+  output [`PCI_BUS_DATA_RANGE] pci_master_ad_out_next;
   output  pci_master_ad_out_oe_comb;
-  output [3:0] pci_cbe_l_out_next;
+  output [`PCI_BUS_CBE_RANGE] pci_cbe_l_out_next;
   output  pci_cbe_out_oe_comb;
   output  pci_frame_in_comb;
   output  pci_frame_out_next, pci_frame_out_oe_comb;
@@ -131,10 +131,10 @@ module pci_test_master (
 // PCI signals
   wire    pci_req_out_next, pci_req_out_oe_comb;
   reg     pci_gnt_in_prev, pci_gnt_in_comb;
-  reg    [31:0] pci_ad_in_prev;
-  wire   [31:0] pci_master_ad_out_next;
+  reg    [`PCI_BUS_DATA_RANGE] pci_ad_in_prev;
+  wire   [`PCI_BUS_DATA_RANGE] pci_master_ad_out_next;
   wire    pci_master_ad_out_oe_comb;
-  wire   [3:0] pci_cbe_l_out_next;
+  wire   [`PCI_BUS_CBE_RANGE] pci_cbe_l_out_next;
   wire    pci_cbe_out_oe_comb;
   reg     pci_frame_in_comb;
   wire    pci_frame_out_next, pci_frame_out_oe_comb;
@@ -149,8 +149,8 @@ module pci_test_master (
   wire    Master_Forced_Off_Bus_By_Target_Abort;
 
   wire   [2:0] master_to_target_status_type;
-  wire   [3:0] master_to_target_status_cbe;
-  wire   [31:0] master_to_target_status_data;
+  wire   [`PCI_FIFO_CBE_RANGE] master_to_target_status_cbe;
+  wire   [`PCI_FIFO_DATA_RANGE] master_to_target_status_data;
   wire    master_to_target_status_available;
   reg     master_to_target_status_unload;
 
@@ -176,16 +176,16 @@ module pci_test_master (
   wire    pci_host_request_room_available_meta;
   reg     pci_host_request_submit;
   reg    [2:0] pci_host_request_type;
-  reg    [3:0] pci_host_request_cbe;
-  reg    [31:0] pci_host_request_data;
+  reg    [`PCI_FIFO_CBE_RANGE] pci_host_request_cbe;
+  reg    [`PCI_FIFO_DATA_RANGE] pci_host_request_data;
   wire    pci_host_request_error;
 
   wire    pci_request_fifo_data_available_meta;
   wire    pci_request_fifo_two_words_available_meta;
   wire    pci_request_fifo_data_unload;
   wire   [2:0] pci_request_fifo_type;
-  wire   [3:0] pci_request_fifo_cbe;
-  wire   [31:0] pci_request_fifo_data;
+  wire   [`PCI_FIFO_CBE_RANGE] pci_request_fifo_cbe;
+  wire   [`PCI_FIFO_DATA_RANGE] pci_request_fifo_data;
   wire    pci_request_fifo_error;
 
 
@@ -218,12 +218,12 @@ task do_reset;
 endtask
 
   reg    pci_perr_in_comb, pci_serr_in_comb;
-  reg   [31:0] pci_ad_in_comb;
+  reg   [`PCI_BUS_DATA_RANGE] pci_ad_in_comb;
 
 task set_pci_idle;
   begin
     pci_gnt_in_comb = 1'b0;
-    pci_ad_in_comb[31:0] = 32'hXXXXXXXX;
+    pci_ad_in_comb[`PCI_BUS_DATA_RANGE] = `PCI_BUS_DATA_X;
     pci_frame_in_comb = 1'b0;
     pci_irdy_in_comb = 1'b0;
     pci_devsel_in_comb = 1'b0;
@@ -247,13 +247,13 @@ endtask
 
 task write_fifo;
   input [2:0] entry_type;
-  input [3:0] entry_cbe;
-  input [31:0] entry_data;
+  input [`PCI_FIFO_CBE_RANGE] entry_cbe;
+  input [`PCI_FIFO_DATA_RANGE] entry_data;
   begin
     pci_host_request_submit = 1'b1;
     pci_host_request_type[2:0] = entry_type[2:0];
-    pci_host_request_cbe[3:0] = entry_cbe[3:0];
-    pci_host_request_data[31:0] = entry_data[31:0];
+    pci_host_request_cbe[`PCI_FIFO_CBE_RANGE] = entry_cbe[`PCI_FIFO_CBE_RANGE];
+    pci_host_request_data[`PCI_FIFO_DATA_RANGE] = entry_data[`PCI_FIFO_DATA_RANGE];
   end
 endtask
 
@@ -315,7 +315,7 @@ endtask
   always @(posedge pci_clk)
   begin
     pci_gnt_in_prev <= pci_gnt_in_comb;
-    pci_ad_in_prev[31:0] <= pci_ad_in_comb[31:0];
+    pci_ad_in_prev[`PCI_BUS_DATA_RANGE] <= pci_ad_in_comb[`PCI_BUS_DATA_RANGE];
     pci_devsel_in_prev <= pci_devsel_in_comb;
     pci_trdy_in_prev <= pci_trdy_in_comb;
     pci_stop_in_prev <= pci_stop_in_comb;
@@ -328,8 +328,8 @@ endtask
   begin
     pci_host_request_submit <= 1'b0;
     pci_host_request_type[2:0] <= 3'hX;
-    pci_host_request_cbe[3:0] <= 4'hX;
-    pci_host_request_data[31:0] <= 32'hXXXXXXXX;
+    pci_host_request_cbe[`PCI_FIFO_CBE_RANGE] <= 4'hX;
+    pci_host_request_data[`PCI_FIFO_DATA_RANGE] <= `PCI_FIFO_DATA_X;
     pci_gnt_in_comb <= 1'b0;
     pci_gnt_in_prev <= pci_gnt_in_comb;
     pci_frame_in_comb <= 1'b0;
@@ -717,8 +717,8 @@ pci_fifo_storage_request pci_fifo_storage_request (
   .write_submit               (pci_host_request_submit),
   .write_room_available_meta  (pci_host_request_room_available_meta),  // NOTE Needs extra settling time to avoid metastability
   .write_data                 ({pci_host_request_type[2:0],
-                                pci_host_request_cbe[3:0],
-                                pci_host_request_data[31:0]}),
+                                pci_host_request_cbe[`PCI_FIFO_CBE_RANGE],
+                                pci_host_request_data[`PCI_FIFO_DATA_RANGE]}),
   .write_error                (pci_host_request_error),
   .read_clk                   (pci_clk),
   .read_sync_clk              (pci_clk),
@@ -726,8 +726,8 @@ pci_fifo_storage_request pci_fifo_storage_request (
   .read_data_available_meta   (pci_request_fifo_data_available_meta),  // NOTE Needs extra settling time to avoid metastability
   .read_two_words_available_meta (pci_request_fifo_two_words_available_meta),  // NOTE Needs extra settling time to avoid metastability
   .read_data                  ({pci_request_fifo_type[2:0],
-                                pci_request_fifo_cbe[3:0],
-                                pci_request_fifo_data[31:0]}),
+                                pci_request_fifo_cbe[`PCI_FIFO_CBE_RANGE],
+                                pci_request_fifo_data[`PCI_FIFO_DATA_RANGE]}),
   .read_error                 (pci_request_fifo_error)
 );
 
@@ -738,9 +738,9 @@ pci_blue_master pci_blue_master (
   .pci_req_out_oe_comb        (pci_req_out_oe_comb),
   .pci_gnt_in_prev            (pci_gnt_in_prev),
   .pci_gnt_in_comb            (pci_gnt_in_comb),
-  .pci_master_ad_out_next     (pci_master_ad_out_next[31:0]),
+  .pci_master_ad_out_next     (pci_master_ad_out_next[`PCI_BUS_DATA_RANGE]),
   .pci_master_ad_out_oe_comb  (pci_master_ad_out_oe_comb),
-  .pci_cbe_l_out_next         (pci_cbe_l_out_next[3:0]),
+  .pci_cbe_l_out_next         (pci_cbe_l_out_next[`PCI_BUS_CBE_RANGE]),
   .pci_cbe_out_oe_comb        (pci_cbe_out_oe_comb),
   .pci_frame_in_comb          (pci_frame_in_comb),
   .pci_frame_out_next         (pci_frame_out_next),
@@ -765,16 +765,16 @@ pci_blue_master pci_blue_master (
 // Host Interface Request FIFO used to ask the PCI Interface to initiate
 //   PCI References to an external PCI Target.
   .pci_request_fifo_type      (pci_request_fifo_type[2:0]),
-  .pci_request_fifo_cbe       (pci_request_fifo_cbe[3:0]),
-  .pci_request_fifo_data      (pci_request_fifo_data[31:0]),
+  .pci_request_fifo_cbe       (pci_request_fifo_cbe[`PCI_FIFO_CBE_RANGE]),
+  .pci_request_fifo_data      (pci_request_fifo_data[`PCI_FIFO_DATA_RANGE]),
   .pci_request_fifo_data_available_meta (pci_request_fifo_data_available_meta),
   .pci_request_fifo_two_words_available_meta (pci_request_fifo_two_words_available_meta),
   .pci_request_fifo_data_unload (pci_request_fifo_data_unload),
   .pci_request_fifo_error     (pci_request_fifo_error),
 // Signals from the Master to the Target to insert Status Info into the Response FIFO.
   .master_to_target_status_type (master_to_target_status_type[2:0]),
-  .master_to_target_status_cbe  (master_to_target_status_cbe[3:0]),
-  .master_to_target_status_data (master_to_target_status_data[31:0]),
+  .master_to_target_status_cbe  (master_to_target_status_cbe[`PCI_FIFO_CBE_RANGE]),
+  .master_to_target_status_data (master_to_target_status_data[`PCI_FIFO_DATA_RANGE]),
   .master_to_target_status_available (master_to_target_status_available),
   .master_to_target_status_unload (master_to_target_status_unload),
 // Signals from the Master to the Target to set bits in the Status Register

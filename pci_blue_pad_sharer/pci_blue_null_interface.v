@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_null_interface.v,v 1.6 2001-06-20 11:25:29 bbeaver Exp $
+// $Id: pci_blue_null_interface.v,v 1.7 2001-07-03 09:21:11 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -87,12 +87,12 @@ module pci_blue_null_interface (
 `endif // PCI_MASTER
   pci_clk, pci_reset_comb
 );
-  input  [31:0] pci_ad_in_reg;
-  output [31:0] pci_ad_out_next;
+  input  [`PCI_BUS_DATA_RANGE] pci_ad_in_reg;
+  output [`PCI_BUS_DATA_RANGE] pci_ad_out_next;
   output  pci_ad_out_oe_next;
-  input  [3:0] pci_cbe_in_reg;
-  output [3:0] pci_cbe_out_next;
-  output [3:0] pci_cbe_out_oe_next;
+  input  [`PCI_BUS_CBE_RANGE] pci_cbe_in_reg;
+  output [`PCI_BUS_CBE_RANGE] pci_cbe_out_next;
+  output [`PCI_BUS_CBE_RANGE] pci_cbe_out_oe_next;
   input   pci_par_in_reg;
   output  pci_par_out_next, pci_par_out_oe_next;
   input   pci_frame_in_reg;
@@ -122,10 +122,10 @@ module pci_blue_null_interface (
 
   input   pci_clk, pci_reset_comb;
 
-  wire   [31:0] pci_ad_out_next = 32'h00000000;
+  wire   [`PCI_BUS_DATA_RANGE] pci_ad_out_next =    `PCI_BUS_DATA_ZERO;
   wire    pci_ad_out_oe_next =    1'b0;
-  wire   [3:0] pci_cbe_out_next =   4'h0;
-  wire   [3:0] pci_cbe_out_oe_next = 4'h0;
+  wire   [`PCI_BUS_CBE_RANGE] pci_cbe_out_next =    `PCI_BUS_CBE_ZERO;
+  wire   [`PCI_BUS_CBE_RANGE] pci_cbe_out_oe_next = `PCI_BUS_CBE_ZERO;
   wire    pci_par_out_next =      1'bx;
   wire    pci_par_out_oe_next =   1'b0;
   wire    pci_frame_out_next =    1'bx;

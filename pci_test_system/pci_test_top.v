@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_test_top.v,v 1.6 2001-06-20 11:25:47 bbeaver Exp $
+// $Id: pci_test_top.v,v 1.7 2001-07-03 09:21:36 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -101,10 +101,10 @@ module pci_test_top (
 // signals which are used by test modules to know what to do
   input  [3:0] test_sequence;
   output [2:0] test_master_number;
-  output [31:0] test_address;
+  output [`PCI_FIFO_DATA_RANGE] test_address;
   output [3:0] test_command;
-  output [31:0] test_data;
-  output [3:0] test_byte_enables_l;
+  output [`PCI_FIFO_DATA_RANGE] test_data;
+  output [`PCI_FIFO_CBE_RANGE] test_byte_enables_l;
   output [3:0] test_size;
   output  test_make_addr_par_error, test_make_data_par_error;
   output [3:0] test_master_initial_wait_states;
@@ -115,7 +115,7 @@ module pci_test_top (
   output  test_fast_back_to_back;
   output [2:0] test_target_termination;
   output  test_expect_master_abort;
-  output [31:0] test_result;
+  output [`PCI_FIFO_DATA_RANGE] test_result;
   output  test_start, test_accepted, test_error_event, test_idle_event;
   output [3:0] pci_test_observe_frame_oe;
   output [3:0] pci_test_observe_devsel_oe;
@@ -128,8 +128,8 @@ module pci_test_top (
   output [3:0] pci_test_gnt_l;
   output  pci_real_req_l, pci_real_gnt_l;
   output  pci_ext_idsel_real;
-  output [31:0] pci_ext_ad;
-  output [3:0] pci_ext_cbe_l;
+  output [`PCI_BUS_DATA_RANGE] pci_ext_ad;
+  output [`PCI_BUS_CBE_RANGE] pci_ext_cbe_l;
   output  pci_ext_par, pci_ext_frame_l,  pci_ext_irdy_l;
   output  pci_ext_devsel_l, pci_ext_trdy_l, pci_ext_stop_l;
   output  pci_ext_perr_l, pci_ext_serr_l, pci_ext_inta_l;
@@ -207,8 +207,8 @@ module pci_test_top (
 // Motherboard PCI bus
   triand  pci_real_req_l;
   wire    pci_real_gnt_l;   // no PC board pullup
-  wire   [31:0] pci_ext_ad;   // no PC board pullup
-  wire   [3:0] pci_ext_cbe_l; // no PC board pullup
+  wire   [`PCI_BUS_DATA_RANGE] pci_ext_ad;   // no PC board pullup
+  wire   [`PCI_BUS_CBE_RANGE] pci_ext_cbe_l; // no PC board pullup
   wire    pci_ext_par;      // no PC board pullup
   triand  pci_ext_frame_l, pci_ext_irdy_l;  // shared, with pullup
   triand  pci_ext_devsel_l, pci_ext_trdy_l, pci_ext_stop_l;  // shared, with pullup
@@ -243,8 +243,8 @@ module pci_test_top (
   wire   #2 test_idle_event_dly = test_idle_event_int;
   assign  test_idle_event = test_idle_event_dly;
   wire    bus_idle_right_now = pci_ext_frame_l & pci_ext_irdy_l
-                             & (   (pci_ext_ad[31:0] === `BUS_PARK_VALUE)
-                                 | (pci_ext_ad[31:0] === 32'hZZZZZZZZ) );
+                             & (   (pci_ext_ad[`PCI_BUS_DATA_RANGE] === `BUS_PARK_VALUE)
+                                 | (pci_ext_ad[`PCI_BUS_DATA_RANGE] === `PCI_BUS_DATA_Z) );
   reg bus_idle_prev;
   always @(posedge pci_ext_clk)
   begin
@@ -325,8 +325,8 @@ pci_blue_arbiter arbiter (
 
 // The module representing a real use of this IP
 pci_example_chip pci_example_chip (
-  .pci_ext_ad                 (pci_ext_ad[31:0]),
-  .pci_ext_cbe_l              (pci_ext_cbe_l[3:0]),
+  .pci_ext_ad                 (pci_ext_ad[`PCI_BUS_DATA_RANGE]),
+  .pci_ext_cbe_l              (pci_ext_cbe_l[`PCI_BUS_CBE_RANGE]),
   .pci_ext_par                (pci_ext_par),
   .pci_ext_frame_l            (pci_ext_frame_l),
   .pci_ext_irdy_l             (pci_ext_irdy_l),
@@ -358,10 +358,10 @@ pci_example_chip pci_example_chip (
 // Everything below this would be gone in a real use of the interface.
   .test_observe_oe_sigs       (test_observe_real_oe_sigs[5:0]),
   .test_master_number         (test_master_number[2:0]),
-  .test_address               (test_address[31:0]),
+  .test_address               (test_address[`PCI_FIFO_DATA_RANGE]),
   .test_command               (test_command[3:0]),
-  .test_data                  (test_data[31:0]),
-  .test_byte_enables_l        (test_byte_enables_l[3:0]),
+  .test_data                  (test_data[`PCI_FIFO_DATA_RANGE]),
+  .test_byte_enables_l        (test_byte_enables_l[`PCI_FIFO_CBE_RANGE]),
   .test_size                  (test_size[3:0]),
   .test_make_addr_par_error   (test_make_addr_par_error),
   .test_make_data_par_error   (test_make_data_par_error),
@@ -381,8 +381,8 @@ pci_example_chip pci_example_chip (
 
 // The module representing a test PCI device on the motherboard
 pci_behaviorial_device pci_behaviorial_device_0 (
-  .pci_ext_ad                 (pci_ext_ad[31:0]),
-  .pci_ext_cbe_l              (pci_ext_cbe_l[3:0]),
+  .pci_ext_ad                 (pci_ext_ad[`PCI_BUS_DATA_RANGE]),
+  .pci_ext_cbe_l              (pci_ext_cbe_l[`PCI_BUS_CBE_RANGE]),
   .pci_ext_par                (pci_ext_par),
   .pci_ext_frame_l            (pci_ext_frame_l),
   .pci_ext_irdy_l             (pci_ext_irdy_l),
@@ -401,10 +401,10 @@ pci_behaviorial_device pci_behaviorial_device_0 (
 // Everything below this would be gone in a real use of the interface.
   .test_observe_oe_sigs       (test_observe_0_oe_sigs[5:0]),
   .test_master_number         (test_master_number[2:0]),
-  .test_address               (test_address[31:0]),
+  .test_address               (test_address[`PCI_FIFO_DATA_RANGE]),
   .test_command               (test_command[3:0]),
-  .test_data                  (test_data[31:0]),
-  .test_byte_enables_l        (test_byte_enables_l[3:0]),
+  .test_data                  (test_data[`PCI_FIFO_DATA_RANGE]),
+  .test_byte_enables_l        (test_byte_enables_l[`PCI_FIFO_CBE_RANGE]),
   .test_size                  (test_size[3:0]),
   .test_make_addr_par_error   (test_make_addr_par_error),
   .test_make_data_par_error   (test_make_data_par_error),
@@ -424,8 +424,8 @@ pci_behaviorial_device pci_behaviorial_device_0 (
 
 // The module representing a test PCI device on the motherboard
 pci_behaviorial_device pci_behaviorial_device_1 (
-  .pci_ext_ad                 (pci_ext_ad[31:0]),
-  .pci_ext_cbe_l              (pci_ext_cbe_l[3:0]),
+  .pci_ext_ad                 (pci_ext_ad[`PCI_BUS_DATA_RANGE]),
+  .pci_ext_cbe_l              (pci_ext_cbe_l[`PCI_BUS_CBE_RANGE]),
   .pci_ext_par                (pci_ext_par),
   .pci_ext_frame_l            (pci_ext_frame_l),
   .pci_ext_irdy_l             (pci_ext_irdy_l),
@@ -444,10 +444,10 @@ pci_behaviorial_device pci_behaviorial_device_1 (
 // Everything below this would be gone in a real use of the interface.
   .test_observe_oe_sigs       (test_observe_1_oe_sigs[5:0]),
   .test_master_number         (test_master_number[2:0]),
-  .test_address               (test_address[31:0]),
+  .test_address               (test_address[`PCI_FIFO_DATA_RANGE]),
   .test_command               (test_command[3:0]),
-  .test_data                  (test_data[31:0]),
-  .test_byte_enables_l        (test_byte_enables_l[3:0]),
+  .test_data                  (test_data[`PCI_FIFO_DATA_RANGE]),
+  .test_byte_enables_l        (test_byte_enables_l[`PCI_FIFO_CBE_RANGE]),
   .test_size                  (test_size[3:0]),
   .test_make_addr_par_error   (test_make_addr_par_error),
   .test_make_data_par_error   (test_make_data_par_error),
@@ -467,8 +467,8 @@ pci_behaviorial_device pci_behaviorial_device_1 (
 
 // module which hopefully watches for bus protocol problems
 pci_bus_monitor pci_bus_monitor (
-  .pci_ext_ad                 (pci_ext_ad[31:0]),
-  .pci_ext_cbe_l              (pci_ext_cbe_l[3:0]),
+  .pci_ext_ad                 (pci_ext_ad[`PCI_BUS_DATA_RANGE]),
+  .pci_ext_cbe_l              (pci_ext_cbe_l[`PCI_BUS_CBE_RANGE]),
   .pci_ext_par                (pci_ext_par),
   .pci_ext_frame_l            (pci_ext_frame_l),
   .pci_ext_irdy_l             (pci_ext_irdy_l),
@@ -509,10 +509,10 @@ pci_test_commander pci_test_commander (
   .pci_reset_comb             (~pci_ext_reset_l),
   .pci_ext_clk                (pci_ext_clk),
   .test_master_number         (test_master_number[2:0]),
-  .test_address               (test_address[31:0]),
+  .test_address               (test_address[`PCI_FIFO_DATA_RANGE]),
   .test_command               (test_command[3:0]),
-  .test_data                  (test_data[31:0]),
-  .test_byte_enables_l        (test_byte_enables_l[3:0]),
+  .test_data                  (test_data[`PCI_FIFO_DATA_RANGE]),
+  .test_byte_enables_l        (test_byte_enables_l[`PCI_FIFO_CBE_RANGE]),
   .test_size                  (test_size[3:0]),
   .test_make_addr_par_error   (test_make_addr_par_error),
   .test_make_data_par_error   (test_make_data_par_error),
@@ -526,7 +526,7 @@ pci_test_commander pci_test_commander (
   .test_expect_master_abort   (test_expect_master_abort),
   .test_start                 (test_start),
   .test_accepted_l            (test_accepted_l_int),
-  .test_result                (test_result[31:0]),
+  .test_result                (test_result[`PCI_FIFO_DATA_RANGE]),
   .test_error_event           (error_event_int),
   .present_test_name          (next_test_name[79:0]),
   .total_errors_detected      (total_errors_detected[31:0])

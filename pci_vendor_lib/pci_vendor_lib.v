@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_vendor_lib.v,v 1.6 2001-06-20 11:25:51 bbeaver Exp $
+// $Id: pci_vendor_lib.v,v 1.7 2001-07-03 09:21:40 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -119,7 +119,7 @@ module pci_combinational_io_pad (
   assign  d_ext = d_out_oe_comb ? d_out_comb : 1'bz;
 endmodule
 
-// IO pads contain an internal flip-flop on output data, output OE
+// IO pads contain an internal flip-flop on output data,
 module pci_registered_io_pad (
   pci_clk,
   pci_ad_in_comb, pci_ad_in_prev,
@@ -137,15 +137,16 @@ module pci_registered_io_pad (
 // This flop is timing critical, and should be in or near the IO pad.
 // Xilinx chip probably can't use IO Flop, because I don't think it
 // has a latch enable.
-  reg     pci_ad_out_hold;
+  reg     pci_ad_out_flop;
   always @(posedge pci_clk)
   begin
-    pci_ad_out_hold <= pci_ad_out_en_next ? pci_ad_out_next : pci_ad_out_hold;
+    pci_ad_out_flop <= pci_ad_out_en_next ? pci_ad_out_next : pci_ad_out_flop;
   end
 
-  wire    pci_ad_out_hold_dly1, pci_ad_out_hold_dly2;
-  assign #`PAD_MIN_DATA_DLY pci_ad_out_hold_dly1 = pci_ad_out_hold;
-  assign #`PAD_MAX_DATA_DLY pci_ad_out_hold_dly2 = pci_ad_out_hold;
+// For simulation purposes, make delayed versions of PCI signals with X's
+  wire    pci_ad_out_flop_dly1, pci_ad_out_flop_dly2;
+  assign #`PAD_MIN_DATA_DLY pci_ad_out_flop_dly1 = pci_ad_out_flop;
+  assign #`PAD_MAX_DATA_DLY pci_ad_out_flop_dly2 = pci_ad_out_flop;
 
   wire    pci_ad_oe_comb_dly1, pci_ad_oe_comb_dly2;
   assign #`PAD_MIN_OE_DLY pci_ad_oe_comb_dly1= pci_ad_out_oe_comb;
@@ -153,27 +154,30 @@ module pci_registered_io_pad (
 
   wire    force_x = (pci_ad_oe_comb_dly1 != pci_ad_oe_comb_dly2)
                   | (pci_ad_out_oe_comb
-                        & (pci_ad_out_hold_dly1 !== pci_ad_out_hold_dly2));
-  assign  pci_ad_ext = force_x ? 1'bX
-                     : ((pci_ad_oe_comb_dly2) ? pci_ad_out_hold_dly2 : 1'bZ);
+                        & (pci_ad_out_flop_dly1 !== pci_ad_out_flop_dly2));
+  assign  pci_ad_ext = force_x ? 1'bX  // drive output
+                     : ((pci_ad_oe_comb_dly2) ? pci_ad_out_flop_dly2 : 1'bZ);
 
-`ifdef SIMULTANEOUS_MASTER_TARGET
+`ifdef SIMULTANEOUS_MASTER_TARGET_NEVER
 // Have to look at Internal signals when driving and receiving at the same
 // time.  See the PCI Local Bus Spec Revision 2.2 section 3.10 item 9.
 // Two ways to implement the required bypass.
+
 `ifdef Post_Flop_Bypass
 // 1) bypass the inputs from the output flop, by accessing the signals
 //    between the output flop and the IO Pad.
+  wire    pci_ad_in_loop = pci_ad_out_oe_comb ? pci_ad_out_flop : pci_ad_ext;
+  assign  pci_ad_in_comb = pci_ad_in_loop;  // drive output
+
 // This flop is timing critical, because of the small external data valid window
-  reg     pci_ad_in_grab;
+  reg     pci_ad_in_prev;
   always @(posedge pci_clk)
   begin
-    pci_ad_in_grab <= pci_ad_out_oe_comb ? pci_ad_out_hold : pci_ad_ext;
+    pci_ad_in_prev <= pci_ad_in_loop;
   end
-  assign  pci_ad_in_comb = pci_ad_out_oe_comb ? pci_ad_out_hold : pci_ad_ext;
-  assign  pci_ad_in_prev = pci_ad_in_grab;
 
 `else // Post_Flop_Bypass
+// NOTE: WORKING.  Not the best.  Should be fewer flops.
 // 2) duplicate the output flops to let the outgoing data be captured,
 //    and bypass using the duplicated data.
 // The pci_ad_out_en_next and pci_ad_in_comb signals might be timing critical.
@@ -190,25 +194,26 @@ module pci_registered_io_pad (
   assign  pci_ad_in_prev = pci_ad_out_oe_prev ? pci_ad_out_prev : pci_ad_in_grab;
 `endif // Post_Flop_Bypass
 
-`else // SIMULTANEOUS_MASTER_TARGET
+`else // SIMULTANEOUS_MASTER_TARGET not needed
+
 // External signals from other masters are always settled in time to use
+  assign  pci_ad_in_comb = pci_ad_out_oe_comb ? 1'bX : pci_ad_ext;  // drive output
+
 // This flop is timing critical, because of the small external data valid window
-  reg     pci_ad_in_grab;
+  reg     pci_ad_in_prev;
   always @(posedge pci_clk)
   begin
-    pci_ad_in_grab <= pci_ad_ext;
+    pci_ad_in_prev <= pci_ad_out_oe_comb ? 1'bX : pci_ad_ext;  // drive output
   end
-  assign  pci_ad_in_comb = pci_ad_ext;  // probably in the IO pad
-  assign  pci_ad_in_prev = pci_ad_in_grab;
 `endif // SIMULTANEOUS_MASTER_TARGET
 
 // synopsys translate_off
   always @(posedge pci_clk)
   begin
-    if (pci_ad_out_oe_comb & (pci_ad_out_hold !== pci_ad_ext))
+    if (pci_ad_out_oe_comb & (pci_ad_out_flop !== pci_ad_ext))
     begin
-      $display (" ***** PCI Pad drives one value while receiving another %h, %h, %h, at %t",
-                  pci_ad_out_oe_comb, pci_ad_out_hold, pci_ad_ext, $time);
+      $display (" ***** %m PCI Pad drives one value while receiving another %h, %h, %h, at %t",
+                  pci_ad_out_oe_comb, pci_ad_out_flop, pci_ad_ext, $time);
     end
     `NO_ELSE;
   end

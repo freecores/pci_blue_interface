@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_options.vh,v 1.8 2001-06-20 11:25:16 bbeaver Exp $
+// $Id: pci_blue_options.vh,v 1.9 2001-07-03 09:20:58 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -81,6 +81,14 @@
 // report detailed activity.
 `define VERBOSE_TEST_DEVICE
 
+// Indicate whether the PCI Bus will be 64-bit or 32-bit
+// Comment this out if the bus size is 32 bits
+// `define PCI_BUS_SIZE_64
+
+// Indicate whether the PCI Blue Interface FIFOs are 64-bit or 32-bit
+// Comment this out of the FIFO size is 32 bits
+// `define PCI_FIFO_SIZE_64
+
 // Indicate whether the intended application is 33 MHz or 66 MHz.
 // If 33 MHz is desired, simply comment out the define line.
 `define PCI_CLK_66
@@ -107,6 +115,47 @@
 `define PROP_PLUS_SKEW                         12.0
 `endif  // PCI_CLK_66
 
+// Derive Bus Definitions based on declared interface sizes
+`ifdef PCI_BUS_SIZE_64
+`define PCI_BUS_DATA_RANGE   63:0
+`define PCI_BUS_DATA_X       64'hXXXXXXXX_XXXXXXXX
+`define PCI_BUS_DATA_Z       64'hZZZZZZZZ_ZZZZZZZZ
+`define PCI_BUS_DATA_ZERO    64'h00000000_00000000
+`define PCI_BUS_CBE_RANGE     7:0
+`define PCI_BUS_CBE_X         8'hXX
+`define PCI_BUS_CBE_Z         8'hZZ
+`define PCI_BUS_DATA_ZERO     8'h00
+`else  // PCI_BUS_SIZE_64
+`define PCI_BUS_DATA_RANGE   31:0
+`define PCI_BUS_DATA_X       32'hXXXXXXXX
+`define PCI_BUS_DATA_Z       32'hZZZZZZZZ
+`define PCI_BUS_DATA_ZERO    32'h00000000
+`define PCI_BUS_CBE_RANGE     3:0
+`define PCI_BUS_CBE_X         4'hX
+`define PCI_BUS_CBE_Z         4'hZ
+`define PCI_BUS_CBE_ZERO      4'h0
+`endif  // PCI_BUS_SIZE_64
+
+`ifdef PCI_FIFO_SIZE_64
+`define PCI_FIFO_DATA_RANGE  63:0
+`define PCI_FIFO_DATA_X      64'hXXXXXXXX_XXXXXXXX
+`define PCI_FIFO_DATA_Z      64'hZZZZZZZZ_ZZZZZZZZ
+`define PCI_FIFO_DATA_ZERO   64'h00000000_00000000
+`define PCI_FIFO_CBE_RANGE    7:0
+`define PCI_FIFO_CBE_X        8'hXX
+`define PCI_FIFO_CBE_Z        8'hZZ
+`define PCI_FIFO_DATA_ZERO    8'h00
+`else  // PCI_FIFO_SIZE_64
+`define PCI_FIFO_DATA_RANGE  31:0
+`define PCI_FIFO_DATA_X      32'hXXXXXXXX
+`define PCI_FIFO_DATA_Z      32'hZZZZZZZZ
+`define PCI_FIFO_DATA_ZERO   32'h00000000
+`define PCI_FIFO_CBE_RANGE    3:0
+`define PCI_FIFO_CBE_X        4'hX
+`define PCI_FIFO_CBE_Z        4'hZ
+`define PCI_FIFO_CBE_ZERO     4'h0
+`endif  // PCI_FIFO_SIZE_64
+
 // Define SIMULTANEOUS_MASTER_TARGET if a single interface needs
 //   do master references to it's own target interface.
 // Also define SIMULTANEOUS_MASTER_TARGET if there will be several
@@ -117,6 +166,7 @@
 //   which never talks from it's master to it's target.  This
 //   paramater makes it harder to meet PCI timing, and makes it
 //   impossible to use the nice Xilinx IO pads.
+// NOTE: NOT DEBUGGED.  MAYBE SHOULD BE DONE ABOVE IO PADS
 `define SIMULTANEOUS_MASTER_TARGET
 
 // Define SUPPORT_MULTIPLE_ONCHIP_INTERFACES if several totally

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_pad_sharer.v,v 1.6 2001-06-20 11:25:29 bbeaver Exp $
+// $Id: pci_blue_pad_sharer.v,v 1.7 2001-07-03 09:21:11 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -110,10 +110,10 @@ module pci_blue_pad_sharer (
 );
 
 // wires which go to the first of N internal PCI interfaces
-  input [31:0] pci_ad_out_next_a;
+  input [`PCI_BUS_DATA_RANGE] pci_ad_out_next_a;
   input   pci_ad_out_oe_next_a;
-  input [3:0] pci_cbe_out_next_a;
-  input [3:0] pci_cbe_out_oe_next_a;
+  input [PCI_BUS_CBE_RANGE] pci_cbe_out_next_a;
+  input [PCI_BUS_CBE_RANGE] pci_cbe_out_oe_next_a;
   input   pci_par_out_next_a, pci_par_out_oe_next_a;
   input   pci_frame_out_next_a, pci_frame_out_oe_next_a;
   input   pci_irdy_out_next_a, pci_irdy_out_oe_next_a;
@@ -123,10 +123,10 @@ module pci_blue_pad_sharer (
   input   pci_serr_out_oe_next_a;
 
 // wires which go to the first of N internal PCI interfaces
-  input [31:0] pci_ad_out_next_b;
+  input [PCI_BUS_DATA_RANGE] pci_ad_out_next_b;
   input   pci_ad_out_oe_next_b;
-  input [3:0] pci_cbe_out_next_b;
-  input [3:0] pci_cbe_out_oe_next_b;
+  input [PCI_BUS_CBE_RANGE] pci_cbe_out_next_b;
+  input [PCI_BUS_CBE_RANGE] pci_cbe_out_oe_next_b;
   input   pci_par_out_next_b, pci_par_out_oe_next_b;
   input   pci_frame_out_next_b, pci_frame_out_oe_next_b;
   input   pci_irdy_out_next_b, pci_irdy_out_oe_next_b;
@@ -136,10 +136,10 @@ module pci_blue_pad_sharer (
   input   pci_serr_out_oe_next_b;
 
 // wires which actually go to the IO pads
-  output [31:0] pci_ad_out_next;
+  output [PCI_BUS_DATA_RANGE] pci_ad_out_next;
   output  pci_ad_out_oe_next;
-  output [3:0] pci_cbe_out_next;
-  output [3:0] pci_cbe_out_oe_next;
+  output [PCI_BUS_CBE_RANGE] pci_cbe_out_next;
+  output [PCI_BUS_CBE_RANGE] pci_cbe_out_oe_next;
   output  pci_par_out_next, pci_par_out_oe_next;
   output  pci_frame_out_next, pci_frame_out_oe_next;
   output  pci_irdy_out_next, pci_irdy_out_oe_next;
@@ -163,11 +163,11 @@ module pci_blue_pad_sharer (
   assign  pci_ad_out_oe_next =
                     pci_ad_out_oe_next_a | pci_ad_out_oe_next_a;
 
-  assign  pci_cbe_out_next[3:0] =
-                    (pci_cbe_out_oe_next_a[3:0] & pci_cbe_out_next_a[3:0])
-                  | (pci_cbe_out_oe_next_b[3:0] & pci_cbe_out_next_b[3:0]);
-  assign  pci_cbe_out_oe_next[3:0] =
-                    pci_cbe_out_oe_next_a[3:0] | pci_cbe_out_oe_next_b[3:0];
+  assign  pci_cbe_out_next[PCI_BUS_CBE_RANGE] =
+                    (pci_cbe_out_oe_next_a[PCI_BUS_CBE_RANGE] & pci_cbe_out_next_a[PCI_BUS_CBE_RANGE])
+                  | (pci_cbe_out_oe_next_b[PCI_BUS_CBE_RANGE] & pci_cbe_out_next_b[PCI_BUS_CBE_RANGE]);
+  assign  pci_cbe_out_oe_next[PCI_BUS_CBE_RANGE] =
+                    pci_cbe_out_oe_next_a[PCI_BUS_CBE_RANGE] | pci_cbe_out_oe_next_b[PCI_BUS_CBE_RANGE];
 
   assign  pci_par_out_next =
                     (pci_par_out_oe_next_a & pci_par_out_next_a)

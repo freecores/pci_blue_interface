@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_fifos.v,v 1.8 2001-07-01 06:39:03 bbeaver Exp $
+// $Id: pci_blue_fifos.v,v 1.9 2001-07-03 09:20:53 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -168,27 +168,29 @@
 module pci_fifo_storage_request (
   reset_flags_async,
   fifo_mode,
-  write_clk, write_sync_clk, write_submit,
+  write_clk, write_sync_clk,
   write_room_available_meta,  // NOTE Needs extra settling time to avoid metastability
+  write_submit,
   write_data,
   write_error,
   read_clk, read_sync_clk,
-  read_remove,               // NOTE read_remove is VERY LATE
   read_data_available_meta,  // NOTE Needs extra settling time to avoid metastability
   read_two_words_available_meta,  // NOTE Needs extra settling time to avoid metastability
+  read_remove,               // NOTE read_remove is VERY LATE
   read_data,
   read_error
 );
   input   reset_flags_async;
   input  [1:0] fifo_mode;
-  input   write_clk, write_sync_clk, write_submit;
+  input   write_clk, write_sync_clk;
   output  write_room_available_meta;  // NOTE Needs extra settling time to avoid metastability
+  input   write_submit;
   input  [38:0] write_data;
   output  write_error;
   input   read_clk, read_sync_clk;
-  input   read_remove;               // NOTE read_remove is VERY LATE
   output  read_data_available_meta;  // NOTE Needs extra settling time to avoid metastability
   output  read_two_words_available_meta;  // NOTE Needs extra settling time to avoid metastability
+  input   read_remove;               // NOTE read_remove is VERY LATE
   output [38:0] read_data;
   output  read_error;
 
@@ -199,66 +201,6 @@ module pci_fifo_storage_request (
   wire   [3:0] write_address;
   wire   [3:0] read_address;
   wire    write_capture_data, read_enable;
-
-  wire    read_data_available_meta_raw;
-  reg     read_data_available_reg;
-  wire    capture_read_data;
-  wire   [38:0] read_data_raw;
-  reg    [38:0] read_data_reg;
-
-// Note Make single FLOP which is used by FIFO Instantiator to know
-// whether the FIFO Read Port has data or not.
-// The Reader needs to only clear this single Flop to indicate that
-// the FIFO is empty.  This module will try to mark the FIFO Full
-// whenever it can.  It can perform the actual FIFO unload without
-// concern for whether the data is needed by the instantiating module
-
-// FIFO Data Available Flag, which hopefully can operate with an
-// Unload signal which has a MAX of 3 nSec setup time to the read clock.
-  always @(posedge read_clk or posedge reset_flags_async)
-  begin
-    if (reset_flags_async == 1'b1)
-    begin
-      read_data_available_reg <= 1'b0;
-    end
-    else
-    begin
-      if (read_remove)  // NOTE read_remove is VERY LATE.  3 nSec before clock
-      begin
-        read_data_available_reg <=  // only say valid if even more data available
-                      read_data_available_reg & read_data_available_meta_raw;
-      end
-      else  // ~read_remove
-      begin
-        read_data_available_reg <=  // say valid if any data available
-                      read_data_available_reg | read_data_available_meta_raw;
-      end
-    end
-  end
-
-// Indicate to Fifo Instantier that data is available on the Read Port.
-  assign  read_data_available_meta =
-                     read_data_available_meta_raw | read_data_available_reg;
-
-// Indicate to Fifo Instantier that 2 words of data are available on the Read Port.
-  assign  read_two_words_available_meta =
-                     read_data_available_meta_raw & read_data_available_reg;
-
-// Move data from FIFO to holding register whenever there is room.
-  assign  capture_read_data =  read_data_available_meta_raw
-                           & ~read_data_available_reg;
-
-// Capture data from the FIFO if it is available, independent of whether
-// or not the FIFO instantiator can use it now.
-  always @(posedge read_clk)
-  begin
-    read_data_reg[38:0] = capture_read_data
-                        ? read_data_raw[38:0] : read_data_reg[38:0];
-  end
-
-// Pass FIFO data to the instantier.
-  assign  read_data[38:0] = read_data_available_reg
-                          ? read_data_reg[38:0] : read_data_raw[38:0];
 
 pci_blue_fifo_flags pci_fifo_flags_request (
   .reset_flags_async          (reset_flags_async),
@@ -274,9 +216,10 @@ pci_blue_fifo_flags pci_fifo_flags_request (
   .read_flag_before_data_const        (read_flag_before_data_const),
   .read_clk                   (read_clk),
   .read_sync_clk              (read_sync_clk),
-  .read_remove                (capture_read_data),
+  .read_remove                (read_remove),
   .read_enable                (read_enable),
-  .read_data_available_meta   (read_data_available_meta_raw),
+  .read_data_available_meta   (read_data_available_meta),
+  .read_two_words_available_meta (read_two_words_available_meta),
   .read_address               (read_address[3:0]),
   .read_error                 (read_error)
 );
@@ -290,7 +233,7 @@ pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_7_0 (
   .read_clk                   (read_clk),
   .read_enable                (read_enable),
   .read_address               (read_address[3:0]),
-  .read_data                  (read_data_raw[7:0])
+  .read_data                  (read_data[7:0])
 );
 pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_15_8 (
   .write_clk                  (write_clk),
@@ -300,7 +243,7 @@ pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_15_8 (
   .read_clk                   (read_clk),
   .read_enable                (read_enable),
   .read_address               (read_address[3:0]),
-  .read_data                  (read_data_raw[15:8])
+  .read_data                  (read_data[15:8])
 );
 pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_23_16 (
   .write_clk                  (write_clk),
@@ -310,7 +253,7 @@ pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_23_16 (
   .read_clk                   (read_clk),
   .read_enable                (read_enable),
   .read_address               (read_address[3:0]),
-  .read_data                  (read_data_raw[23:16])
+  .read_data                  (read_data[23:16])
 );
 pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_31_24 (
   .write_clk                  (write_clk),
@@ -320,7 +263,7 @@ pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_31_24 (
   .read_clk                   (read_clk),
   .read_enable                (read_enable),
   .read_address               (read_address[3:0]),
-  .read_data                  (read_data_raw[31:24])
+  .read_data                  (read_data[31:24])
 );
 pci_fifo_storage_Nx4 pci_fifo_storage_Nx4_35_32 (
   .write_clk                  (write_clk),
@@ -330,7 +273,7 @@ pci_fifo_storage_Nx4 pci_fifo_storage_Nx4_35_32 (
   .read_clk                   (read_clk),
   .read_enable                (read_enable),
   .read_address               (read_address[3:0]),
-  .read_data                  (read_data_raw[35:32])
+  .read_data                  (read_data[35:32])
 );
 pci_fifo_storage_Nx3 pci_fifo_storage_Nx3_38_36 (
   .write_clk                  (write_clk),
@@ -340,7 +283,7 @@ pci_fifo_storage_Nx3 pci_fifo_storage_Nx3_38_36 (
   .read_clk                   (read_clk),
   .read_enable                (read_enable),
   .read_address               (read_address[3:0]),
-  .read_data                  (read_data_raw[38:36])
+  .read_data                  (read_data[38:36])
 );
 
 
@@ -364,7 +307,7 @@ pci_fifo_storage_Nx3 pci_fifo_storage_Nx3_38_36 (
           & ( ((write_address ^ write_address) === 1'bx)
               | (write_address[3:0] >= address_limit[3:0]) ) )
     begin
-      $display ("*** pci_fifo_storage_request %d - Write Address invalid %x, at %t",
+      $display ("*** %m %d - Write Address invalid %x, at %t",
                   address_limit[3:0], write_address[3:0], $time);
     end
     `NO_ELSE;
@@ -375,7 +318,7 @@ pci_fifo_storage_Nx3 pci_fifo_storage_Nx3_38_36 (
           & ( ((read_address ^ read_address) === 1'bx)
               | (read_address[3:0] >= address_limit[3:0]) ) )
     begin
-      $display ("*** pci_fifo_storage_request %d - Read Address invalid %x, at %t",
+      $display ("*** %m %d - Read Address invalid %x, at %t",
                   address_limit[3:0], read_address[3:0], $time);
     end
     `NO_ELSE;
@@ -384,7 +327,7 @@ pci_fifo_storage_Nx3 pci_fifo_storage_Nx3_38_36 (
   begin
     if (($time > 0) & write_capture_data & ((write_data ^ write_data) === 1'bx) )
     begin
-      $display ("*** pci_fifo_storage_request - Write Data invalid 'h%x, at %t",
+      $display ("*** %m - Write Data invalid 'h%x, at %t",
                   write_data, $time);
     end
     `NO_ELSE;
@@ -403,7 +346,8 @@ module pci_fifo_storage_response (
   write_room_available_meta,  // NOTE Needs extra settling time to avoid metastability
   write_data,
   write_error,
-  read_clk, read_sync_clk, read_remove,
+  read_clk, read_sync_clk,
+  read_remove,
   read_data_available_meta,  // NOTE Needs extra settling time to avoid metastability
   read_data,
   read_error
@@ -501,6 +445,7 @@ pci_blue_fifo_flags pci_fifo_flags_response (
   .read_remove                (read_remove),
   .read_enable                (read_enable),
   .read_data_available_meta   (read_data_available_meta),
+  .read_two_words_available_meta (read_two_words_available_meta),
   .read_address               (read_address[3:0]),
   .read_error                 (read_error)
 );
@@ -576,7 +521,7 @@ pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_39_32 (
           & ( ((write_address ^ write_address) === 1'bx)
               | (write_address[3:0] >= address_limit[3:0]) ) )
     begin
-      $display ("*** pci_fifo_storage_response %d - Write Address invalid %x, at %t",
+      $display ("*** %m %d - Write Address invalid %x, at %t",
                   address_limit[3:0], write_address[3:0], $time);
     end
     `NO_ELSE;
@@ -587,7 +532,7 @@ pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_39_32 (
           & ( ((read_address ^ read_address) === 1'bx)
               | (read_address[3:0] >= address_limit[3:0]) ) )
     begin
-      $display ("*** pci_fifo_storage_response %d - Read Address invalid %x, at %t",
+      $display ("*** %m %d - Read Address invalid %x, at %t",
                   address_limit[3:0], read_address[3:0], $time);
     end
     `NO_ELSE;
@@ -596,7 +541,7 @@ pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_39_32 (
   begin
     if (($time > 0) & write_capture_data & ((write_data ^ write_data) === 1'bx) )
     begin
-      $display ("*** pci_fifo_storage_response - Write Data invalid 'h%x, at %t",
+      $display ("*** %m - Write Data invalid 'h%x, at %t",
                   write_data, $time);
     end
     `NO_ELSE;
@@ -610,7 +555,8 @@ endmodule
 module pci_fifo_storage_delayed_read (
   reset_flags_async,
   fifo_mode,
-  write_clk, write_sync_clk, write_submit,
+  write_clk, write_sync_clk,
+  write_submit,
   write_room_available_meta,  // NOTE Needs extra settling time to avoid metastability
   write_data,
   write_error,
@@ -640,62 +586,6 @@ module pci_fifo_storage_delayed_read (
   wire   [3:0] read_address;
   wire    write_capture_data, read_enable;
 
-  wire    read_data_available_meta_raw;
-  reg     read_data_available_reg;
-  wire    capture_read_data;
-  wire   [34:0] read_data_raw;
-  reg    [34:0] read_data_reg;
-
-// Note Make single FLOP which is used by FIFO Instantiator to know
-// whether the FIFO Read Port has data or not.
-// The Reader needs to only clear this single Flop to indicate that
-// the FIFO is empty.  This module will try to mark the FIFO Full
-// whenever it can.  It can perform the actual FIFO unload without
-// concern for whether the data is needed by the instantiating module
-
-// FIFO Data Available Flag, which hopefully can operate with an
-// Unload signal which has a MAX of 3 nSec setup time to the read clock.
-  always @(posedge read_clk or posedge reset_flags_async)
-  begin
-    if (reset_flags_async == 1'b1)
-    begin
-      read_data_available_reg <= 1'b0;
-    end
-    else
-    begin
-      if (read_remove)  // NOTE read_remove is VERY LATE.  3 nSec before clock
-      begin
-        read_data_available_reg <=  // only say valid if even more data available
-                      read_data_available_reg & read_data_available_meta_raw;
-      end
-      else  // ~read_remove
-      begin
-        read_data_available_reg <=  // say valid if any data available
-                      read_data_available_reg | read_data_available_meta_raw;
-      end
-    end
-  end
-
-// Indicate to Fifo Instantier that data is available on the Read Port.
-  assign read_data_available_meta =
-                     read_data_available_meta_raw | read_data_available_reg;
-
-// Move data from FIFO to holding register whenever there is room.
-  assign capture_read_data =  read_data_available_meta_raw
-                           & ~read_data_available_reg;
-
-// Capture data from the FIFO if it is available, independent of whether
-// or not the FIFO instantiator can use it now.
-  always @(posedge read_clk)
-  begin
-    read_data_reg[34:0] = capture_read_data
-                        ? read_data_raw[34:0] : read_data_reg[34:0];
-  end
-
-// Pass FIFO data to the instantier.
-  assign read_data[34:0] = read_data_available_reg
-                         ? read_data_reg[34:0] : read_data_raw[34:0];
-
 pci_blue_fifo_flags pci_fifo_flags_delayed_read (
   .reset_flags_async          (reset_flags_async),
   .double_sync_read_full_flag_const   (double_sync_read_full_flag_const),
@@ -710,9 +600,10 @@ pci_blue_fifo_flags pci_fifo_flags_delayed_read (
   .read_flag_before_data_const        (read_flag_before_data_const),
   .read_clk                   (read_clk),
   .read_sync_clk              (read_sync_clk),
-  .read_remove                (capture_read_data),
+  .read_remove                (read_remove),
   .read_enable                (read_enable),
-  .read_data_available_meta   (read_data_available_meta_raw),
+  .read_data_available_meta   (read_data_available_meta),
+  .read_two_words_available_meta (read_two_words_available_meta),
   .read_address               (read_address[3:0]),
   .read_error                 (read_error)
 );
@@ -726,7 +617,7 @@ pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_7_0 (
   .read_clk                   (read_clk),
   .read_enable                (read_enable),
   .read_address               (read_address[3:0]),
-  .read_data                  (read_data_raw[7:0])
+  .read_data                  (read_data[7:0])
 );
 pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_15_8 (
   .write_clk                  (write_clk),
@@ -736,7 +627,7 @@ pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_15_8 (
   .read_clk                   (read_clk),
   .read_enable                (read_enable),
   .read_address               (read_address[3:0]),
-  .read_data                  (read_data_raw[15:8])
+  .read_data                  (read_data[15:8])
 );
 pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_23_16 (
   .write_clk                  (write_clk),
@@ -746,7 +637,7 @@ pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_23_16 (
   .read_clk                   (read_clk),
   .read_enable                (read_enable),
   .read_address               (read_address[3:0]),
-  .read_data                  (read_data_raw[23:16])
+  .read_data                  (read_data[23:16])
 );
 pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_31_24 (
   .write_clk                  (write_clk),
@@ -756,7 +647,7 @@ pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_31_24 (
   .read_clk                   (read_clk),
   .read_enable                (read_enable),
   .read_address               (read_address[3:0]),
-  .read_data                  (read_data_raw[31:24])
+  .read_data                  (read_data[31:24])
 );
 pci_fifo_storage_Nx3 pci_fifo_storage_Nx3_34_32 (
   .write_clk                  (write_clk),
@@ -766,7 +657,7 @@ pci_fifo_storage_Nx3 pci_fifo_storage_Nx3_34_32 (
   .read_clk                   (read_clk),
   .read_enable                (read_enable),
   .read_address               (read_address[3:0]),
-  .read_data                  (read_data_raw[34:32])
+  .read_data                  (read_data[34:32])
 );
 `ifdef NORMAL_PCI_CHECKS
 `ifdef HOST_FIFO_DEPTH_3
@@ -788,7 +679,7 @@ pci_fifo_storage_Nx3 pci_fifo_storage_Nx3_34_32 (
           & ( ((write_address ^ write_address) === 1'bx)
               | (write_address[3:0] >= address_limit[3:0]) ) )
     begin
-      $display ("*** pci_fifo_storage_delayed_read %d - Write Address invalid %x, at %t",
+      $display ("*** %m %d - Write Address invalid %x, at %t",
                   address_limit[3:0], write_address[3:0], $time);
     end
     `NO_ELSE;
@@ -799,7 +690,7 @@ pci_fifo_storage_Nx3 pci_fifo_storage_Nx3_34_32 (
           & ( ((read_address ^ read_address) === 1'bx)
               | (read_address[3:0] >= address_limit[3:0]) ) )
     begin
-      $display ("*** pci_fifo_storage_delayed_read %d - Read Address invalid %x, at %t",
+      $display ("*** %m %d - Read Address invalid %x, at %t",
                   address_limit[3:0], read_address[3:0], $time);
     end
     `NO_ELSE;
@@ -808,7 +699,7 @@ pci_fifo_storage_Nx3 pci_fifo_storage_Nx3_34_32 (
   begin
     if (($time > 0) & write_capture_data & ((write_data ^ write_data) === 1'bx) )
     begin
-      $display ("*** pci_fifo_storage_delayed_read - Write Data invalid 'h%x, at %t",
+      $display ("*** %m - Write Data invalid 'h%x, at %t",
                   write_data, $time);
     end
     `NO_ELSE;

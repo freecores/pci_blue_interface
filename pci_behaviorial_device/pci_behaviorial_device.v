@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_behaviorial_device.v,v 1.6 2001-06-20 11:25:02 bbeaver Exp $
+// $Id: pci_behaviorial_device.v,v 1.7 2001-07-03 09:20:44 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -88,8 +88,8 @@ module pci_behaviorial_device (
   test_start, test_accepted_l, test_error_event,
   test_device_id
 );
-  inout  [31:0] pci_ext_ad;
-  inout  [3:0] pci_ext_cbe_l;
+  inout  [`PCI_BUS_DATA_RANGE] pci_ext_ad;
+  inout  [`PCI_BUS_CBE_RANGE] pci_ext_cbe_l;
   inout   pci_ext_par;
   inout   pci_ext_frame_l, pci_ext_irdy_l;
   inout   pci_ext_devsel_l, pci_ext_trdy_l, pci_ext_stop_l;
@@ -102,10 +102,10 @@ module pci_behaviorial_device (
 // Test wires to make it easier to understand who is driving the bus
   output [5:0] test_observe_oe_sigs;
   input  [2:0] test_master_number;
-  input  [31:0] test_address;
-  input  [3:0] test_command;
-  input  [31:0] test_data;
-  input  [3:0] test_byte_enables_l;
+  input  [`PCI_BUS_DATA_RANGE] test_address;
+  input  [`PCI_BUS_CBE_RANGE] test_command;
+  input  [`PCI_BUS_DATA_RANGE] test_data;
+  input  [`PCI_BUS_CBE_RANGE] test_byte_enables_l;
   input  [3:0] test_size;
   input   test_make_addr_par_error, test_make_data_par_error;
   input  [3:0] test_master_initial_wait_states;
@@ -147,41 +147,45 @@ module pci_behaviorial_device (
 
   wire    master_gnt_now = ~pci_ext_gnt_l;
 
-  wire   [31:0] pci_ad_out;
-  wire   [31:0] pci_ad_out_dly1, pci_ad_out_dly2;
-  assign #`PAD_MIN_DATA_DLY pci_ad_out_dly1 = pci_ad_out[31:0];
-  assign #`PAD_MAX_DATA_DLY pci_ad_out_dly2 = pci_ad_out[31:0];
+  wire   [`PCI_BUS_DATA_RANGE] pci_ad_out;
+  wire   [`PCI_BUS_DATA_RANGE] pci_ad_out_dly1, pci_ad_out_dly2;
+  assign #`PAD_MIN_DATA_DLY pci_ad_out_dly1 = pci_ad_out[`PCI_BUS_DATA_RANGE];
+  assign #`PAD_MAX_DATA_DLY pci_ad_out_dly2 = pci_ad_out[`PCI_BUS_DATA_RANGE];
   wire    pci_ad_oe;
   wire    pci_ad_oe_dly1, pci_ad_oe_dly2;
   assign #`PAD_MIN_OE_DLY pci_ad_oe_dly1 = pci_ad_oe;
   assign #`PAD_MAX_OE_DLY pci_ad_oe_dly2 = pci_ad_oe;
   wire    force_ad_x = (pci_ad_oe_dly1 !== pci_ad_oe_dly2)
                      | (pci_ad_oe & (pci_ad_out_dly1 !== pci_ad_out_dly2));
-  assign  pci_ext_ad[31:0] = force_ad_x ? 32'hXXXXXXXX
-                           : (pci_ad_oe_dly2 ? pci_ad_out_dly2[31:0] : 32'bZ);
+  assign  pci_ext_ad[`PCI_BUS_DATA_RANGE] = force_ad_x ? `PCI_BUS_DATA_X
+                           : (pci_ad_oe_dly2
+                           ? pci_ad_out_dly2[`PCI_BUS_DATA_RANGE]
+                           : `PCI_BUS_DATA_Z);
 // NOTE ad_now must have a bypass from internal data in the synthesized design
-  wire   [31:0] ad_now = pci_ext_ad[31:0];
-  reg    [31:0] ad_prev;
+  wire   [`PCI_BUS_DATA_RANGE] ad_now = pci_ext_ad[`PCI_BUS_DATA_RANGE];
+  reg    [`PCI_BUS_DATA_RANGE] ad_prev;
 
-  wire   [3:0] master_cbe_l_out;
-  wire   [3:0] master_cbe_l_dly1, master_cbe_l_dly2;
-  assign #`PAD_MIN_DATA_DLY master_cbe_l_dly1 = master_cbe_l_out[3:0];
-  assign #`PAD_MAX_DATA_DLY master_cbe_l_dly2 = master_cbe_l_out[3:0];
+  wire   [`PCI_BUS_CBE_RANGE] master_cbe_l_out;
+  wire   [`PCI_BUS_CBE_RANGE] master_cbe_l_dly1, master_cbe_l_dly2;
+  assign #`PAD_MIN_DATA_DLY master_cbe_l_dly1 = master_cbe_l_out[`PCI_BUS_CBE_RANGE];
+  assign #`PAD_MAX_DATA_DLY master_cbe_l_dly2 = master_cbe_l_out[`PCI_BUS_CBE_RANGE];
   wire    master_cbe_oe;
   wire    master_cbe_oe_dly1, master_cbe_oe_dly2;
   assign #`PAD_MIN_OE_DLY master_cbe_oe_dly1 = master_cbe_oe;
   assign #`PAD_MAX_OE_DLY master_cbe_oe_dly2 = master_cbe_oe;
   wire    force_cbe_x = (master_cbe_oe_dly1 !== master_cbe_oe_dly2)
                       | (master_cbe_oe & (master_cbe_l_dly1 !== master_cbe_l_dly2));
-  assign  pci_ext_cbe_l[3:0] = force_cbe_x ? 4'hX
-                             : (master_cbe_oe_dly2 ? master_cbe_l_dly2[3:0] : 4'hZ);
+  assign  pci_ext_cbe_l[`PCI_BUS_CBE_RANGE] = force_cbe_x ? `PCI_BUS_CBE_X
+                             : (master_cbe_oe_dly2
+                             ? master_cbe_l_dly2[`PCI_BUS_CBE_RANGE]
+                             : `PCI_BUS_CBE_Z);
 // NOTE cbe_l_now must have a bypass from internal data in the synthesized design
-  wire   [3:0] cbe_l_now = pci_ext_cbe_l[3:0];
-  reg    [3:0] cbe_l_prev;
+  wire   [`PCI_BUS_CBE_RANGE] cbe_l_now = pci_ext_cbe_l[`PCI_BUS_CBE_RANGE];
+  reg    [`PCI_BUS_CBE_RANGE] cbe_l_prev;
   always @(posedge pci_ext_clk)
   begin
-    ad_prev <= pci_ext_ad[31:0];
-    cbe_l_prev <= pci_ext_cbe_l[3:0];
+    ad_prev[`PCI_BUS_DATA_RANGE] <= pci_ext_ad[`PCI_BUS_DATA_RANGE];
+    cbe_l_prev[`PCI_BUS_CBE_RANGE] <= pci_ext_cbe_l[`PCI_BUS_CBE_RANGE];
   end
 
   wire    idsel_now, idsel_prev, idsel_now_l, idsel_prev_l;
@@ -267,20 +271,23 @@ delayed_test_pad test_pad_serr (
                target_d_t_s_oe, pci_ad_oe, master_cbe_oe, pci_perr_oe};
 
 // Variables to give access to shared IO pins
-  wire   [31:0] master_ad_out;
+  wire   [`PCI_BUS_DATA_RANGE] master_ad_out;
   wire    master_par_out_next;
   wire    master_perr_out;
   wire    master_ad_oe, master_perr_oe, master_serr_oe;
   wire    master_debug_force_bad_par;
-  wire   [31:0] target_ad_out;
+  wire   [`PCI_BUS_DATA_RANGE] target_ad_out;
   wire    target_par_out_next;
   wire    target_perr_out;
   wire    target_ad_oe, target_perr_oe, target_serr_oe;
   wire    target_debug_force_bad_par;
 
 // Shared Bus Wires which can be driven by the Master or the Target
-  assign  pci_ad_out = master_ad_oe ? master_ad_out[31:0]
-                     : (target_ad_oe ? target_ad_out[31:0] : 32'hXXXXXXXX);
+  assign  pci_ad_out[`PCI_BUS_DATA_RANGE] = master_ad_oe
+                     ? master_ad_out[`PCI_BUS_DATA_RANGE]
+                     : (target_ad_oe
+                     ? target_ad_out[`PCI_BUS_DATA_RANGE]
+                     : `PCI_BUS_DATA_X);
   assign  pci_ad_oe = master_ad_oe | target_ad_oe;
   always @(posedge pci_ext_clk or posedge pci_reset_comb)
   begin
@@ -293,9 +300,11 @@ delayed_test_pad test_pad_serr (
       pci_par_oe <= master_ad_oe | target_ad_oe;
     end
   end
-  assign  master_par_out_next = (^master_ad_out[31:0]) ^ (^master_cbe_l_out[3:0])
+  assign  master_par_out_next = (^master_ad_out[`PCI_BUS_DATA_RANGE])
+                              ^ (^master_cbe_l_out[`PCI_BUS_CBE_RANGE])
                               ^ master_debug_force_bad_par;
-  assign  target_par_out_next = (^target_ad_out[31:0]) ^ (^cbe_l_now[3:0])
+  assign  target_par_out_next = (^target_ad_out[`PCI_BUS_DATA_RANGE])
+                              ^ (^cbe_l_now[`PCI_BUS_CBE_RANGE])
                               ^ target_debug_force_bad_par;
   always @(posedge pci_ext_clk)
   begin
@@ -336,7 +345,8 @@ delayed_test_pad test_pad_serr (
 // synopsys translate_on
 
 // Share a parity generator on inputs (Is this legal?  Can't receive CBE in Master)
-  wire    calc_input_parity_prev = (^ad_prev[31:0]) ^ (^cbe_l_prev[3:0]);
+  wire    calc_input_parity_prev = (^ad_prev[`PCI_BUS_DATA_RANGE])
+                                 ^ (^cbe_l_prev[`PCI_BUS_CBE_RANGE]);
 
 // Master needs to report conditions to Target, which contains the Config Register
 // If the system is a target only, these bits should all be wired to 0
@@ -346,12 +356,12 @@ delayed_test_pad test_pad_serr (
   wire   [7:0] master_latency_value;
 
 pci_behaviorial_master pci_behaviorial_master (
-  .ad_now                     (ad_now[31:0]),
-  .ad_prev                    (ad_prev[31:0]),
+  .ad_now                     (ad_now[`PCI_BUS_DATA_RANGE]),
+  .ad_prev                    (ad_prev[`PCI_BUS_DATA_RANGE]),
   .calc_input_parity_prev     (calc_input_parity_prev),
-  .master_ad_out              (master_ad_out[31:0]),
+  .master_ad_out              (master_ad_out[`PCI_BUS_DATA_RANGE]),
   .master_ad_oe               (master_ad_oe),
-  .master_cbe_l_out           (master_cbe_l_out[3:0]),
+  .master_cbe_l_out           (master_cbe_l_out[`PCI_BUS_CBE_RANGE]),
   .master_cbe_oe              (master_cbe_oe),
   .par_now                    (par_now),
   .par_prev                   (par_prev),
@@ -392,10 +402,10 @@ pci_behaviorial_master pci_behaviorial_master (
 // Signals used by the test bench instead of using "." notation
   .master_debug_force_bad_par (master_debug_force_bad_par),
   .test_master_number         (test_master_number[2:0]),
-  .test_address               (test_address[31:0]),
-  .test_command               (test_command[3:0]),
-  .test_data                  (test_data[31:0]),
-  .test_byte_enables_l        (test_byte_enables_l[3:0]),
+  .test_address               (test_address[`PCI_BUS_DATA_RANGE]),
+  .test_command               (test_command[`PCI_BUS_CBE_RANGE]),
+  .test_data                  (test_data[`PCI_BUS_DATA_RANGE]),
+  .test_byte_enables_l        (test_byte_enables_l[`PCI_BUS_CBE_RANGE]),
   .test_size                  (test_size[3:0]),
   .test_make_addr_par_error   (test_make_addr_par_error),
   .test_make_data_par_error   (test_make_data_par_error),
@@ -414,13 +424,13 @@ pci_behaviorial_master pci_behaviorial_master (
 );
 
 pci_behaviorial_target pci_behaviorial_target (
-  .ad_now                     (ad_now[31:0]),
-  .ad_prev                    (ad_prev[31:0]),
+  .ad_now                     (ad_now[`PCI_BUS_DATA_RANGE]),
+  .ad_prev                    (ad_prev[`PCI_BUS_DATA_RANGE]),
   .calc_input_parity_prev     (calc_input_parity_prev),
-  .target_ad_out              (target_ad_out[31:0]),
+  .target_ad_out              (target_ad_out[`PCI_BUS_DATA_RANGE]),
   .target_ad_oe               (target_ad_oe),
-  .cbe_l_now                  (cbe_l_now[3:0]),
-  .cbe_l_prev                 (cbe_l_prev[3:0]),
+  .cbe_l_now                  (cbe_l_now[`PCI_BUS_CBE_RANGE]),
+  .cbe_l_prev                 (cbe_l_prev[`PCI_BUS_CBE_RANGE]),
   .par_now                    (par_now),
   .par_prev                   (par_prev),
   .frame_now                  (frame_now),
