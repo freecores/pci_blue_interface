@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: crc32_lib.v,v 1.1 2001-08-19 04:03:20 bbeaver Exp $
+// $Id: crc32_lib.v,v 1.2 2001-08-19 13:49:08 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
