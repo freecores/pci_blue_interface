@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_master.v,v 1.41 2001-08-29 11:30:59 bbeaver Exp $
+// $Id: pci_blue_master.v,v 1.42 2001-09-11 09:25:03 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -1042,7 +1042,7 @@ module pci_blue_master (
 // See the PCI Local Bus Spec Revision 2.2 section 3.4.1 for details.
 
 // Given a present Master State and all appropriate inputs, calculate the next state.
-// Here is how to think of it for now: When a clock happens, this says what to do now
+// Here is how to think of it for now: When a clock happens, this says what to do now.
 
 // NOTE: Below are 4 functions.  Use a MUX to select between them based on TRDY, STOP.
 // NOTE: Below are 2 more functions.  Use a MUX to select between them based on Bus Avail
@@ -1050,7 +1050,7 @@ module pci_blue_master (
 //   is driving at any particular time.
 // NOTE: For a term which is constant and not selected by Bus Available, TRDY, STOP,
 //  (like jumping to IDLE), put it in both sides of a MUX.
-// NOTE: Since I know IDLE is all 0's, leave those terms out to reduce typing
+// NOTE: Since I know IDLE is all 0's, leave those terms out to reduce typing.
 
 // NOTE: DON"T DEBUG USING THIS FUNCTION.  Use the full function at the bottom
 //       of the file.  This is a subset, derived from the full State Machine.
@@ -1709,22 +1709,27 @@ endfunction
                  ? PCI_Master_Next_State_BUS_UNAVAILABLE[MS_Range:0] : PCI_MASTER_IDLE_00)
            | ((external_pci_bus_available_critical == 1'b1)
                  ? PCI_Master_Next_State_BUS_AVAILABLE[MS_Range:0] : PCI_MASTER_IDLE_00)
-           | ({pci_trdy_in_critical, pci_stop_in_critical} == TARGET_IDLE
+           | (({pci_trdy_in_critical, pci_stop_in_critical} == TARGET_IDLE)
                  ? PCI_Master_Next_State_TARGET_IDLE[MS_Range:0] : PCI_MASTER_IDLE_00)
-           | ({pci_trdy_in_critical, pci_stop_in_critical} == TARGET_TAR
+           | (({pci_trdy_in_critical, pci_stop_in_critical} == TARGET_TAR)
                  ? PCI_Master_Next_State_TARGET_TAR[MS_Range:0] : PCI_MASTER_IDLE_00)
-           | ({pci_trdy_in_critical, pci_stop_in_critical} == TARGET_DATA_MORE
+           | (({pci_trdy_in_critical, pci_stop_in_critical} == TARGET_DATA_MORE)
                  ? PCI_Master_Next_State_TARGET_DATA_MORE[MS_Range:0] : PCI_MASTER_IDLE_00)
-           | ({pci_trdy_in_critical, pci_stop_in_critical} == TARGET_DATA_LAST
+           | (({pci_trdy_in_critical, pci_stop_in_critical} == TARGET_DATA_LAST)
                  ? PCI_Master_Next_State_TARGET_DATA_LAST[MS_Range:0] : PCI_MASTER_IDLE_00);
 
 // synopsys translate_off
   wire   [MS_Range:0] PCI_Master_Next_State_Full_Function;  // forward declaration
 // synopsys translate_on
 
-// NOTE: WORKING: use Full Function for Debug, Partial Functions when satisfied.
+// NOTE: Use Full Function for Debug, Partial Functions when satisfied.
+`ifdef USE_FULL_MASTER_FUNCTION_FOR_DEBUG
   wire   [MS_Range:0] PCI_Master_Next_State =
                             PCI_Master_Next_State_Full_Function[MS_Range:0];
+`else  // USE_FULL_MASTER_FUNCTION_FOR_DEBUG
+  wire   [MS_Range:0] PCI_Master_Next_State =
+                            PCI_Master_Next_State_Partial_Functions[MS_Range:0];
+`endif  // USE_FULL_MASTER_FUNCTION_FOR_DEBUG
 
 // Actual State Machine includes async reset
   always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
@@ -2802,19 +2807,20 @@ endfunction
   begin
     if (     PCI_Master_Next_State_Full_Function[MS_Range:0]
          !== PCI_Master_Next_State_Partial_Functions [MS_Range:0])
-      $display ("Partial Functions don't match Full Function");
+      $display ("*** %m Partial Master Functions don't match Full Master Function");
   end
 
 wire working = Master_Data_Latency_Disconnect | Master_Bus_Latency_Disconnect;  // NOTE: WORKING
 
 `ifdef CALL_OUT_MASTER_STATE_TRANSITIONS
 // Look inside the master module and try to call out transition names.
-  reg    [67:1] transitions_seen;
+  parameter NUM_STATES = 67;
+  reg    [NUM_STATES:1] transitions_seen;
 
 task initialize_transition_table;
   integer i;
   begin
-    for (i = 1; i <= 67; i = i + 1)
+    for (i = 1; i <= NUM_STATES; i = i + 1)
     begin
       transitions_seen[i] = 1'b0;
     end
@@ -2828,14 +2834,14 @@ task call_out_transition;
   input i;
   integer i;
   begin
-    if ((i >= 1) & (i <= 67))
+    if ((i >= 1) & (i <= NUM_STATES))
     begin
-      $display ("transition %d seen at %t", i, $time);
+      $display ("Master transition %d seen at %t", i, $time);
       transitions_seen[i] = 1'b1;
     end
     else
     begin
-      $display ("*** bogus transition %d seen at %t", i, $time);
+      $display ("*** bogus Master transition %d seen at %t", i, $time);
     end
   end
 endtask
@@ -2843,17 +2849,17 @@ endtask
 task report_missing_transitions;
   integer i, j;
   begin
-  $display ("calling out transitions which were not yet exercised");
+  $display ("calling out Master transitions which were not yet exercised");
     j = 0;
-    for (i = 1; i <= 67; i = i + 1)
+    for (i = 1; i <= NUM_STATES; i = i + 1)
     begin
       if (transitions_seen[i] == 1'b0)
       begin
-        $display ("transition %d not seen", i);
+        $display ("Master transition %d not seen", i);
         j = j + 1;
       end
     end
-    $display ("%d transitions not seen", j);
+    $display ("%d Master transitions not seen", j);
   end
 endtask
 

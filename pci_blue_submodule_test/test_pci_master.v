@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_master.v,v 1.26 2001-09-07 11:28:52 bbeaver Exp $
+// $Id: test_pci_master.v,v 1.27 2001-09-11 09:25:03 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -323,7 +323,7 @@ task do_reset;
            | (pci_frame_bus === 1'b0)
            | (pci_irdy_bus === 1'b1)
            | (pci_irdy_bus === 1'b0) )
-        $display ("*** REQ, FRAME or IRDY still driven when Reset asserted at time %t", $time);
+        $display ("**** REQ, FRAME or IRDY still driven when Reset asserted at time %t", $time);
     end
     #3.0;
     pci_clk = 1'b0;
@@ -533,7 +533,7 @@ task do_master_test;
           write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE);
         else if (command_1 == MEM_WRITE_SERR)
           write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR, PCI_COMMAND_MEMORY_WRITE);
-        else $display ("*** bad first command");
+        else $display ("**** bad first command");
         @(negedge pci_clk);
         if (data_type_1 == DATA)
           write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_0);

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_target.v,v 1.6 2001-09-07 11:28:53 bbeaver Exp $
+// $Id: test_pci_target.v,v 1.7 2001-09-11 09:25:03 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -70,42 +70,27 @@ module pci_test_target (
   Target_Force_AD_to_Address_Data_Critical,
   Target_Exposes_Data_On_IRDY,
   pci_clk,
-  pci_target_ad_bus,
+  pci_ad_in_critical,
+  pci_idsel_in_critical,
+  pci_cbe_l_in_critical,
+  pci_frame_in_critical,
+  pci_irdy_in_critical,
+  pci_perr_in_critical,
+  pci_serr_in_critical,
   pci_ad_in_prev,
+  pci_idsel_in_prev,
   pci_cbe_l_in_prev,
-  pci_frame_in_critical, pci_frame_in_prev,
-  pci_irdy_in_critical, pci_irdy_in_prev,
-  pci_devsel_in_critical,
-  pci_devsel_bus,
-  pci_trdy_in_critical,
-  pci_trdy_bus,
-  pci_stop_in_critical,
-  pci_stop_bus,
+  pci_frame_in_prev,
+  pci_irdy_in_prev,
   pci_perr_in_prev,
-  pci_state,  // TEMPORARY
-  pci_fifo_state,  // TEMPORARY
-  pci_retry_type,
-  pci_retry_address,  // TEMPORARY
-  pci_retry_command,
-  pci_retry_write_reg,
+  pci_serr_in_prev,
+  pci_target_ad_bus,
+  pci_devsel_bus,
+  pci_trdy_bus,
+  pci_stop_bus,
   Doing_Config_Reference,
-  fifo_contains_address,
-  pci_retry_data,  // TEMPORARY
-  pci_retry_data_type,
-  pci_target_full,  // TEMPORARY
-  pci_bus_full,  // TEMPORARY
-  one_word_avail,  // TEMPORARY
-  two_words_avail,  // TEMPORARY
-  addr_aval,  // TEMPORARY
-  more,  // TEMPORARY
-  two_more,  // TEMPORARY
-  last,  // TEMPORARY
   working,
-  new_addr_new_data,   // TEMPORARY
-  old_addr_new_data,   // TEMPORARY
-  old_addr_old_data,   // TEMPORARY
-  new_data,
-  inc   // TEMPORAR
+  new_data
 );
 
 `include "pci_blue_options.vh"
@@ -116,72 +101,42 @@ module pci_test_target (
   output  Target_Force_AD_to_Address_Data_Critical;
   output  Target_Exposes_Data_On_IRDY;
   output  pci_clk;
+  output [PCI_BUS_DATA_RANGE:0] pci_ad_in_critical;
+  output  pci_idsel_in_critical;
+  output [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_critical;
+  output  pci_frame_in_critical;
+  output  pci_irdy_in_critical;
+  output  pci_perr_in_critical;
+  output  pci_serr_in_critical;
   output [PCI_BUS_DATA_RANGE:0] pci_ad_in_prev;
+  output  pci_idsel_in_prev;
   output [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_prev;
-  output [PCI_BUS_DATA_RANGE:0] pci_target_ad_bus;
-  output  pci_frame_in_critical, pci_frame_in_prev;
-  output  pci_irdy_in_critical, pci_irdy_in_prev;
-  output  pci_devsel_in_critical;
-  output  pci_devsel_bus;
-  output  pci_trdy_in_critical;
-  output  pci_trdy_bus;
-  output  pci_stop_in_critical;
-  output  pci_stop_bus;
+  output  pci_frame_in_prev;
+  output  pci_irdy_in_prev;
   output  pci_perr_in_prev;
-  output [4:0] pci_state;  // TEMPORARY
-  output [1:0] pci_fifo_state;  // TEMPORARY
-  output [2:0] pci_retry_type;  // TEMPORARY
-  output [31:0] pci_retry_address;  // TEMPORARY
-  output [3:0] pci_retry_command;  // TEMPORARY
-  output  pci_retry_write_reg;
+  output  pci_serr_in_prev;
+  output [PCI_BUS_DATA_RANGE:0] pci_target_ad_bus;
+  output  pci_devsel_bus;
+  output  pci_trdy_bus;
+  output  pci_stop_bus;
+
   output  Doing_Config_Reference;
-  output  fifo_contains_address;
-  output [31:0] pci_retry_data;  // TEMPORARY
-  output [2:0] pci_retry_data_type;
-  output  pci_target_full;  // TEMPORARY
-  output  pci_bus_full;  // TEMPORARY
-  output  one_word_avail;  // TEMPORARY
-  output  two_words_avail;  // TEMPORARY
-  output  addr_aval;  // TEMPORARY
-  output  more, two_more, last;
   output  working;
-  output  new_addr_new_data;     // TEMPORARY
-  output  old_addr_new_data;     // TEMPORARY
-  output  old_addr_old_data;     // TEMPORARY
   output  new_data;
-  output  inc;     // TEMPORARY
 
 // `define TARGET_INCLUDED
 `ifdef TARGET_INCLUDED
 // GROSS debugging signal. Only here to put signal in waveform.
   assign  pci_state[4:0]        = pci_blue_target.PCI_Master_State[4:0];                  // TEMPORARY
-  assign  pci_retry_type[2:0]   = {pci_blue_target.Master_Retry_Address_Type[2:0]};       // TEMPORARY
-  assign  pci_retry_address[31:0] = {pci_blue_target.Master_Retry_Address[31:2], 2'b0};   // TEMPORARY
-  assign  pci_retry_command[3:0]  = pci_blue_target.Master_Retry_Command[3:0];            // TEMPORARY
-  assign  pci_retry_write_reg   = pci_blue_target.Master_Retry_Write_Reg;                 // TEMPORARY
-  assign  Doing_Config_Reference = pci_blue_target.Master_Doing_Config_Reference;         // TEMPORARY
-  assign  pci_retry_data[31:0]  = pci_blue_target.Master_Retry_Data[31:0];                // TEMPORARY
-  assign  pci_retry_data_type[2:0] = pci_blue_target.Master_Retry_Data_Type[2:0];         // TEMPORARY
-  assign  fifo_contains_address = pci_blue_target.Request_FIFO_CONTAINS_ADDRESS;          // TEMPORARY
-  assign  pci_target_full       = pci_blue_target.master_to_target_status_full;           // TEMPORARY
-  assign  pci_bus_full          = pci_blue_target.master_request_full;                    // TEMPORARY
-  assign  two_words_avail       = pci_blue_target.request_fifo_two_words_available_meta;  // TEMPORARY
-  assign  one_word_avail        = pci_blue_target.request_fifo_data_available_meta;       // TEMPORARY
-  assign  addr_aval             = pci_blue_target.Request_FIFO_CONTAINS_ADDRESS;          // TEMPORARY
-  assign  more                  = pci_blue_target.Request_FIFO_CONTAINS_DATA_MORE;        // TEMPORARY
-  assign  two_more              = pci_blue_target.Request_FIFO_CONTAINS_DATA_TWO_MORE;    // TEMPORARY
-  assign  last                  = pci_blue_target.Request_FIFO_CONTAINS_DATA_LAST;        // TEMPORARY
-  assign  working               = pci_blue_target.working;       // TEMPORARY
-  assign  new_addr_new_data     = pci_blue_target.proceed_with_new_address_plus_new_data;        // TEMPORARY
-  assign  old_addr_new_data     = pci_blue_target.proceed_with_stored_address_plus_new_data;     // TEMPORARY
-  assign  old_addr_old_data     = pci_blue_target.proceed_with_stored_address_plus_stored_data;  // TEMPORARY
-  assign  new_data              = pci_blue_target.proceed_with_new_data;                  // TEMPORARY
-  assign  inc                   = pci_blue_target.Inc_Stored_Address;                     // TEMPORARY
 `endif  // TARGET_INCLUDED
 
 // PCI signals
   reg    [PCI_BUS_DATA_RANGE:0] pci_ad_in_prev;
+  reg     pci_idsel_in_prev;
+  reg    [PCI_BUS_DATA_RANGE:0] pci_ad_in_critical;
+  reg     pci_idsel_in_critical;
   reg    [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_prev;
+  reg    [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_critical;
   wire   [PCI_BUS_DATA_RANGE:0] pci_target_ad_out_next;
   wire    pci_target_ad_out_oe_comb;
   reg     pci_frame_in_critical, pci_frame_in_prev;
@@ -191,7 +146,7 @@ module pci_test_target (
   reg     pci_devsel_in_prev, pci_devsel_in_critical;
   reg     pci_trdy_in_prev, pci_trdy_in_critical;
   reg     pci_stop_in_prev, pci_stop_in_critical;
-  reg     pci_perr_in_prev;
+  reg     pci_perr_in_prev, pci_serr_in_prev;
   wire    Target_Force_AD_to_Address_Data_Critical;
   wire    Target_Captures_Data_On_IRDY, Target_Exposes_Data_On_IRDY;
   wire    Target_Forces_PERR;
@@ -248,6 +203,53 @@ module pci_test_target (
   wire    pci_delayed_read_fifo_data_available_meta;
   wire    pci_delayed_read_fifo_data_unload, pci_delayed_read_fifo_error;
 
+task do_reset;
+  begin
+    if ($time > 0)
+    begin
+      if (   (pci_devsel_bus === 1'b1)
+           | (pci_devsel_bus === 1'b0)
+           | (pci_trdy_bus === 1'b1)
+           | (pci_trdy_bus === 1'b0)
+           | (pci_stop_bus === 1'b1)
+           | (pci_stop_bus === 1'b0) )
+        $display ("**** DEVSEL, TRDY, or STOP still driven when Reset asserted at time %t", $time);
+    end
+    #3.0;
+    pci_clk = 1'b0;
+    host_reset_comb = 1'b1;
+    #5;
+    host_reset_comb = 1'b0;
+    #2.0;
+  end
+endtask
+
+task pci_frame;
+  input   new_val;
+  begin
+    pci_frame_in_critical <= new_val;
+  end
+endtask
+
+task pci_irdy;
+  input   new_val;
+  begin
+    pci_irdy_in_critical <= new_val;
+  end
+endtask
+
+task pci_perr;
+  begin
+    pci_perr_in_prev <= 1'b1;
+  end
+endtask
+
+task pci_serr;
+  begin
+    pci_serr_in_prev <= 1'b1;
+  end
+endtask
+
 task set_ext_addr;
   input [PCI_BUS_DATA_RANGE:0] new_addr;
   begin
@@ -291,40 +293,17 @@ task do_clocks;
   end
 endtask
 
-task do_reset;
-  begin
-    if ($time > 0)
-    begin
-      if (   (pci_devsel_bus === 1'b1)
-           | (pci_devsel_bus === 1'b0)
-           | (pci_trdy_bus === 1'b1)
-           | (pci_trdy_bus === 1'b0)
-           | (pci_stop_bus === 1'b1)
-           | (pci_stop_bus === 1'b0) )
-        $display ("*** DEVSEL, TRDY, or STOP still driven when Reset asserted at time %t", $time);
-    end
-    #3.0;
-    pci_clk = 1'b0;
-    host_reset_comb = 1'b1;
-    #5;
-    host_reset_comb = 1'b0;
-    #2.0;
-  end
-endtask
-
-  reg    pci_perr_in_comb, pci_serr_in_comb;
-  reg   [PCI_BUS_DATA_RANGE:0] pci_ad_in_comb;
-  reg   [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_comb;
+  reg     pci_perr_in_critical, pci_serr_in_critical;
 
 task set_pci_idle;
   begin
-    pci_ad_in_comb[PCI_BUS_DATA_RANGE:0] = `PCI_BUS_DATA_X;
-    pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0] = `PCI_BUS_CBE_X;
-    pci_devsel_in_critical = 1'b0;
-    pci_trdy_in_critical = 1'b0;
-    pci_stop_in_critical = 1'b0;
-    pci_perr_in_comb = 1'b0;
-    pci_serr_in_comb = 1'b0;
+    pci_ad_in_critical[PCI_BUS_DATA_RANGE:0] = `PCI_BUS_DATA_Z;
+    pci_idsel_in_critical = 1'bZ;
+    pci_cbe_l_in_critical[PCI_BUS_CBE_RANGE:0] = `PCI_BUS_CBE_Z;
+    pci_frame_in_critical = 1'b0;
+    pci_irdy_in_critical = 1'b0;
+    pci_perr_in_critical = 1'b0;
+    pci_serr_in_critical = 1'b0;
   end
 endtask
 
@@ -338,82 +317,79 @@ task write_delayed_read_fifo;
   end
 endtask
 
-task pci_frame;
-  begin
-    pci_frame_in_critical <= 1'b1;
-  end
-endtask
-
-task pci_irdy;
-  begin
-    pci_irdy_in_critical <= 1'b1;
-  end
-endtask
-
-task pci_perr;
-  begin
-    pci_perr_in_prev <= 1'b1;
-  end
-endtask
-
-task write_reg;
+// tasks which do activity on the PCI bus in stead of having an external Master
+task drive_config_addr;
   input  [PCI_BUS_CBE_RANGE:0] ref_type;
   begin
-    pci_ad_in_comb[PCI_BUS_DATA_RANGE:0] = `PCI_BUS_DATA_X;
-    pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0] = ref_type[PCI_BUS_CBE_RANGE:0];
-    pci_frame;
+    pci_ad_in_critical[PCI_BUS_DATA_RANGE:0] = `PCI_BUS_DATA_Z;  // NOTE: WORKING
+    pci_idsel_in_critical <= 1'b1;
+    pci_cbe_l_in_critical[PCI_BUS_CBE_RANGE:0] = ref_type[PCI_BUS_CBE_RANGE:0];
+    pci_frame (1'b1);  pci_irdy (1'b0);
   end
 endtask
 
-task write_addr;
+task drive_addr;
   input  [PCI_BUS_CBE_RANGE:0] ref_type;
   input   serr_requested;
   begin
-    pci_ad_in_comb[PCI_BUS_DATA_RANGE:0] = `PCI_BUS_DATA_X;
-    pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0] = ref_type[PCI_BUS_CBE_RANGE:0];
-    pci_frame;
+    pci_ad_in_critical[PCI_BUS_DATA_RANGE:0] = next_addr[PCI_BUS_DATA_RANGE:0];
+    pci_idsel_in_critical <= 1'b0;
+    pci_cbe_l_in_critical[PCI_BUS_CBE_RANGE:0] = ref_type[PCI_BUS_CBE_RANGE:0];
     inc_ext_addr;
+    pci_frame (1'b1);  pci_irdy (1'b0);
   end
 endtask
 
-task read_be;
+task drive_be;  // just byte enables are driven during reads
   input  [PCI_BUS_CBE_RANGE:0] byte_enables;
   input   last_requested;
   begin
-    pci_ad_in_comb[PCI_BUS_DATA_RANGE:0] = `PCI_BUS_DATA_X;
-    pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0] = byte_enables[PCI_BUS_CBE_RANGE:0];
+    pci_ad_in_critical[PCI_BUS_DATA_RANGE:0] = `PCI_BUS_DATA_Z;
+    pci_idsel_in_critical = 1'bZ;
+    pci_cbe_l_in_critical[PCI_BUS_CBE_RANGE:0] = byte_enables[PCI_BUS_CBE_RANGE:0];
     if (last_requested == 1'b1)
     begin
-      pci_irdy;
+      pci_frame (1'b0);  pci_irdy (1'b1);
     end
     else
     begin
-      pci_frame;  pci_irdy;
+      pci_frame (1'b1);  pci_irdy (1'b1);
     end
   end
 endtask
 
-task write_data;
+task drive_data;
   input  [PCI_BUS_CBE_RANGE:0] byte_enables;
   input   last_requested;
   input   perr_requested;
   begin
-    pci_ad_in_comb[PCI_BUS_DATA_RANGE:0] = `PCI_BUS_DATA_X;
-    pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0] = byte_enables[PCI_BUS_CBE_RANGE:0];
+    pci_ad_in_critical[PCI_BUS_DATA_RANGE:0] = next_data[PCI_BUS_DATA_RANGE:0];
+    pci_idsel_in_critical <= 1'bZ;
+    pci_cbe_l_in_critical[PCI_BUS_CBE_RANGE:0] = byte_enables[PCI_BUS_CBE_RANGE:0];
+    inc_ext_data;
     if (last_requested == 1'b1)
     begin
-      pci_irdy;
+      pci_frame (1'b0);  pci_irdy (1'b1);
     end
     else
     begin
-      pci_frame;  pci_irdy;
+      pci_frame (1'b1);  pci_irdy (1'b1);
     end
-    inc_ext_data;
   end
 endtask
 
+task undrive_data;
+  begin
+    pci_ad_in_critical[PCI_BUS_DATA_RANGE:0] = `PCI_BUS_DATA_Z;
+    pci_idsel_in_critical = 1'bZ;
+    pci_cbe_l_in_critical[PCI_BUS_CBE_RANGE:0] = `PCI_BUS_CBE_Z;
+    pci_frame (1'b0);  pci_irdy (1'b0);
+  end
+endtask
+
+
 // Make shorthand command task so that it is easier to set things up.
-// CRITICAL WRITE must always be READ + 1.  Used in _pair task below.
+// CRITICAL: WRITE must always be READ + 1.  Used in _pair task below.
   parameter noop =                  0;
   parameter REG_READ  =             1;
   parameter REG_WRITE =             2;
@@ -430,6 +406,8 @@ endtask
   parameter WRITE_DATA_LAST =      11;
   parameter WRITE_DATA_LAST_PERR = 12;
 
+  parameter BUS_GOES_TO_IDLE =     15;
+
   parameter DLY_noop =              0;
   parameter DLY_DATA =              1;
   parameter DLY_DATA_PERR =         2;
@@ -438,11 +416,7 @@ endtask
   parameter DLY_DISCONNECT =        5;
   parameter DLY_ABORT =             6;
 
-// Lets think about this.
-//   Need to have external device do a Reference.
-//   Need to have Response FIFO have appropriate stuff in it.
-//   Need to have Delayed Read FIFO have appropriate stuff in it.
-
+// NOTE:  Upon being asserted, AD, CBE, FRAME, and IRDY stay asserted until changed
 task do_target_test;
   input  [7:0] total_time;
 
@@ -475,56 +449,59 @@ task do_target_test;
       begin  // clock gen
         do_reset;
         for (t1 = 8'h00; t1 < total_time[7:0]; t1 = t1 + 8'h01) do_clocks (4'h1);
+        undrive_data;
       end  // clock gen
 
 // Cause external bus activity, including FRAME and IRDY activity
       begin  // first Address, data
         @(negedge pci_clk);
-        if (command_1 == REG_READ)
-          write_reg (PCI_COMMAND_CONFIG_READ);
-        else if (command_1 == REG_WRITE)
-          write_reg (PCI_COMMAND_CONFIG_WRITE);
-        else if (command_1 == MEM_READ)
-          write_addr (PCI_COMMAND_MEMORY_READ, 1'b0);
-        else if (command_1 == MEM_READ_SERR)
-          write_addr (PCI_COMMAND_MEMORY_READ, 1'b1);
-        else if (command_1 == MEM_WRITE)
-          write_addr (PCI_COMMAND_MEMORY_WRITE, 1'b0);
-        else if (command_1 == MEM_WRITE_SERR)
-          write_addr (PCI_COMMAND_MEMORY_WRITE, 1'b1);
+        if (command_1[3:0] == REG_READ)
+          drive_config_addr (PCI_COMMAND_CONFIG_READ);
+        else if (command_1[3:0] == REG_WRITE)
+          drive_config_addr (PCI_COMMAND_CONFIG_WRITE);
+        else if (command_1[3:0] == MEM_READ)
+          drive_addr (PCI_COMMAND_MEMORY_READ, 1'b0);
+        else if (command_1[3:0] == MEM_READ_SERR)
+          drive_addr (PCI_COMMAND_MEMORY_READ, 1'b1);
+        else if (command_1[3:0] == MEM_WRITE)
+          drive_addr (PCI_COMMAND_MEMORY_WRITE, 1'b0);
+        else if (command_1[3:0] == MEM_WRITE_SERR)
+          drive_addr (PCI_COMMAND_MEMORY_WRITE, 1'b1);
 
-        else $display ("*** bad first command");
+        else $display ("**** bad first command");
         @(negedge pci_clk);
-        if (data_type_1 == READ_DATA)
-          read_be (`Test_Byte_0, 1'b0);
-        else if (data_type_1 == READ_DATA_LAST)
-          read_be (`Test_Byte_0, 1'b1);
-        else if (data_type_1 == WRITE_DATA)
-          write_data (`Test_Byte_0, 1'b0, 1'b0);
-        else if (data_type_1 == WRITE_DATA_PERR)
-          write_data (`Test_Byte_0, 1'b0, 1'b1);
-        else if (data_type_1 == WRITE_DATA_LAST)
-          write_data (`Test_Byte_0, 1'b1, 1'b0);
-        else if (data_type_1 == WRITE_DATA_LAST_PERR)
-          write_data (`Test_Byte_0, 1'b1, 1'b1);
+        if (data_type_1[3:0] == READ_DATA)
+          drive_be (`Test_Byte_0, 1'b0);
+        else if (data_type_1[3:0] == READ_DATA_LAST)
+          drive_be (`Test_Byte_0, 1'b1);
+        else if (data_type_1[3:0] == WRITE_DATA)
+          drive_data (`Test_Byte_0, 1'b0, 1'b0);
+        else if (data_type_1[3:0] == WRITE_DATA_PERR)
+          drive_data (`Test_Byte_0, 1'b0, 1'b1);
+        else if (data_type_1[3:0] == WRITE_DATA_LAST)
+          drive_data (`Test_Byte_0, 1'b1, 1'b0);
+        else if (data_type_1[3:0] == WRITE_DATA_LAST_PERR)
+          drive_data (`Test_Byte_0, 1'b1, 1'b1);
       end  // first Address, data
 
       begin  // second data
         if (data_time_2[7:0] != 8'h00)
         begin
           for (d2 = 8'h00; d2 <= data_time_2[7:0]; d2 = d2 + 8'h01) @(negedge pci_clk);
-          if (data_type_2 == READ_DATA)
-            read_be (`Test_Byte_0, 1'b0);
-          else if (data_type_2 == READ_DATA_LAST)
-            read_be (`Test_Byte_0, 1'b1);
-          else if (data_type_2 == WRITE_DATA)
-            write_data (`Test_Byte_0, 1'b0, 1'b0);
-          else if (data_type_2 == WRITE_DATA_PERR)
-            write_data (`Test_Byte_0, 1'b0, 1'b1);
-          else if (data_type_2 == WRITE_DATA_LAST)
-            write_data (`Test_Byte_0, 1'b1, 1'b0);
-          else if (data_type_2 == WRITE_DATA_LAST_PERR)
-            write_data (`Test_Byte_0, 1'b1, 1'b1);
+          if (data_type_2[3:0] == READ_DATA)
+            drive_be (`Test_Byte_0, 1'b0);
+          else if (data_type_2[3:0] == READ_DATA_LAST)
+            drive_be (`Test_Byte_0, 1'b1);
+          else if (data_type_2[3:0] == WRITE_DATA)
+            drive_data (`Test_Byte_0, 1'b0, 1'b0);
+          else if (data_type_2[3:0] == WRITE_DATA_PERR)
+            drive_data (`Test_Byte_0, 1'b0, 1'b1);
+          else if (data_type_2[3:0] == WRITE_DATA_LAST)
+            drive_data (`Test_Byte_0, 1'b1, 1'b0);
+          else if (data_type_2[3:0] == WRITE_DATA_LAST_PERR)
+            drive_data (`Test_Byte_0, 1'b1, 1'b1);
+          else if (data_type_2[3:0] == BUS_GOES_TO_IDLE)
+            undrive_data;
         end
       end  // second data
 
@@ -532,18 +509,20 @@ task do_target_test;
         if (data_time_3[7:0] != 8'h00)
         begin
           for (d3 = 8'h00; d3 <= data_time_3[7:0]; d3 = d3 + 8'h01) @(negedge pci_clk);
-          if (data_type_3 == READ_DATA)
-            read_be (`Test_Byte_0, 1'b0);
-          else if (data_type_3 == READ_DATA_LAST)
-            read_be (`Test_Byte_0, 1'b1);
-          else if (data_type_3 == WRITE_DATA)
-            write_data (`Test_Byte_0, 1'b0, 1'b0);
-          else if (data_type_3 == WRITE_DATA_PERR)
-            write_data (`Test_Byte_0, 1'b0, 1'b1);
-          else if (data_type_3 == WRITE_DATA_LAST)
-            write_data (`Test_Byte_0, 1'b1, 1'b0);
-          else if (data_type_3 == WRITE_DATA_LAST_PERR)
-            write_data (`Test_Byte_0, 1'b1, 1'b1);
+          if (data_type_3[3:0] == READ_DATA)
+            drive_be (`Test_Byte_0, 1'b0);
+          else if (data_type_3[3:0] == READ_DATA_LAST)
+            drive_be (`Test_Byte_0, 1'b1);
+          else if (data_type_3[3:0] == WRITE_DATA)
+            drive_data (`Test_Byte_0, 1'b0, 1'b0);
+          else if (data_type_3[3:0] == WRITE_DATA_PERR)
+            drive_data (`Test_Byte_0, 1'b0, 1'b1);
+          else if (data_type_3[3:0] == WRITE_DATA_LAST)
+            drive_data (`Test_Byte_0, 1'b1, 1'b0);
+          else if (data_type_3[3:0] == WRITE_DATA_LAST_PERR)
+            drive_data (`Test_Byte_0, 1'b1, 1'b1);
+          else if (data_type_3[3:0] == BUS_GOES_TO_IDLE)
+            undrive_data;
         end
       end  // third data
 
@@ -551,18 +530,20 @@ task do_target_test;
         if (data_time_4[7:0] != 8'h00)
         begin
           for (d4 = 8'h00; d4 <= data_time_4[7:0]; d4 = d4 + 8'h01) @(negedge pci_clk);
-          if (data_type_4 == READ_DATA)
-            read_be (`Test_Byte_0, 1'b0);
-          else if (data_type_4 == READ_DATA_LAST)
-            read_be (`Test_Byte_0, 1'b1);
-          else if (data_type_4 == WRITE_DATA)
-            write_data (`Test_Byte_0, 1'b0, 1'b0);
-          else if (data_type_4 == WRITE_DATA_PERR)
-            write_data (`Test_Byte_0, 1'b0, 1'b1);
-          else if (data_type_4 == WRITE_DATA_LAST)
-            write_data (`Test_Byte_0, 1'b1, 1'b0);
-          else if (data_type_4 == WRITE_DATA_LAST_PERR)
-            write_data (`Test_Byte_0, 1'b1, 1'b1);
+          if (data_type_4[3:0] == READ_DATA)
+            drive_be (`Test_Byte_0, 1'b0);
+          else if (data_type_4[3:0] == READ_DATA_LAST)
+            drive_be (`Test_Byte_0, 1'b1);
+          else if (data_type_4[3:0] == WRITE_DATA)
+            drive_data (`Test_Byte_0, 1'b0, 1'b0);
+          else if (data_type_4[3:0] == WRITE_DATA_PERR)
+            drive_data (`Test_Byte_0, 1'b0, 1'b1);
+          else if (data_type_4[3:0] == WRITE_DATA_LAST)
+            drive_data (`Test_Byte_0, 1'b1, 1'b0);
+          else if (data_type_4[3:0] == WRITE_DATA_LAST_PERR)
+            drive_data (`Test_Byte_0, 1'b1, 1'b1);
+          else if (data_type_4[3:0] == BUS_GOES_TO_IDLE)
+            undrive_data;
         end
       end  // fourth data
 
@@ -570,18 +551,20 @@ task do_target_test;
         if (addr_time_5[7:0] != 8'h00)
         begin
           for (d5 = 8'h00; d5 <= addr_time_5[7:0]; d5 = d5 + 8'h01) @(negedge pci_clk);
-        if (command_5 == REG_READ)
-          write_reg (PCI_COMMAND_CONFIG_READ);
-        else if (command_5 == REG_WRITE)
-          write_reg (PCI_COMMAND_CONFIG_WRITE);
-          else if (command_5 == MEM_READ)
-            write_data (`Test_Byte_0, 1'b0, 1'b0);
-          else if (command_5 == MEM_READ_SERR)
-            write_data (`Test_Byte_0, 1'b0, 1'b1);
-          else if (command_5 == MEM_WRITE)
-            write_data (`Test_Byte_0, 1'b1, 1'b0);
-          else if (command_5 == MEM_WRITE_SERR)
-            write_data (`Test_Byte_0, 1'b1, 1'b1);
+          if (command_5[3:0] == REG_READ)
+            drive_config_addr (PCI_COMMAND_CONFIG_READ);
+          else if (command_5[3:0] == REG_WRITE)
+            drive_config_addr (PCI_COMMAND_CONFIG_WRITE);
+          else if (command_5[3:0] == MEM_READ)
+            drive_addr (PCI_COMMAND_MEMORY_READ, 1'b0);
+          else if (command_5[3:0] == MEM_READ_SERR)
+            drive_addr (PCI_COMMAND_MEMORY_READ, 1'b1);
+          else if (command_5[3:0] == MEM_WRITE)
+            drive_addr (PCI_COMMAND_MEMORY_WRITE, 1'b0);
+          else if (command_5[3:0] == MEM_WRITE_SERR)
+            drive_addr (PCI_COMMAND_MEMORY_WRITE, 1'b1);
+          else if (command_5[3:0] == BUS_GOES_TO_IDLE)
+            undrive_data;
         end
       end  // fifth Address
 
@@ -589,18 +572,20 @@ task do_target_test;
         if (data_time_6[7:0] != 8'h00)
         begin
           for (d6 = 8'h00; d6 <= data_time_6[7:0]; d6 = d6 + 8'h01) @(negedge pci_clk);
-          if (data_type_6 == READ_DATA)
-            read_be (`Test_Byte_0, 1'b0);
-          else if (data_type_6 == READ_DATA_LAST)
-            read_be (`Test_Byte_0, 1'b1);
-          else if (data_type_6 == WRITE_DATA)
-            write_data (`Test_Byte_0, 1'b0, 1'b0);
-          else if (data_type_6 == WRITE_DATA_PERR)
-            write_data (`Test_Byte_0, 1'b0, 1'b1);
-          else if (data_type_6 == WRITE_DATA_LAST)
-            write_data (`Test_Byte_0, 1'b1, 1'b0);
-          else if (data_type_6 == WRITE_DATA_LAST_PERR)
-            write_data (`Test_Byte_0, 1'b1, 1'b1);
+          if (data_type_6[3:0] == READ_DATA)
+            drive_be (`Test_Byte_0, 1'b0);
+          else if (data_type_6[3:0] == READ_DATA_LAST)
+            drive_be (`Test_Byte_0, 1'b1);
+          else if (data_type_6[3:0] == WRITE_DATA)
+            drive_data (`Test_Byte_0, 1'b0, 1'b0);
+          else if (data_type_6[3:0] == WRITE_DATA_PERR)
+            drive_data (`Test_Byte_0, 1'b0, 1'b1);
+          else if (data_type_6[3:0] == WRITE_DATA_LAST)
+            drive_data (`Test_Byte_0, 1'b1, 1'b0);
+          else if (data_type_6[3:0] == WRITE_DATA_LAST_PERR)
+            drive_data (`Test_Byte_0, 1'b1, 1'b1);
+          else if (data_type_6[3:0] == BUS_GOES_TO_IDLE)
+            undrive_data;
         end
       end  // sixth data
 
@@ -608,18 +593,20 @@ task do_target_test;
         if (data_time_7[7:0] != 8'h00)
         begin
           for (d7 = 8'h00; d7 <= data_time_7[7:0]; d7 = d7 + 8'h01) @(negedge pci_clk);
-          if (data_type_7 == READ_DATA)
-            read_be (`Test_Byte_0, 1'b0);
-          else if (data_type_7 == READ_DATA_LAST)
-            read_be (`Test_Byte_0, 1'b1);
-          else if (data_type_7 == WRITE_DATA)
-            write_data (`Test_Byte_0, 1'b0, 1'b0);
-          else if (data_type_7 == WRITE_DATA_PERR)
-            write_data (`Test_Byte_0, 1'b0, 1'b1);
-          else if (data_type_7 == WRITE_DATA_LAST)
-            write_data (`Test_Byte_0, 1'b1, 1'b0);
-          else if (data_type_7 == WRITE_DATA_LAST_PERR)
-            write_data (`Test_Byte_0, 1'b1, 1'b1);
+          if (data_type_7[3:0] == READ_DATA)
+            drive_be (`Test_Byte_0, 1'b0);
+          else if (data_type_7[3:0] == READ_DATA_LAST)
+            drive_be (`Test_Byte_0, 1'b1);
+          else if (data_type_7[3:0] == WRITE_DATA)
+            drive_data (`Test_Byte_0, 1'b0, 1'b0);
+          else if (data_type_7[3:0] == WRITE_DATA_PERR)
+            drive_data (`Test_Byte_0, 1'b0, 1'b1);
+          else if (data_type_7[3:0] == WRITE_DATA_LAST)
+            drive_data (`Test_Byte_0, 1'b1, 1'b0);
+          else if (data_type_7[3:0] == WRITE_DATA_LAST_PERR)
+            drive_data (`Test_Byte_0, 1'b1, 1'b1);
+          else if (data_type_7[3:0] == BUS_GOES_TO_IDLE)
+            undrive_data;
         end
       end  // seventh data
 
@@ -820,30 +807,30 @@ endtask
     pci_host_delayed_read_data_submit <= 1'b0;
     pci_host_delayed_read_type[2:0] <= 3'hX;
     pci_host_delayed_read_data[PCI_BUS_DATA_RANGE:0] <= `PCI_BUS_DATA_X;
+    pci_ad_in_critical[PCI_BUS_DATA_RANGE:0] <= `PCI_BUS_DATA_Z;
+    pci_ad_in_prev[PCI_BUS_DATA_RANGE:0] <= `PCI_BUS_DATA_Z;
+    pci_idsel_in_critical <= 1'bZ;
+    pci_idsel_in_prev <= 1'bZ;
+    pci_cbe_l_in_critical[PCI_BUS_CBE_RANGE:0] <= `PCI_BUS_CBE_Z;
+    pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] <= `PCI_BUS_CBE_Z;
     pci_frame_in_critical  <= 1'b0;
     pci_frame_in_prev      <= 1'b0;
     pci_irdy_in_critical   <= 1'b0;
     pci_irdy_in_prev       <= 1'b0;
-    pci_devsel_in_critical <= 1'b0;
-    pci_devsel_in_prev     <= 1'b0;
-    pci_trdy_in_critical   <= 1'b0;
-    pci_trdy_in_prev       <= 1'b0;
-    pci_stop_in_critical   <= 1'b0;
-    pci_stop_in_prev       <= 1'b0;
     pci_perr_in_prev       <= 1'b0;
+    pci_serr_in_prev       <= 1'b0;
   end
 
 // delay signals like the Pads delay them
   always @(posedge pci_clk)
   begin
-    pci_ad_in_prev[PCI_BUS_DATA_RANGE:0] <= pci_ad_in_comb[PCI_BUS_DATA_RANGE:0];
-    pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] <= pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0];
+    pci_ad_in_prev[PCI_BUS_DATA_RANGE:0] <= pci_ad_in_critical[PCI_BUS_DATA_RANGE:0];
+    pci_idsel_in_prev <= pci_idsel_in_critical;
+    pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] <= pci_cbe_l_in_critical[PCI_BUS_CBE_RANGE:0];
     pci_frame_in_prev  <= pci_frame_in_critical;
     pci_irdy_in_prev   <= pci_irdy_in_critical;
-    pci_devsel_in_prev <= pci_devsel_in_critical;
-    pci_trdy_in_prev   <= pci_trdy_in_critical;
-    pci_stop_in_prev   <= pci_stop_in_critical;
-    pci_perr_in_prev   <= pci_perr_in_comb;
+    pci_perr_in_prev   <= pci_perr_in_critical;
+    pci_serr_in_prev   <= pci_serr_in_critical;
   end
 
 // Remove signals which are set for 1 clock by tasks to create activity
@@ -852,15 +839,12 @@ endtask
     pci_host_delayed_read_data_submit <= 1'b0;
     pci_host_delayed_read_type[2:0] <= 3'hX;
     pci_host_delayed_read_data[PCI_BUS_DATA_RANGE:0] <= `PCI_BUS_DATA_X;
-    pci_frame_in_critical  <= 1'b0;
-    pci_irdy_in_critical   <= 1'b0;
-    pci_devsel_in_critical <= 1'b0;
-    pci_trdy_in_critical   <= 1'b0;
-    pci_stop_in_critical   <= 1'b0;
+//    pci_frame_in_critical  <= 1'b0;  // hold until removed
+//    pci_irdy_in_critical   <= 1'b0;  // hold until removed
     pci_perr_in_prev       <= 1'b0;
+    pci_serr_in_prev       <= 1'b0;
   end
 
-// `define BEGINNING_OPS
 // `define NORMAL_OPS
 // `define RETRY_OPS
 // `define TIMEOUT_OPS
@@ -876,26 +860,58 @@ endtask
     set_ext_data (32'hDD06789A);
       do_clocks (4'h2);
 
-`ifdef BEGINNING_OPS
+//    do_target_test (
+//      input  [7:0] total_time;
+//  input  [3:0] command_1;      input  [3:0] data_type_1;
+//  input  [7:0] data_time_2;    input  [3:0] data_type_2;
+//  input  [7:0] data_time_3;    input  [3:0] data_type_3;
+//  input  [7:0] data_time_4;    input  [3:0] data_type_4;
+//  input  [7:0] addr_time_5;    input  [3:0] command_5;
+//  input  [7:0] data_time_6;    input  [3:0] data_type_6;
+//  input  [7:0] data_time_7;    input  [3:0] data_type_7;
+//  input  [7:0] delayed_read_fifo_time_1;  input  [2:0] delayed_read_type_1;
+//  input  [7:0] delayed_read_fifo_time_2;  input  [2:0] delayed_read_type_2;
+//  input  [7:0] delayed_read_fifo_time_3;  input  [2:0] delayed_read_type_3;
+//  input  [7:0] delayed_read_fifo_time_4;  input  [2:0] delayed_read_type_4;
+//  input  [7:0] delayed_read_fifo_time_5;  input  [2:0] delayed_read_type_5;
+//  input  [7:0] delayed_read_fifo_time_6;  input  [2:0] delayed_read_type_6;
+//  input  [7:0] delayed_read_fifo_time_7;  input  [2:0] delayed_read_type_7;
 
-    $display ("Doing Read Reg, at time %t", $time);
+
+    $display ("write reference to noone, at time %t", $time);
     do_target_test (8'h10,
-         REG_READ, noop,
+         MEM_WRITE, WRITE_DATA,
          8'h00, noop, 8'h00, noop, 8'h00, noop,
-         8'h00, noop, 8'h00, noop, 8'h00, noop,
-         8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00,
-         8'h09, DEV_TRANSFER_DATA, 8'h00, noop, 8'h00, noop, 8'h00, noop,
-         8'h00, noop, 8'h00, noop, 8'h00, noop);
+         8'h00, noop, 8'h00, noop, 8'h0C, BUS_GOES_TO_IDLE,
+         8'h00, DLY_noop, 8'h00, DLY_noop, 8'h00, DLY_noop, 8'h00, DLY_noop,
+         8'h00, DLY_noop, 8'h00, DLY_noop, 8'h00, DLY_noop);
 
-    $display ("Doing Write Reg, at time %t", $time);
+    $display ("Reference to noone, fast back-to-back, at time %t", $time);
     do_target_test (8'h10,
-         REG_WRITE, noop,  // First Reference
-         8'h00, noop, 8'h00, noop, 8'h00, noop,  // Optional Data
-         8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
-         8'h09, DEV_TRANSFER_DATA, 8'h00, noop, 8'h00, noop, 8'h00, noop,  // Target
-         8'h00, noop, 8'h00, noop, 8'h00, noop);
+         MEM_WRITE, WRITE_DATA_LAST,
+         8'h00, noop, 8'h00, noop, 8'h00, noop,
+         8'h08, MEM_WRITE, 8'h09, WRITE_DATA_LAST, 8'h0C, BUS_GOES_TO_IDLE,
+         8'h00, DLY_noop, 8'h00, DLY_noop, 8'h00, DLY_noop, 8'h00, DLY_noop,
+         8'h00, DLY_noop, 8'h00, DLY_noop, 8'h00, DLY_noop);
 
-`endif  // BEGINNING_OPS
+// NOTE: WORKING: PLAN:
+//  reference to noone ending in master abort, fast back-to-back new reference
+//  config read to us
+//  config write turning on target
+//  regular write to us, when no delayed read in progress
+//  read, starting delayed read
+//  regular write to us, while delayed read pending
+//  second read tried while delayed read pending
+//  retry of delayed read, when data not yet available
+//  data becomes available, allowing delayed read to continue
+//  write collides during delayed read
+//  data flushed, delayed read continues
+//  Also, check if our master is writing at the same time.  Block on read or write fence.
+
+// Lets think about this.
+//   Need to have external device do a Reference.
+//   Need to have Response FIFO have appropriate stuff in it.
+//   Need to have Delayed Read FIFO have appropriate stuff in it.
 
 // Simple memory references, just exploring things like STOP and wait-states
 
@@ -1168,7 +1184,7 @@ pci_blue_target pci_blue_target (
 
   assign pci_target_ad_bus[PCI_BUS_DATA_RANGE:0] = pci_target_ad_out_oe_comb
                                       ? ad_reg[PCI_BUS_DATA_RANGE:0]
-                                      : 32'hZ;
+                                      : pci_ad_in_critical[PCI_BUS_DATA_RANGE:0];
   assign pci_devsel_bus = pci_d_t_s_out_oe_comb ? ~devsel_reg : 1'bZ;
   assign pci_trdy_bus =   pci_d_t_s_out_oe_comb ? ~trdy_reg   : 1'bZ;
   assign pci_stop_bus =   pci_d_t_s_out_oe_comb ? ~stop_reg   : 1'bZ;

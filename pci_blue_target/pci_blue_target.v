@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_target.v,v 1.21 2001-08-19 04:03:21 bbeaver Exp $
+// $Id: pci_blue_target.v,v 1.22 2001-09-11 09:25:04 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -463,20 +463,17 @@ module pci_blue_target (
 //   that the user will use the interface correctly.
 
 
-
-
-
 // Watch Master Activity as indicated by the Master_To_Target_Status
 // Want to know when a Read or Fence are being done.
 // NOTE: This Status Info is actually available BEFORE OR AT THE SAME TIME
 //   as the data is presented to the PCI bus.
   parameter WAITING_FOR_READ_OR_FENCE = 3'b000;
-  parameter DOING_FENCE     = 3'b001;
-  parameter DOING_READ      = 3'b010;
-  parameter ENDING_READ     = 3'b011;
-  parameter DOING_REGISTER  = 3'b101;
-  parameter DOING_WRITE     = 3'b110;
-  parameter ENDING_WRITE    = 3'b111;
+  parameter DOING_FENCE               = 3'b001;
+  parameter DOING_READ                = 3'b010;
+  parameter ENDING_READ               = 3'b011;
+  parameter DOING_REGISTER            = 3'b101;
+  parameter DOING_WRITE               = 3'b110;
+  parameter ENDING_WRITE              = 3'b111;
 
   reg   [2:0] Master_Able_To_Block_During_Delayed_Read;
 
@@ -593,8 +590,6 @@ module pci_blue_target (
 
   wire    Holding_Off_Reads_And_Fences_Due_To_Delayed_Read;
   wire    Holding_Off_Register_References_Due_To_PCI_Activity;
-
-
 
 
 // First get Fence, Register Read/Write, Master Write, Master Read.
@@ -1181,14 +1176,15 @@ module pci_blue_target (
   parameter PCI_TARGET_DEVSEL_STOP_101      = 6'b1_101_00;  // 34 Master Transfers Data
 
   parameter PCI_TARGET_ABORT_FIRST_100      = 6'b1_100_01;  // 31 Target Starting ABORT
-  parameter PCI_TARGET_ABORT_SECOND_100     = 6'b1_001_00;  // 24 Target Starting ABORT
+  parameter PCI_TARGET_ABORT_SECOND_001     = 6'b1_001_00;  // 24 Target Starting ABORT
 
   parameter TS_Range = 5;
   parameter TS_X = {(TS_Range+1){1'bX}};
 
 // Classify the activity of the External Master.
 // These correspond to      {frame, irdy}
-  parameter MASTER_IDLE      = 2'b10;
+  parameter MASTER_IDLE      = 2'b00;
+  parameter MASTER_WAIT      = 2'b10;
   parameter MASTER_DATA_MORE = 2'b11;
   parameter MASTER_DATA_LAST = 2'b01;
 
@@ -1210,8 +1206,19 @@ module pci_blue_target (
 // NOTE: FRAME and IRDY are VERY LATE.  This logic is in the critical path.
 
 // Given a present Target State and all appropriate inputs, calculate the next state.
-// Here is how to think of it for now: When a clock happens, this says what to do now
-function [TS_Range:0] Target_Next_State_Full_Function;
+// Here is how to think of it for now: When a clock happens, this says what to do now.
+
+// NOTE: Below are 4 functions.  Use a MUX to select between them based on FRAME, IRDY.
+// NOTE: WORKING: I think that there should be a term including Parity, to make this
+//       correctly allow Master Aborts on Addresses with Parity Errors.
+// NOTE: For a term which is constant and not selected by FRAME or IRDY
+//  (like jumping to IDLE), put it in both sides of a MUX.
+// NOTE: Since I know IDLE is all 0's, leave those terms out to reduce typing.
+
+// NOTE: DON"T DEBUG USING THIS FUNCTION.  Use the full function at the bottom
+//       of the file.  This is a subset, derived from the full State Machine.
+// FRAME and IRDY are {0, 0}
+function [TS_Range:0] Target_Next_State_MASTER_IDLE;
   input  [TS_Range:0] Target_Present_State;
   input   Response_FIFO_has_Room;
   input   DELAYED_READ_FIFO_CONTAINS_DATA;
@@ -1221,37 +1228,188 @@ function [TS_Range:0] Target_Next_State_Full_Function;
   input   Back_to_Back_Possible;
 
   begin
-// synopsys translate_off
-    if (   ( $time > 0)
-         & (   ((frame_in ^ frame_in) === 1'bX)
-             | ((irdy_in ^ irdy_in) === 1'bX)))
-    begin
-      Target_Next_State_Full_Function[TS_Range:0] = TS_X;  // error
-      $display ("*** %m PCI Target State Machine FRAME, IRDY Unknown %x %x at time %t",
-                  frame_in, irdy_in, $time);
-    end
-    else
-// synopsys translate_on
-
     case (Target_Present_State[TS_Range:0])  // synopsys parallel_case
     default:
       begin
-        Target_Next_State_Full_Function[TS_Range:0] = TS_X;  // error
+        Target_Next_State_MASTER_IDLE[TS_Range:0] = TS_X;  // error
 // synopsys translate_off
         if ($time > 0)
           $display ("*** %m PCI Target State Machine Unknown %x at time %t",
-                         Target_Next_State_Full_Function[TS_Range:0], $time);
+                         Target_Next_State_MASTER_IDLE[TS_Range:0], $time);
 // synopsys translate_on
       end
     endcase
   end
 endfunction
 
+// NOTE: DON"T DEBUG USING THIS FUNCTION.  Use the full function at the bottom
+//       of the file.  This is a subset, derived from the full State Machine.
+// FRAME and IRDY are {0, 1}
+function [TS_Range:0] Target_Next_State_MASTER_WAIT;
+  input  [TS_Range:0] Target_Present_State;
+  input   Response_FIFO_has_Room;
+  input   DELAYED_READ_FIFO_CONTAINS_DATA;
+  input   Timeout_Forces_Disconnect;
+  input   frame_in;
+  input   irdy_in;
+  input   Back_to_Back_Possible;
+
+  begin
+    case (Target_Present_State[TS_Range:0])  // synopsys parallel_case
+    default:
+      begin
+        Target_Next_State_MASTER_WAIT[TS_Range:0] = TS_X;  // error
+// synopsys translate_off
+        if ($time > 0)
+          $display ("*** %m PCI Target State Machine Unknown %x at time %t",
+                         Target_Next_State_MASTER_WAIT[TS_Range:0], $time);
+// synopsys translate_on
+      end
+    endcase
+  end
+endfunction
+
+// NOTE: DON"T DEBUG USING THIS FUNCTION.  Use the full function at the bottom
+//       of the file.  This is a subset, derived from the full State Machine.
+// FRAME and IRDY are {1, 1}
+function [TS_Range:0] Target_Next_State_MASTER_DATA_MORE;
+  input  [TS_Range:0] Target_Present_State;
+  input   Response_FIFO_has_Room;
+  input   DELAYED_READ_FIFO_CONTAINS_DATA;
+  input   Timeout_Forces_Disconnect;
+  input   frame_in;
+  input   irdy_in;
+  input   Back_to_Back_Possible;
+
+  begin
+    case (Target_Present_State[TS_Range:0])  // synopsys parallel_case
+    default:
+      begin
+        Target_Next_State_MASTER_DATA_MORE[TS_Range:0] = TS_X;  // error
+// synopsys translate_off
+        if ($time > 0)
+          $display ("*** %m PCI Target State Machine Unknown %x at time %t",
+                         Target_Next_State_MASTER_DATA_MORE[TS_Range:0], $time);
+// synopsys translate_on
+      end
+    endcase
+  end
+endfunction
+
+// NOTE: DON"T DEBUG USING THIS FUNCTION.  Use the full function at the bottom
+//       of the file.  This is a subset, derived from the full State Machine.
+// FRAME and IRDY are {0, 1}
+function [TS_Range:0] Target_Next_State_MASTER_DATA_LAST;
+  input  [TS_Range:0] Target_Present_State;
+  input   Response_FIFO_has_Room;
+  input   DELAYED_READ_FIFO_CONTAINS_DATA;
+  input   Timeout_Forces_Disconnect;
+  input   frame_in;
+  input   irdy_in;
+  input   Back_to_Back_Possible;
+
+  begin
+    case (Target_Present_State[TS_Range:0])  // synopsys parallel_case
+    default:
+      begin
+        Target_Next_State_MASTER_DATA_LAST[TS_Range:0] = TS_X;  // error
+// synopsys translate_off
+        if ($time > 0)
+          $display ("*** %m PCI Target State Machine Unknown %x at time %t",
+                         Target_Next_State_MASTER_DATA_LAST[TS_Range:0], $time);
+// synopsys translate_on
+      end
+    endcase
+  end
+endfunction
+
+// State Machine controlling the PCI Target.
+//   Every clock, this State Machine transitions based on the LATCHED
+//   versions of FRAME and IRDY.  At the same time, combinational logic
+//   below has already sent out the NEXT info to the PCI bus.
+//  (These two actions had better be consistent.)
+// The way to think about this is that the State Machine reflects the
+//   PRESENT state of the PCI wires.  When you are in the DEVSEL state,
+//   Devsel is valid on the bus.
+  reg    [TS_Range:0] PCI_Target_State;  // forward reference
+
+// Assign the result to a variable for later use.
+  wire   [TS_Range:0] PCI_Target_Next_State_MASTER_IDLE =
+              Target_Next_State_MASTER_IDLE (
+                PCI_Target_State[TS_Range:0],
+                Response_FIFO_has_Room,
+                DELAYED_READ_FIFO_CONTAINS_DATA,
+                Timeout_Forces_Disconnect,
+                Back_to_Back_Possible
+              );
+
+// Assign the result to a variable for later use.
+  wire   [TS_Range:0] PCI_Target_Next_State_MASTER_WAIT =
+              Target_Next_State_MASTER_WAIT (
+                PCI_Target_State[TS_Range:0],
+                Response_FIFO_has_Room,
+                DELAYED_READ_FIFO_CONTAINS_DATA,
+                Timeout_Forces_Disconnect,
+                Back_to_Back_Possible
+              );
+
+// Assign the result to a variable for later use.
+  wire   [TS_Range:0] PCI_Target_Next_State_MASTER_DATA_MORE =
+              Target_Next_State_MASTER_DATA_MORE (
+                PCI_Target_State[TS_Range:0],
+                Response_FIFO_has_Room,
+                DELAYED_READ_FIFO_CONTAINS_DATA,
+                Timeout_Forces_Disconnect,
+                Back_to_Back_Possible
+              );
+
+// Assign the result to a variable for later use.
+  wire   [TS_Range:0] PCI_Target_Next_State_MASTER_DATA_LAST =
+              Target_Next_State_MASTER_DATA_LAST (
+                PCI_Target_State[TS_Range:0],
+                Response_FIFO_has_Room,
+                DELAYED_READ_FIFO_CONTAINS_DATA,
+                Timeout_Forces_Disconnect,
+                Back_to_Back_Possible
+              );
+
+// NOTE: WORKING: write using manually instantiated (?) fast MUX, then OR
+  wire   [TS_Range:0] PCI_Target_Next_State_Partial_Functions =
+             (({pci_frame_in_critical, pci_irdy_in_critical} == MASTER_IDLE)
+                 ? PCI_Target_Next_State_MASTER_IDLE[TS_Range:0] : PCI_TARGET_IDLE_000)
+           | (({pci_frame_in_critical, pci_irdy_in_critical} == MASTER_WAIT)
+                 ? PCI_Target_Next_State_MASTER_WAIT[TS_Range:0] : PCI_TARGET_IDLE_000)
+           | (({pci_frame_in_critical, pci_irdy_in_critical} == MASTER_DATA_MORE)
+                 ? PCI_Target_Next_State_MASTER_DATA_MORE[TS_Range:0] : PCI_TARGET_IDLE_000)
+           | (({pci_frame_in_critical, pci_irdy_in_critical} == MASTER_DATA_LAST)
+                 ? PCI_Target_Next_State_MASTER_DATA_LAST[TS_Range:0] : PCI_TARGET_IDLE_000);
+
 // synopsys translate_off
   wire   [TS_Range:0] PCI_Target_Next_State_Full_Function;  // forward declaration
 // synopsys translate_on
 
-// Make delayed version, used for active release of FRAME and IRDY.
+// NOTE: Use Full Function for Debug, Partial Functions when satisfied.
+`define USE_FULL_TARGET_FUNCTION_FOR_DEBUG
+`ifdef USE_FULL_TARGET_FUNCTION_FOR_DEBUG
+  wire   [TS_Range:0] PCI_Target_Next_State =
+                            PCI_Target_Next_State_Full_Function[TS_Range:0];
+`else  // USE_FULL_TARGET_FUNCTION_FOR_DEBUG
+  wire   [TS_Range:0] PCI_Target_Next_State =
+                            PCI_Target_Next_State_Partial_Functions[TS_Range:0];
+`endif  // USE_FULL_TARGET_FUNCTION_FOR_DEBUG
+
+// Actual State Machine includes async reset
+  always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
+  begin
+    if (pci_reset_comb == 1'b1)
+      PCI_Target_State[TS_Range:0] <= PCI_TARGET_IDLE_000;
+    else if (pci_reset_comb == 1'b0)
+      PCI_Target_State[TS_Range:0] <= PCI_Target_Next_State[TS_Range:0];
+    else
+      PCI_Target_State[TS_Range:0] <= TS_X;
+  end
+
+// Make delayed version, used for active release of DEVSEL, TRDY, and STOP.
   reg    [TS_Range:0] PCI_Target_Prev_State;
 
   always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
@@ -1339,7 +1497,7 @@ pci_blue_config_regs pci_blue_config_regs (
 
 // Debugging and correctness checking stuff below.  NOT used in synthesized design.
 
-function [TS_Range:0] Target_Next_State_Full_Function;
+function [TS_Range:0] Target_Next_State;
   input  [TS_Range:0] Target_Present_State;
   input   Response_FIFO_has_Room;
   input   DELAYED_READ_FIFO_CONTAINS_DATA;
@@ -1348,45 +1506,61 @@ function [TS_Range:0] Target_Next_State_Full_Function;
   input   irdy_in;
   input   Back_to_Back_Possible;
 
-// State Machine controlling the PCI Master.
-//   Every clock, this State Machine transitions based on the LATCHED
-//   versions of TRDY and STOP.  At the same time, combinational logic
-//   below has already sent out the NEXT info to the PCI bus.
-//  (These two actions had better be consistent.)
-// The way to think about this is that the State Machine reflects the
-//   PRESENT state of the PCI wires.  When you are in the Address state,
-//   the Address is valid on the bus.
-  reg    [TS_Range:0] PCI_Target_State;  // forward reference
-
-// NOTE: WORKING: use Full Function for Debug, Partial Functions when satisfied.
-  wire   [TS_Range:0] PCI_Target_Next_State =
-                            PCI_Target_Next_State_Full_Function[TS_Range:0];
-
-// Actual State Machine includes async reset
-  always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
   begin
-    if (pci_reset_comb == 1'b1)
+// synopsys translate_off
+    if (   ( $time > 0)
+         & (   ((frame_in ^ frame_in) === 1'bX)
+             | ((irdy_in ^ irdy_in) === 1'bX)))
     begin
-      PCI_Target_State[7:0] <= PCI_TARGET_IDLE_000;
-    end
-    else if (pci_reset_comb == 1'b0)
-    begin
-      PCI_Target_State[7:0] <= PCI_Target_Next_State[TS_Range:0];
+      Target_Next_State[TS_Range:0] = TS_X;  // error
+      $display ("*** %m PCI Target State Machine FRAME, IRDY Unknown %x %x at time %t",
+                  frame_in, irdy_in, $time);
     end
     else
-    begin
-      PCI_Target_State[7:0] <= TS_X;
-    end
+// synopsys translate_on
+
+    case (Target_Present_State[TS_Range:0])  // synopsys parallel_case
+    default:
+      begin
+        Target_Next_State[TS_Range:0] = TS_X;  // error
+// synopsys translate_off
+        if ($time > 0)
+          $display ("*** %m PCI Target State Machine Unknown %x at time %t",
+                         Target_Next_State[TS_Range:0], $time);
+// synopsys translate_on
+      end
+    endcase
   end
+endfunction
+
+  assign  PCI_Target_Next_State_Full_Function[TS_Range:0] =
+              Target_Next_State_Full_Function (
+                PCI_Target_State[TS_Range:0],
+                Response_FIFO_has_Room,
+                DELAYED_READ_FIFO_CONTAINS_DATA,
+                Timeout_Forces_Disconnect,
+                pci_frame_in_critical,
+                pci_irdy_in_critical,
+                Back_to_Back_Possible
+              );
+
+  always @(posedge pci_clk)
+  begin
+    if (     PCI_Target_Next_State_Full_Function[TS_Range:0]
+         !== PCI_Target_Next_State_Partial_Functions [TS_Range:0])
+      $display ("*** %m Partial Target Functions don't match Full Target Function");
+  end
+
 
 `ifdef CALL_OUT_TARGET_STATE_TRANSITIONS
 // Look inside the target module and try to call out transition names.
-  reg    [67:1] transitions_seen;
+  parameter NUM_STATES = 50;  // NOTE: WORKING:
+  reg    [NUM_STATES:1] transitions_seen;
 
 task initialize_transition_table;
   integer i;
   begin
-    for (i = 1; i <= 67; i = i + 1)
+    for (i = 1; i <= NUM_STATES; i = i + 1)
     begin
       transitions_seen[i] = 1'b0;
     end
@@ -1398,14 +1572,14 @@ task call_out_transition;
   input i;
   integer i;
   begin
-    if ((i >= 1) & (i <= 67))
+    if ((i >= 1) & (i <= NUM_STATES))
     begin
-      $display ("transition %d seen at %t", i, $time);
+      $display ("Target transition %d seen at %t", i, $time);
       transitions_seen[i] = 1'b1;
     end
     else
     begin
-      $display ("*** bogus transition %d seen at %t", i, $time);
+      $display ("*** bogus Target transition %d seen at %t", i, $time);
     end
   end
 endtask
@@ -1413,17 +1587,17 @@ endtask
 task report_missing_transitions;
   integer i, j;
   begin
-  $display ("calling out transitions which were not yet exercised");
+  $display ("calling out Target transitions which were not yet exercised");
     j = 0;
-    for (i = 1; i <= 67; i = i + 1)
+    for (i = 1; i <= NUM_STATES; i = i + 1)
     begin
       if (transitions_seen[i] == 1'b0)
       begin
-        $display ("transition %d not seen", i);
+        $display ("Target transition %d not seen", i);
         j = j + 1;
       end
     end
-    $display ("%d transitions not seen", j);
+    $display ("%d Target transitions not seen", j);
   end
 endtask
 
@@ -1453,7 +1627,8 @@ endtask
          & (prev_bus_available == 1'b1)
          & (prev_fifo_contains_address == 1'b0) )
       call_out_transition (1);
-    end
+  end
 // synopsys translate_on
+`endif  // CALL_OUT_TARGET_STATE_TRANSITIONS
 endmodule
 

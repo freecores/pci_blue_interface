@@ -7,19 +7,21 @@
     <File IsIndirectlyAdded="0">pci_vendor_lib\pci_vendor_lib.v</File>
     <File IsIndirectlyAdded="0">pci_blue_target\pci_blue_config_regs.v</File>
     <File IsIndirectlyAdded="0">..\misc\synchronizer_flop.v</File>
+    <File IsIndirectlyAdded="0">pci_blue_target\pci_blue_target.v</File>
     <File IsIndirectlyAdded="1">pci_blue_include\pci_blue_options.vh</File>
     <File IsIndirectlyAdded="1">pci_blue_include\pci_blue_constants.vh</File>
   </UserSourceFileList>
   <DirList>
-    <Directory>..\..\SYNAPTICAD.7.9C</Directory>
+    <Directory>..\..\SYNAPTICAD.7.9F</Directory>
     <Directory>..\..\SYNAPTICAD.7.9C</Directory>
     <Directory>..\..\SYNAPTICAD.7.4</Directory>
     <Directory>..\..\SYNAPTICAD</Directory>
     <Directory>..\..\VLOGGER</Directory>
     <Directory>pci_blue_include</Directory>
+    <Directory></Directory>
   </DirList>
   <LibDirList>
-    <Directory>..\..\SYNAPTICAD.7.9C\lib\verilog</Directory>
+    <Directory>..\..\SYNAPTICAD.7.9F\lib\verilog</Directory>
     <Directory>..\..\SYNAPTICAD.7.9C\lib\verilog</Directory>
     <Directory>..\..\SYNAPTICAD.7.4\lib\verilog</Directory>
     <Directory>..\..\SYNAPTICAD\lib\verilog</Directory>
