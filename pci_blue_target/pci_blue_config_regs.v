@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_config_regs.v,v 1.1 2001-06-13 11:58:47 bbeaver Exp $
+// $Id: pci_blue_config_regs.v,v 1.2 2001-06-14 10:08:17 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -81,7 +81,7 @@ module pci_blue_config_regs (
 // Signals from the Config Registers to enable features in the Master and Target
   target_memory_enable,
   master_enable,
-  master_perr_enable,
+  either_perr_enable,
   either_serr_enable,
   master_fast_b2b_en,
   master_latency_value,
@@ -96,8 +96,6 @@ module pci_blue_config_regs (
   master_caused_master_abort,
   either_caused_serr,
   either_got_parity_error,
-// Non-standard indication that Master Request FIFO has had junk put in it.
-  master_request_fifo_error,
 // Courtesy indication that PCI Interface Config Register contains an error indication
   target_config_reg_signals_some_error,
   pci_clk,
@@ -113,7 +111,7 @@ module pci_blue_config_regs (
 // Signals from the Config Registers to enable features in the Master and Target
   output  target_memory_enable;
   output  master_enable;
-  output  master_perr_enable;
+  output  either_perr_enable;
   output  either_serr_enable;
   output  master_fast_b2b_en;
   output [7:0] master_latency_value;
@@ -128,8 +126,6 @@ module pci_blue_config_regs (
   input   master_caused_master_abort;
   input   either_caused_serr;
   input   either_got_parity_error;
-// Non-standard indication that Master Request FIFO has had junk put in it.
-  input   master_request_fifo_error;
 // Courtesy indication that PCI Interface Config Register contains an error indication
   output  target_config_reg_signals_some_error;
   input   pci_clk;
@@ -198,17 +194,6 @@ module pci_blue_config_regs (
   reg    [`PCI_BASE_ADDR1_MATCH_RANGE] BAR1;
 `endif  // PCI_BASE_ADDR1_MATCH_ENABLE
 
-/*
-  input   master_caused_parity_error;
-  input   target_caused_abort;
-  input   master_got_target_abort;
-  input   master_caused_master_abort;
-  input   either_caused_serr;
-  input   either_got_parity_error;
-  */
-
-  reg     target_signaling_target_abort;
-
 // Make a register transfer style Configuration Register, so it is easier to handle
 //   simultaneous updates from the master and the target.
   always @(posedge pci_clk or posedge pci_reset_comb)
@@ -220,13 +205,12 @@ module pci_blue_config_regs (
       Master_En <= 1'b0;              Target_Mem_En <= 1'b0;
       Detected_PERR <= 1'b0;          Signaled_SERR <= 1'b0;
       Received_Master_Abort <= 1'b0;  Received_Target_Abort <= 1'b0;
-      Signaled_Target_Abort <= 1'b0;
-      Master_Caused_PERR <= 1'b0;
+      Signaled_Target_Abort <= 1'b0;  Master_Caused_PERR <= 1'b0;
       Latency_Timer[7:0]    <= 8'h00; Cache_Line_Size[7:0] <= 8'h00;
       Interrupt_Line[7:0]   <= 8'h00;
-      BAR0[`PCI_BASE_ADDR0_MATCH_RANGE] <= `PCI_BASE_ADDR0_RESET_VAL;
+      BAR0[`PCI_BASE_ADDR0_MATCH_RANGE] <= `PCI_BASE_ADDR0_ALL_ZEROS;
 `ifdef PCI_BASE_ADDR1_MATCH_ENABLE
-      BAR1[`PCI_BASE_ADDR1_MATCH_RANGE] <= `PCI_BASE_ADDR1_RESET_VAL;
+      BAR1[`PCI_BASE_ADDR1_MATCH_RANGE] <= `PCI_BASE_ADDR1_ALL_ZEROS;
 `endif  // PCI_BASE_ADDR1_MATCH_ENABLE
     end
     else
@@ -234,86 +218,94 @@ module pci_blue_config_regs (
       if (pci_config_write_req)
       begin
 // Words 0 and 2 are not writable.  Only certain bits in word 1 are writable.
-        FB2B_En    <= ((pci_config_address[7:2] == 6'h01)
-                        & ~pci_config_byte_enables[1])
-             ? ((pci_config_write_data[31:0] & `CONFIG_CMD_FB2B_EN)
-                        != 32'h00000000) : FB2B_En;
-        SERR_En    <= ((pci_config_address[7:2] == 6'h01)
-                        & ~pci_config_byte_enables[1])
-             ? ((pci_config_write_data[31:0] & `CONFIG_CMD_SERR_EN)
-                        != 32'h00000000) : SERR_En;
-        Par_Err_En <= ((pci_config_address[7:2] == 6'h01)
-                        & ~pci_config_byte_enables[0])
-             ? ((pci_config_write_data[31:0] & `CONFIG_CMD_PAR_ERR_EN)
-                        != 32'h00000000) : Par_Err_En;
-        Master_En  <= ((pci_config_address[7:2] == 6'h01)
-                        & ~pci_config_byte_enables[0])
-             ? ((pci_config_write_data[31:0] & `CONFIG_CMD_MASTER_EN)
-                        != 32'h00000000) : Master_En;
-        Target_Mem_En  <= ((pci_config_address[7:2] == 6'h01)
-                        & ~pci_config_byte_enables[0])
-             ? ((pci_config_write_data[31:0] & `CONFIG_CMD_TARGET_EN)
-                        != 32'h00000000) : Target_Mem_En;
+        FB2B_En <=
+               ((pci_config_address[7:2] == 6'h01) & pci_config_byte_enables[1])
+             ? ((pci_config_write_data[31:0] & `CONFIG_CMD_FB2B_EN) != 32'h00000000)
+             : FB2B_En;
+        SERR_En <=
+               ((pci_config_address[7:2] == 6'h01) & pci_config_byte_enables[1])
+             ? ((pci_config_write_data[31:0] & `CONFIG_CMD_SERR_EN) != 32'h00000000)
+             : SERR_En;
+        Par_Err_En <=
+               ((pci_config_address[7:2] == 6'h01) & pci_config_byte_enables[0])
+             ? ((pci_config_write_data[31:0] & `CONFIG_CMD_PAR_ERR_EN) != 32'h00000000)
+             : Par_Err_En;
+        Master_En <=
+               ((pci_config_address[7:2] == 6'h01) &~pci_config_byte_enables[0])
+             ? ((pci_config_write_data[31:0] & `CONFIG_CMD_MASTER_EN) != 32'h00000000)
+             : Master_En;
+        Target_Mem_En <=
+               ((pci_config_address[7:2] == 6'h01) & pci_config_byte_enables[0])
+             ? ((pci_config_write_data[31:0] & `CONFIG_CMD_TARGET_EN) != 32'h00000000)
+             : Target_Mem_En;
 // Certain bits in word 1 are only clearable, not writable.
-        Detected_PERR    <= ((pci_config_address[7:2] == 6'h01)
-                        & ~pci_config_byte_enables[3]
-                    & ((pci_config_write_data[31:0] & `CONFIG_STAT_DETECTED_PERR) != 32'h00000000))
-             ? 1'b0 : Detected_PERR | either_got_parity_error;
-        Signaled_SERR    <= ((pci_config_address[7:2] == 6'h01)
-                        & ~pci_config_byte_enables[3]
-                    & ((pci_config_write_data[31:0] & `CONFIG_STAT_DETECTED_SERR) != 32'h00000000))
-             ? 1'b0 : Signaled_SERR | either_caused_serr;
-        Received_Master_Abort <= ((pci_config_address[7:2] == 6'h01)
-                        & ~pci_config_byte_enables[3]
-                    & ((pci_config_write_data[31:0] & `CONFIG_STAT_GOT_MABORT) != 32'h00000000))
-             ? 1'b0 : Received_Master_Abort | master_caused_master_abort;
-        Received_Target_Abort <= ((pci_config_address[7:2] == 6'h01)
-                        & ~pci_config_byte_enables[3]
-                    & ((pci_config_write_data[31:0] & `CONFIG_STAT_GOT_TABORT) != 32'h00000000))
-             ? 1'b0 : Received_Target_Abort | master_got_target_abort;
-        Signaled_Target_Abort <= ((pci_config_address[7:2] == 6'h01)
-                        & ~pci_config_byte_enables[3]
-                    & ((pci_config_write_data[31:0] & `CONFIG_STAT_CAUSED_TABORT) != 32'h00000000))
-             ? 1'b0 : Signaled_Target_Abort | target_signaling_target_abort;
-        Master_Caused_PERR <= (  (pci_config_address[7:2] == 6'h01)
-                        & ~pci_config_byte_enables[3]
-                    & ((pci_config_write_data[31:0] & `CONFIG_STAT_CAUSED_PERR) != 32'h00000000))
-             ? 1'b0 : Master_Caused_PERR | master_caused_parity_error;
+        Detected_PERR <=
+               ((pci_config_address[7:2] == 6'h01) & pci_config_byte_enables[3]
+                 & ((pci_config_write_data[31:0] & `CONFIG_STAT_DETECTED_PERR) != 32'h00000000))
+             ? 1'b0
+             : Detected_PERR | either_got_parity_error;
+        Signaled_SERR <=
+               ((pci_config_address[7:2] == 6'h01) & pci_config_byte_enables[3]
+                 & ((pci_config_write_data[31:0] & `CONFIG_STAT_DETECTED_SERR) != 32'h00000000))
+             ? 1'b0
+             : Signaled_SERR | either_caused_serr;
+        Received_Master_Abort <=
+               ((pci_config_address[7:2] == 6'h01) & pci_config_byte_enables[3]
+                 & ((pci_config_write_data[31:0] & `CONFIG_STAT_GOT_MABORT) != 32'h00000000))
+             ? 1'b0
+             : Received_Master_Abort | master_caused_master_abort;
+        Received_Target_Abort <=
+               ((pci_config_address[7:2] == 6'h01) & pci_config_byte_enables[3]
+                 & ((pci_config_write_data[31:0] & `CONFIG_STAT_GOT_TABORT) != 32'h00000000))
+             ? 1'b0
+             : Received_Target_Abort | master_got_target_abort;
+        Signaled_Target_Abort <=
+               ((pci_config_address[7:2] == 6'h01) & pci_config_byte_enables[3]
+                 & ((pci_config_write_data[31:0] & `CONFIG_STAT_CAUSED_TABORT) != 32'h00000000))
+             ? 1'b0
+             : Signaled_Target_Abort | target_caused_abort;
+        Master_Caused_PERR <=
+               ((pci_config_address[7:2] == 6'h01) & pci_config_byte_enables[3]
+                 & ((pci_config_write_data[31:0] & `CONFIG_STAT_CAUSED_PERR) != 32'h00000000))
+             ? 1'b0
+             : Master_Caused_PERR | master_caused_parity_error;
 // Certain bytes in higher words are writable
-        Latency_Timer    <= (  (pci_config_address[7:2] == 6'h03)
-                              & ~pci_config_byte_enables[1])
-                          ? pci_config_write_data[15:8] : Latency_Timer;
-        Cache_Line_Size  <= (  (pci_config_address[7:2] == 6'h03)
-                              & ~pci_config_byte_enables[0])
-                          ? pci_config_write_data[7:0] : Cache_Line_Size;
-
-        BAR0             <= (  (pci_config_address[7:2] == 6'h04)
-                              & ~pci_config_byte_enables[3])
-                          ? pci_config_write_data[`PCI_BASE_ADDR0_MATCH_RANGE] : BAR0;
+        Latency_Timer[7:0] <=
+               ((pci_config_address[7:2] == 6'h03) & pci_config_byte_enables[1])
+             ? pci_config_write_data[15:8]
+             : Latency_Timer[7:0];
+        Cache_Line_Size[7:0] <=
+               ((pci_config_address[7:2] == 6'h03) & pci_config_byte_enables[0])
+             ? pci_config_write_data[7:0]
+             : Cache_Line_Size[7:0];
+        BAR0[`PCI_BASE_ADDR0_MATCH_RANGE] <=
+               ((pci_config_address[7:2] == 6'h04) & pci_config_byte_enables[3])
+             ? pci_config_write_data[`PCI_BASE_ADDR0_MATCH_RANGE]
+             : BAR0[`PCI_BASE_ADDR0_MATCH_RANGE];
 `ifdef PCI_BASE_ADDR1_MATCH_ENABLE
-        BAR1             <= (  (pci_config_address[7:2] == 6'h05)
-                              & ~pci_config_byte_enables[3])
-                          ? pci_config_write_data[`PCI_BASE_ADDR1_MATCH_RANGE] : BAR1;
+        BAR1[`PCI_BASE_ADDR1_MATCH_RANGE] <=
+               ((pci_config_address[7:2] == 6'h05) & pci_config_byte_enables[3])
+             ? pci_config_write_data[`PCI_BASE_ADDR1_MATCH_RANGE]
+             : BAR1[`PCI_BASE_ADDR1_MATCH_RANGE];
 `endif  // PCI_BASE_ADDR1_MATCH_ENABLE
-        Interrupt_Line   <= (  (pci_config_address[7:2] == 6'h0F)
-                              & ~pci_config_byte_enables[0])
-                          ? pci_config_write_data[7:0] : Interrupt_Line;
+        Interrupt_Line[7:0] <=
+               ((pci_config_address[7:2] == 6'h0F) & pci_config_byte_enables[0])
+             ? pci_config_write_data[7:0]
+             : Interrupt_Line[7:0];
       end
       else
-      begin  // not writing from PCI side
+      begin  // not writing from PCI side, either reading or doing nothing.
 // Words 0 and 2 are not writable.  Only certain bits in word 1 are writable.
         FB2B_En    <= FB2B_En;
-        SERR_En    <= SERR_En;
-        Par_Err_En <= Par_Err_En;
-        Master_En  <= Master_En;
-        Target_Mem_En  <= Target_Mem_En;
+        SERR_En    <= SERR_En;        Par_Err_En     <= Par_Err_En;
+        Master_En  <= Master_En;      Target_Mem_En  <= Target_Mem_En;
 // Certain bits in word 1 are only clearable, not writable.
-        Detected_PERR    <= Detected_PERR | either_got_parity_error;
-        Signaled_SERR    <= Signaled_SERR | either_caused_serr;
+        Detected_PERR         <= Detected_PERR         | either_got_parity_error;
+        Signaled_SERR         <= Signaled_SERR         | either_caused_serr;
         Received_Master_Abort <= Received_Master_Abort | master_caused_master_abort;
         Received_Target_Abort <= Received_Target_Abort | master_got_target_abort;
-        Signaled_Target_Abort <= Signaled_Target_Abort | target_signaling_target_abort;
-        Master_Caused_PERR <= Master_Caused_PERR | master_caused_parity_error;
+        Signaled_Target_Abort <= Signaled_Target_Abort | target_caused_abort;
+        Master_Caused_PERR    <= Master_Caused_PERR    | master_caused_parity_error;
 // Certain bytes in higher words are writable
         Latency_Timer[7:0]                <= Latency_Timer[7:0];
         Cache_Line_Size[7:0]              <= Cache_Line_Size[7:0];
@@ -326,19 +318,7 @@ module pci_blue_config_regs (
     end
   end
 
-  assign  target_memory_enable = Target_Mem_En;
-  assign  master_enable = Master_En;
-  assign  master_perr_enable = Par_Err_En;
-  assign  either_serr_enable = SERR_En;
-  assign  master_fast_b2b_en = FB2B_En;
-  assign  master_latency_value[7:0] = Latency_Timer[7:0];
-  assign  base_register_0[`PCI_BASE_ADDR0_MATCH_RANGE] =
-                                       BAR0[`PCI_BASE_ADDR0_MATCH_RANGE];
-`ifdef PCI_BASE_ADDR1_MATCH_ENABLE
-  assign  base_register_1[`PCI_BASE_ADDR1_MATCH_RANGE] =
-                                       BAR1[`PCI_BASE_ADDR1_MATCH_RANGE];
-`endif  // PCI_BASE_ADDR1_MATCH_ENABLE
-
+// Combine bits to make Command and Status Registers for read-back
   wire   [15:0] Target_Command =
                      {4'b0000,
                       2'b00, FB2B_En, SERR_En,
@@ -396,9 +376,26 @@ module pci_blue_config_regs (
   wire   [31:0] config_read_data_3C_0 = pci_config_address[5]
                   ? config_read_data_3C_20[31:0] : config_read_data_1C_0[31:0];
 
-  assign  pci_config_read_data[31:0] = pci_config_address[7]
-                  ? 32'h00000000
-                  : (pci_config_address[6]
-                      ? 32'h00000000 : config_read_data_3C_0[31:0]);
+  assign  pci_config_read_data[31:0] =
+                   (pci_config_address[6] | pci_config_address[7])
+                  ? 32'h00000000 : config_read_data_3C_0[31:0];
+
+  assign  target_memory_enable = Target_Mem_En;
+  assign  master_enable = Master_En;
+  assign  either_perr_enable = Par_Err_En;
+  assign  either_serr_enable = SERR_En;
+  assign  master_fast_b2b_en = FB2B_En;
+  assign  master_latency_value[7:0] = Latency_Timer[7:0];
+  assign  base_register_0[`PCI_BASE_ADDR0_MATCH_RANGE] =
+                                       BAR0[`PCI_BASE_ADDR0_MATCH_RANGE];
+`ifdef PCI_BASE_ADDR1_MATCH_ENABLE
+  assign  base_register_1[`PCI_BASE_ADDR1_MATCH_RANGE] =
+                                       BAR1[`PCI_BASE_ADDR1_MATCH_RANGE];
+`endif  // PCI_BASE_ADDR1_MATCH_ENABLE
+
+  assign  target_config_reg_signals_some_error = 
+                  Detected_PERR | Signaled_SERR
+                | Received_Master_Abort | Received_Target_Abort
+                | Signaled_Target_Abort | Master_Caused_PERR;
 endmodule
 

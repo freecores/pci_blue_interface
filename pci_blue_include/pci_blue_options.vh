@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_options.vh,v 1.6 2001-06-13 11:58:43 bbeaver Exp $
+// $Id: pci_blue_options.vh,v 1.7 2001-06-14 10:08:03 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -219,7 +219,7 @@
 // The code to support multiple Base Address Registers is in pci_blue_target.v
 // Match as few bits as needed.  This example maps 16 MBytes.
 `define PCI_BASE_ADDR0_MATCH_RANGE             31:24
-`define PCI_BASE_ADDR0_RESET_VAL               8'h00
+`define PCI_BASE_ADDR0_ALL_ZEROS               8'h00
 // Match plus Fill plus Qual must together be 32 bits
 `define PCI_BASE_ADDR0_FILL                    (20'h00000)
 // Address Map Qualifier, described in the PCI specification,
@@ -234,7 +234,7 @@
 `ifdef PCI_BASE_ADDR1_MATCH_ENABLE
 // Match as few bits as needed.  This example maps 32 MBytes.
 `define PCI_BASE_ADDR1_MATCH_RANGE             31:25
-`define PCI_BASE_ADDR1_RESET_VAL               7'h00
+`define PCI_BASE_ADDR1_ALL_ZEROS               7'h00
 // Match plus Fill plus Qual must together be 32 bits
 `define PCI_BASE_ADDR1_FILL                    (21'h000000)
 // Address Map Qualifier, described in the PCI specification,

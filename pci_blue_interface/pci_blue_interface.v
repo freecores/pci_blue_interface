@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_interface.v,v 1.8 2001-06-13 11:58:44 bbeaver Exp $
+// $Id: pci_blue_interface.v,v 1.9 2001-06-14 10:08:09 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -1201,8 +1201,9 @@ pci_fifo_storage_delayed_read pci_fifo_storage_delayed_read (
 // Signals from the Master to the Target to set bits in the Status Register.
   wire    master_got_parity_error, master_caused_serr;
   wire    master_caused_master_abort, master_got_target_abort;
-  wire    master_caused_parity_error, master_request_fifo_error;
-  wire    master_enable, master_fast_b2b_en, master_perr_enable, master_serr_enable;
+  wire    master_caused_parity_error;
+  wire    master_enable, master_fast_b2b_en;
+  wire    master_perr_enable, master_serr_enable;
   wire   [7:0] master_latency_value;
 
 // Instantiate the Target Interface, which contains the Config Registers
@@ -1266,7 +1267,6 @@ pci_blue_target pci_blue_target (
   .master_caused_master_abort (master_caused_master_abort),
   .master_got_target_abort    (master_got_target_abort),
   .master_caused_parity_error (master_caused_parity_error),
-  .master_request_fifo_error  (master_request_fifo_error),
 // Signals from the Config Regs to the Master to control it.
   .master_enable              (master_enable),
   .master_fast_b2b_en         (master_fast_b2b_en),
@@ -1345,7 +1345,6 @@ pci_blue_master pci_blue_master (
   .master_caused_master_abort (master_caused_master_abort),
   .master_got_target_abort    (master_got_target_abort),
   .master_caused_parity_error (master_caused_parity_error),
-  .master_request_fifo_error  (master_request_fifo_error),
 // Signals from the Config Regs to the Master to control it.
   .master_enable              (master_enable),
   .master_fast_b2b_en         (master_fast_b2b_en),

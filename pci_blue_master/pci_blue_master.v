@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_master.v,v 1.8 2001-06-13 11:58:45 bbeaver Exp $
+// $Id: pci_blue_master.v,v 1.9 2001-06-14 10:08:12 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -174,7 +174,6 @@ module pci_blue_master (
   master_caused_master_abort,
   master_got_target_abort,
   master_caused_parity_error,
-  master_request_fifo_error,
   master_enable,
   master_fast_b2b_en,
   master_perr_enable,
@@ -222,7 +221,7 @@ module pci_blue_master (
   input   pci_iface_request_data_available_meta;
   input   pci_iface_request_two_words_available_meta;
   output  pci_iface_request_data_unload;
-  input   pci_iface_request_error;
+  input   pci_iface_request_error;  // NOTE MAKE SURE THIS IS NOTED SOMEWHERE
 // Signals from the Master to the Target to insert Status Info into the Response FIFO.
   output [2:0] pci_master_to_target_request_type;
   output [3:0] pci_master_to_target_request_cbe;
@@ -240,7 +239,6 @@ module pci_blue_master (
   output  master_caused_master_abort;
   output  master_got_target_abort;
   output  master_caused_parity_error;
-  output  master_request_fifo_error;
 // Signals from the Config Regs to the Master to control it.
   input   master_enable;
   input   master_fast_b2b_en;
@@ -257,7 +255,7 @@ module pci_blue_master (
 //   Address->Data->Data_Last.  Anything else is an error.
 
   reg     request_fifo_state;  // tracks no_address, address, data, data_last;
-  reg     master_request_fifo_error;
+  reg     master_request_fifo_error;  // NOTE TODO.  Make sure this gets reported to the User
 
   always @(posedge pci_clk or posedge pci_reset_comb)
   begin
