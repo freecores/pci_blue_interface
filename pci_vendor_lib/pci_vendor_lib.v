@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_vendor_lib.v,v 1.11 2001-07-07 06:24:39 bbeaver Exp $
+// $Id: pci_vendor_lib.v,v 1.12 2001-07-07 08:01:19 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -269,10 +269,14 @@ endmodule
 // constraints.
 module pci_critical_next_frame (
   PCI_Next_FRAME_Code,
+  pci_gnt_in_critical,
+  pci_frame_in_critical, pci_irdy_in_critical,
   pci_trdy_in_critical, pci_stop_in_critical,
   pci_frame_out_next
 );
   input  [2:0] PCI_Next_FRAME_Code;
+  input   pci_gnt_in_critical;
+  input   pci_frame_in_critical, pci_irdy_in_critical;
   input   pci_trdy_in_critical, pci_stop_in_critical;
   output  pci_frame_out_next;
 
@@ -281,33 +285,40 @@ module pci_critical_next_frame (
   parameter FRAME_UNLESS_STOP    = 3'b001;
   parameter FRAME_UNLESS_LAST    = 3'b010;
   parameter FRAME_WHILE_WAIT     = 3'b011;
-  parameter FRAME_1              = 3'b100;
+  parameter FRAME_BACK_TO_BACK   = 3'b100;
+  parameter FRAME_1              = 3'b101;
+  parameter FRAME_IF_GNT         = 3'b110;
+  parameter FRAME_IF_GNT_IDLE    = 3'b111;
 
 // See pci_blue_master.v for encoding
   wire    Output_If_Idle =
-                    (PCI_Next_FRAME_Code[2:0] == FRAME_0) ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_STOP) ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_LAST) ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_WHILE_WAIT) ? 1'b1
-                 : 1'b1)));  // FRAME_1
+                    (PCI_Next_FRAME_Code[2:0] == FRAME_0)            ? 1'b0
+                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_STOP)  ? 1'b1
+                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_LAST)  ? 1'b1
+                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_WHILE_WAIT)   ? 1'b1
+                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_BACK_TO_BACK) ? 1'b0
+                 : 1'b1))));  // FRAME_1
   wire    Output_If_Disconnect_Retry_Abort =
-                    (PCI_Next_FRAME_Code[2:0] == FRAME_0) ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_STOP) ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_LAST) ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_WHILE_WAIT) ? 1'b0
-                 : 1'b1)));  // FRAME_1
+                    (PCI_Next_FRAME_Code[2:0] == FRAME_0)            ? 1'b0
+                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_STOP)  ? 1'b0
+                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_LAST)  ? 1'b0
+                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_WHILE_WAIT)   ? 1'b0
+                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_BACK_TO_BACK) ? 1'b0
+                 : 1'b1))));  // FRAME_1
   wire    Output_If_Data_More =
-                    (PCI_Next_FRAME_Code[2:0] == FRAME_0) ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_STOP) ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_LAST) ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_WHILE_WAIT) ? 1'b0
-                 : 1'b1)));  // FRAME_1
+                    (PCI_Next_FRAME_Code[2:0] == FRAME_0)            ? 1'b0
+                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_STOP)  ? 1'b1
+                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_LAST)  ? 1'b1
+                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_WHILE_WAIT)   ? 1'b0
+                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_BACK_TO_BACK) ? 1'b1
+                 : 1'b1))));  // FRAME_1
   wire    Output_If_Data_Last =
-                    (PCI_Next_FRAME_Code[2:0] == FRAME_0) ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_STOP) ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_LAST) ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_WHILE_WAIT) ? 1'b0
-                 : 1'b1)));  // FRAME_1
+                    (PCI_Next_FRAME_Code[2:0] == FRAME_0)            ? 1'b0
+                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_STOP)  ? 1'b1
+                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_LAST)  ? 1'b0
+                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_WHILE_WAIT)   ? 1'b0
+                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_BACK_TO_BACK) ? 1'b1
+                 : 1'b1))));  // FRAME_1
 
 // Implement as 4-1 MUX, using pci_trdy_in_critical and pci_stop_in_critical as
 // the VERY LATE selection wires.  The cases are:
@@ -347,28 +358,28 @@ module pci_critical_next_irdy (
 
 // See pci_blue_master.v for encoding
   wire    Output_If_Idle =
-                    (PCI_Next_IRDY_Code[2:0] == IRDY_0) ? 1'b0
-                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_IF_STOP) ? 1'b0
+                    (PCI_Next_IRDY_Code[2:0] == IRDY_0)           ? 1'b0
+                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_IF_STOP)     ? 1'b0
                  : ((PCI_Next_IRDY_Code[2:0] == IRDY_UNLESS_MORE) ? 1'b1
-                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_WHILE_WAIT) ? 1'b1
+                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_WHILE_WAIT)  ? 1'b1
                  : 1'b1)));  // IRDY_1
   wire    Output_If_Disconnect_Retry_Abort =
-                    (PCI_Next_IRDY_Code[2:0] == IRDY_0) ? 1'b0
-                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_IF_STOP) ? 1'b1
+                    (PCI_Next_IRDY_Code[2:0] == IRDY_0)           ? 1'b0
+                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_IF_STOP)     ? 1'b1
                  : ((PCI_Next_IRDY_Code[2:0] == IRDY_UNLESS_MORE) ? 1'b0
-                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_WHILE_WAIT) ? 1'b0
+                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_WHILE_WAIT)  ? 1'b0
                  : 1'b1)));  // IRDY_1
   wire    Output_If_Data_More =
-                    (PCI_Next_IRDY_Code[2:0] == IRDY_0) ? 1'b0
-                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_IF_STOP) ? 1'b0
+                    (PCI_Next_IRDY_Code[2:0] == IRDY_0)           ? 1'b0
+                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_IF_STOP)     ? 1'b0
                  : ((PCI_Next_IRDY_Code[2:0] == IRDY_UNLESS_MORE) ? 1'b0
-                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_WHILE_WAIT) ? 1'b0
+                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_WHILE_WAIT)  ? 1'b0
                  : 1'b1)));  // IRDY_1
   wire    Output_If_Data_Last =
-                    (PCI_Next_IRDY_Code[2:0] == IRDY_0) ? 1'b0
-                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_IF_STOP) ? 1'b0
+                    (PCI_Next_IRDY_Code[2:0] == IRDY_0)           ? 1'b0
+                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_IF_STOP)     ? 1'b0
                  : ((PCI_Next_IRDY_Code[2:0] == IRDY_UNLESS_MORE) ? 1'b1
-                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_WHILE_WAIT) ? 1'b0
+                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_WHILE_WAIT)  ? 1'b0
                  : 1'b1)));  // IRDY_1
 
 // Implement as 4-1 MUX, using pci_trdy_in_critical and pci_stop_in_critical as
@@ -400,26 +411,33 @@ module pci_critical_next_devsel (
   input   pci_frame_in_critical, pci_irdy_in_critical;
   output  pci_devsel_out_next;
 
-// See pci_blue_target.v for encoding
+
+// NOTE: these declarations are duplicated in PCI_Blue_Master.
+  parameter DEVSEL_0             = 3'b000;
+  parameter DEVSEL_IF_STOP       = 3'b001;
+  parameter DEVSEL_UNLESS_MORE   = 3'b010;
+  parameter DEVSEL_WHILE_WAIT    = 3'b011;
+  parameter DEVSEL_1             = 3'b100;
+
 // NOTE: not done yet
   wire    Output_If_Idle =
-                    (PCI_Next_DEVSEL_Code[2:0] == 3'b000) ? 1'b0
-                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b001) ? 1'b0
-                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b010) ? 1'b1
-                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b011) ? 1'b1
-                 : 1'b1)));
+                    (PCI_Next_DEVSEL_Code[2:0] == DEVSEL_0) ? 1'b0
+                 : ((PCI_Next_DEVSEL_Code[2:0] == DEVSEL_IF_STOP) ? 1'b0
+                 : ((PCI_Next_DEVSEL_Code[2:0] == DEVSEL_UNLESS_MORE) ? 1'b1
+                 : ((PCI_Next_DEVSEL_Code[2:0] == DEVSEL_WHILE_WAIT) ? 1'b1
+                 : 1'b1)));  // DEVSEL_1
   wire    Output_If_Data_More =
-                    (PCI_Next_DEVSEL_Code[2:0] == 3'b000) ? 1'b0
-                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b001) ? 1'b0
-                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b010) ? 1'b0
-                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b011) ? 1'b0
-                 : 1'b1)));
+                    (PCI_Next_DEVSEL_Code[2:0] == DEVSEL_0) ? 1'b0
+                 : ((PCI_Next_DEVSEL_Code[2:0] == DEVSEL_IF_STOP) ? 1'b0
+                 : ((PCI_Next_DEVSEL_Code[2:0] == DEVSEL_UNLESS_MORE) ? 1'b0
+                 : ((PCI_Next_DEVSEL_Code[2:0] == DEVSEL_WHILE_WAIT) ? 1'b0
+                 : 1'b1)));  // DEVSEL_1
   wire    Output_If_Data_Last =
-                    (PCI_Next_DEVSEL_Code[2:0] == 3'b000) ? 1'b0
-                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b001) ? 1'b0
-                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b010) ? 1'b1
-                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b011) ? 1'b0
-                 : 1'b1)));
+                    (PCI_Next_DEVSEL_Code[2:0] == DEVSEL_0) ? 1'b0
+                 : ((PCI_Next_DEVSEL_Code[2:0] == DEVSEL_IF_STOP) ? 1'b0
+                 : ((PCI_Next_DEVSEL_Code[2:0] == DEVSEL_UNLESS_MORE) ? 1'b1
+                 : ((PCI_Next_DEVSEL_Code[2:0] == DEVSEL_WHILE_WAIT) ? 1'b0
+                 : 1'b1)));  // DEVSEL_1
 
 // Implement as 4-1 MUX, using pci_frame_in_critical and pci_irdy_in_critical as
 // the VERY LATE selection wires.  The cases are:
@@ -447,26 +465,32 @@ module pci_critical_next_trdy (
   input   pci_frame_in_critical, pci_irdy_in_critical;
   output  pci_trdy_out_next;
 
-// See pci_blue_target.v for encoding
+// NOTE: these declarations are duplicated in PCI_Blue_Master.
+  parameter TRDY_0               = 3'b000;
+  parameter TRDY_IF_STOP         = 3'b001;
+  parameter TRDY_UNLESS_MORE     = 3'b010;
+  parameter TRDY_WHILE_WAIT      = 3'b011;
+  parameter TRDY_1               = 3'b100;
+
 // NOTE: not done yet
   wire    Output_If_Idle =
-                    (PCI_Next_TRDY_Code[2:0] == 3'b000) ? 1'b0
-                 : ((PCI_Next_TRDY_Code[2:0] == 3'b001) ? 1'b0
-                 : ((PCI_Next_TRDY_Code[2:0] == 3'b010) ? 1'b1
-                 : ((PCI_Next_TRDY_Code[2:0] == 3'b011) ? 1'b1
-                 : 1'b1)));
+                    (PCI_Next_TRDY_Code[2:0] == TRDY_0) ? 1'b0
+                 : ((PCI_Next_TRDY_Code[2:0] == TRDY_IF_STOP) ? 1'b0
+                 : ((PCI_Next_TRDY_Code[2:0] == TRDY_UNLESS_MORE) ? 1'b1
+                 : ((PCI_Next_TRDY_Code[2:0] == TRDY_WHILE_WAIT) ? 1'b1
+                 : 1'b1)));  // TRDY_1
   wire    Output_If_Data_More =
-                    (PCI_Next_TRDY_Code[2:0] == 3'b000) ? 1'b0
-                 : ((PCI_Next_TRDY_Code[2:0] == 3'b001) ? 1'b0
-                 : ((PCI_Next_TRDY_Code[2:0] == 3'b010) ? 1'b0
-                 : ((PCI_Next_TRDY_Code[2:0] == 3'b011) ? 1'b0
-                 : 1'b1)));
+                    (PCI_Next_TRDY_Code[2:0] == TRDY_0) ? 1'b0
+                 : ((PCI_Next_TRDY_Code[2:0] == TRDY_IF_STOP) ? 1'b0
+                 : ((PCI_Next_TRDY_Code[2:0] == TRDY_UNLESS_MORE) ? 1'b0
+                 : ((PCI_Next_TRDY_Code[2:0] == TRDY_WHILE_WAIT) ? 1'b0
+                 : 1'b1)));  // TRDY_1
   wire    Output_If_Data_Last =
-                    (PCI_Next_TRDY_Code[2:0] == 3'b000) ? 1'b0
-                 : ((PCI_Next_TRDY_Code[2:0] == 3'b001) ? 1'b0
-                 : ((PCI_Next_TRDY_Code[2:0] == 3'b010) ? 1'b1
-                 : ((PCI_Next_TRDY_Code[2:0] == 3'b011) ? 1'b0
-                 : 1'b1)));
+                    (PCI_Next_TRDY_Code[2:0] == TRDY_0) ? 1'b0
+                 : ((PCI_Next_TRDY_Code[2:0] == TRDY_IF_STOP) ? 1'b0
+                 : ((PCI_Next_TRDY_Code[2:0] == TRDY_UNLESS_MORE) ? 1'b1
+                 : ((PCI_Next_TRDY_Code[2:0] == TRDY_WHILE_WAIT) ? 1'b0
+                 : 1'b1)));  // TRDY_1
 
 // Implement as 4-1 MUX, using pci_frame_in_critical and pci_irdy_in_critical as
 // the VERY LATE selection wires.  The cases are:
@@ -494,26 +518,32 @@ module pci_critical_next_stop (
   input   pci_frame_in_critical, pci_irdy_in_critical;
   output  pci_stop_out_next;
 
-// See pci_blue_target.v for encoding
+// NOTE: these declarations are duplicated in PCI_Blue_Master.
+  parameter STOP_0               = 3'b000;
+  parameter STOP_IF_STOP         = 3'b001;
+  parameter STOP_UNLESS_MORE     = 3'b010;
+  parameter STOP_WHILE_WAIT      = 3'b011;
+  parameter STOP_1               = 3'b100;
+
 // NOTE: not done yet
   wire    Output_If_Idle =
-                    (PCI_Next_STOP_Code[2:0] == 3'b000) ? 1'b0
-                 : ((PCI_Next_STOP_Code[2:0] == 3'b001) ? 1'b0
-                 : ((PCI_Next_STOP_Code[2:0] == 3'b010) ? 1'b1
-                 : ((PCI_Next_STOP_Code[2:0] == 3'b011) ? 1'b1
-                 : 1'b1)));
+                    (PCI_Next_STOP_Code[2:0] == STOP_0) ? 1'b0
+                 : ((PCI_Next_STOP_Code[2:0] == STOP_IF_STOP) ? 1'b0
+                 : ((PCI_Next_STOP_Code[2:0] == STOP_UNLESS_MORE) ? 1'b1
+                 : ((PCI_Next_STOP_Code[2:0] == STOP_WHILE_WAIT) ? 1'b1
+                 : 1'b1)));  // STOP_1
   wire    Output_If_Data_More =
-                    (PCI_Next_STOP_Code[2:0] == 3'b000) ? 1'b0
-                 : ((PCI_Next_STOP_Code[2:0] == 3'b001) ? 1'b0
-                 : ((PCI_Next_STOP_Code[2:0] == 3'b010) ? 1'b0
-                 : ((PCI_Next_STOP_Code[2:0] == 3'b011) ? 1'b0
-                 : 1'b1)));
+                    (PCI_Next_STOP_Code[2:0] == STOP_0) ? 1'b0
+                 : ((PCI_Next_STOP_Code[2:0] == STOP_IF_STOP) ? 1'b0
+                 : ((PCI_Next_STOP_Code[2:0] == STOP_UNLESS_MORE) ? 1'b0
+                 : ((PCI_Next_STOP_Code[2:0] == STOP_WHILE_WAIT) ? 1'b0
+                 : 1'b1)));  // STOP_1
   wire    Output_If_Data_Last =
-                    (PCI_Next_STOP_Code[2:0] == 3'b000) ? 1'b0
-                 : ((PCI_Next_STOP_Code[2:0] == 3'b001) ? 1'b0
-                 : ((PCI_Next_STOP_Code[2:0] == 3'b010) ? 1'b1
-                 : ((PCI_Next_STOP_Code[2:0] == 3'b011) ? 1'b0
-                 : 1'b1)));
+                    (PCI_Next_STOP_Code[2:0] == STOP_0) ? 1'b0
+                 : ((PCI_Next_STOP_Code[2:0] == STOP_IF_STOP) ? 1'b0
+                 : ((PCI_Next_STOP_Code[2:0] == STOP_UNLESS_MORE) ? 1'b1
+                 : ((PCI_Next_STOP_Code[2:0] == STOP_WHILE_WAIT) ? 1'b0
+                 : 1'b1)));  // STOP_1
 
 // Implement as 4-1 MUX, using pci_frame_in_critical and pci_irdy_in_critical as
 // the VERY LATE selection wires.  The cases are:
