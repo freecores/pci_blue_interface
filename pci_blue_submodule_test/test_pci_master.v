@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_master.v,v 1.14 2001-08-06 00:30:15 bbeaver Exp $
+// $Id: test_pci_master.v,v 1.15 2001-08-06 10:32:37 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -169,7 +169,7 @@ module pci_test_master (
   assign  more                  = pci_blue_master.Request_FIFO_CONTAINS_DATA_MORE;        // TEMPORARY
   assign  two_more              = pci_blue_master.Request_FIFO_CONTAINS_DATA_TWO_MORE;    // TEMPORARY
   assign  last                  = pci_blue_master.Request_FIFO_CONTAINS_DATA_LAST;        // TEMPORARY
-  assign  working               = pci_blue_master.Master_Data_Latency_Disconnect;         // TEMPORARY
+  assign  working               = pci_blue_master.Master_Abort_Detected;         // TEMPORARY
 
 // PCI signals
   wire    pci_req_out_next, pci_req_out_oe_comb;
@@ -309,7 +309,7 @@ task set_pci_idle;
     master_enable = 1'b0;
     master_fast_b2b_en = 1'b0;
     master_perr_enable = 1'b0;
-    master_latency_value[7:0] = 8'h00;
+    master_latency_value[7:0] = 8'h0A;
   end
 endtask
 
@@ -507,6 +507,7 @@ endtask
       do_clocks (4'h4);
 
 // WORKING
+
     $display ("Doing Config Read, 1 word, no Wait States, at time %t", $time);
     do_reset;
     unload_target_data;
@@ -527,6 +528,20 @@ endtask
     pci_devsel;
     pci_trdy;
       do_clocks (4'h8);
+
+    $display ("Doing Bus Park, at time %t", $time);
+    do_reset;
+    unload_target_data;
+      do_clocks (4'h4);
+    pci_grant;
+      do_clocks (4'h1);
+    pci_grant;
+      do_clocks (4'h1);
+    pci_grant;
+      do_clocks (4'h1);
+    pci_grant;
+      do_clocks (4'h8);
+
 
     $display ("Doing Config Read, 1 word, no Wait States, at time %t", $time);
     do_reset;
@@ -1118,6 +1133,53 @@ endtask
 //
 // ALL of the commands below this should result in a re-request (after a lull)
 
+    $display ("Doing Memory Read, 3 words, 3 Master Wait State, Bus Latency Timeout, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_2);
+      do_clocks (4'h3);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_2);
+      do_clocks (4'h4);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h3);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
+
+    $display ("Doing Memory Write, 3 words, 3 Master Wait State, Bus Latency Timeout, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_0);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_1);
+      do_clocks (4'h3);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_1);
+      do_clocks (4'h4);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h3);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
+
+
     $display ("Doing Memory Read, 3 words, 6 Master Wait State, at time %t", $time);
     do_reset;
     unload_target_data;
@@ -1201,40 +1263,55 @@ endtask
       do_clocks (4'h8);
 
 
-`ifdef LATER
-
-
     $display ("Doing Memory Read, 1 word, Master Abort, at time %t", $time);
     do_reset;
+    unload_target_data;
     write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ, 32'hAD401234);
       do_clocks (4'h1);
     write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_0, 32'hDA505678);
+      do_clocks (4'h4);
+    pci_grant;  // Clk 0, resulting in FRAME at first clock.
+      do_clocks (4'h6);  // abort is 6 or greater
+    pci_devsel;
       do_clocks (4'h8);
 
     $display ("Doing Memory Read, 2 words, Master Abort, at time %t", $time);
     do_reset;
+    unload_target_data;
     write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ, 32'hAD501234);
       do_clocks (4'h1);
     write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1, 32'hDA605678);
       do_clocks (4'h1);
     write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_2, 32'hDA705678);
+      do_clocks (4'h3);
+    pci_grant;
       do_clocks (4'h8);
+
+// add version where data, or data last, not available at time of timeout.  Delayed Flush.
 
     $display ("Doing Memory Write, 1 word, Master Abort, at time %t", $time);
     do_reset;
+    unload_target_data;
     write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE, 32'hAD601234);
       do_clocks (4'h1);
     write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_3, 32'hDA805678);
+      do_clocks (4'h4);
+    pci_grant;
       do_clocks (4'h8);
 
     $display ("Doing Memory Write, 2 words, Master Abort, at time %t", $time);
     do_reset;
+    unload_target_data;
     write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE, 32'hAD701234);
       do_clocks (4'h1);
     write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_0, 32'hDA905678);
       do_clocks (4'h1);
     write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Half_1, 32'hDA105678);
+      do_clocks (4'h3);
+    pci_grant;
       do_clocks (4'h8);
+
+`ifdef LATER
 
     $display ("Doing Memory Read, 1 word, Target Abort, at time %t", $time);
     do_reset;

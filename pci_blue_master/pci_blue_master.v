@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_master.v,v 1.30 2001-08-06 00:30:14 bbeaver Exp $
+// $Id: pci_blue_master.v,v 1.31 2001-08-06 10:32:36 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -531,8 +531,8 @@ module pci_blue_master (
 // NOTE: if 64-bit addressing implemented, need to capture BOTH
 //   halves of the address before data can be allowed to proceed.
 // NOTE: Clever trick.  Don't latch the address here until the data has
-//   been UNLOADED on the PCI side.  This indicates that it has been driven
-//   to the external bus.
+//   been UNLOADED from the Request FIFO onto the PCI bus.  This indicates
+//   that it has been driven  to the external bus.
   reg    [PCI_BUS_DATA_RANGE:0] Master_Retry_Address;
   reg    [PCI_BUS_CBE_RANGE:0] Master_Retry_Command;
   reg    [2:0] Master_Retry_Address_Type;
@@ -615,8 +615,8 @@ module pci_blue_master (
 
 // Grab Data to allow retries if disconnect without data
 // NOTE: Clever trick.  Don't latch the address here until the data has
-//   been UNLOADED on the PCI side.  This indicates that it has been driven
-//   to the external bus.
+//   been UNLOADED from the Request FIFO onto the PCI bus.  This indicates
+//   that it has been driven  to the external bus.
   reg    [PCI_BUS_DATA_RANGE:0] Master_Retry_Data;
   reg    [PCI_BUS_CBE_RANGE:0] Master_Retry_Data_Byte_Enables;
   reg    [2:0] Master_Retry_Data_Type;
@@ -701,11 +701,6 @@ module pci_blue_master (
 
 // Master Data Latency Counter.  Must make progress within 8 Bus Clocks.
 // See the PCI Local Bus Spec Revision 2.2 section 3.5.2 for details.
-// NOTE: This counter can be sloppy, as long as it never takes too LONG to
-//   time out.  This is because I don't expect it to ever be used.  I
-//   expect the Master interface to always have data available in a timely
-//   fashion.  If the timer times out early, then extra retries will be
-//   done.  Since this is unlikely, let it happen without worry.
   reg    [2:0] Master_Data_Latency_Counter;
   reg     Master_Data_Latency_Disconnect_Reg;
 
@@ -720,11 +715,11 @@ module pci_blue_master (
     begin
       Master_Data_Latency_Counter[2:0] <= Master_Data_Latency_Counter[2:0] + 3'h1;
       Master_Data_Latency_Disconnect_Reg <= Master_Data_Latency_Disconnect_Reg
-                      | (Master_Data_Latency_Counter[2:0] >= 3'h4);
+                      | (Master_Data_Latency_Counter[2:0] >= 3'h5);
 // synopsys translate_off
 `ifdef VERBOSE_MASTER_DEVICE
       if (   (Master_Data_Latency_Disconnect_Reg == 1'b0)
-           & (Master_Data_Latency_Counter[2:0] >= 3'h4)
+           & (Master_Data_Latency_Counter[2:0] >= 3'h5)
            & ~Master_Clear_Data_Latency_Counter )
         $display ("%m PCI Master Data Latency Disconnect detected, at time %t", $time);
 `endif  // VERBOSE_MASTER_DEVICE
@@ -744,29 +739,34 @@ module pci_blue_master (
 
 // The Master Bus Latency Counter is needed to force the Master off the bus
 //   in a timely fashion if it is in the middle of a burst when it's Grant is
-//   removed.  See the PCI Local Bus Spec Revision 2.2 section 3.5.4 for details.
-  reg    [7:0] Master_Bus_Latency_Timer;
-  reg     Master_Bus_Latency_Disconnect;
+//   removed.  As soon as Frame is adderted, the counter starts.
+// The Master get to keep the bus until the counter counts to it's maximum value
+//   AND Gnt is removed.  Don't time out if GNT is not removed, or if the counter
+//   has not counted to Max.  The duration of a transfer, therefore, is the
+//   Latency Counter plus 1.  NOTE I assume that fast back-to-back transfers
+//   are not allowed when GNT is removed, but the book doesn't say that.
+// See the PCI Local Bus Spec Revision 2.2 section 3.5.4 for details.
+  reg    [7:0] Master_Bus_Latency_Counter;
+  reg     Master_Bus_Latency_Disconnect_Reg;
 
   always @(posedge pci_clk)
   begin
     if (Master_Clear_Bus_Latency_Timer == 1'b1)
     begin
-      Master_Bus_Latency_Timer[7:0]    <= 8'h00;
-      Master_Bus_Latency_Disconnect <= 1'b0;
+      Master_Bus_Latency_Counter[7:0] <= 8'h02;
+      Master_Bus_Latency_Disconnect_Reg <= 1'b0;
     end
     else if (Master_Clear_Bus_Latency_Timer == 1'b0)
     begin
-      Master_Bus_Latency_Timer[7:0] <= pci_gnt_in_prev ? 8'h00
-                                     : Master_Bus_Latency_Timer[7:0] + 8'h01;
-      Master_Bus_Latency_Disconnect <= Master_Bus_Latency_Disconnect
-                      | (Master_Bus_Latency_Timer[7:0]
-                                 == master_latency_value[7:0]);
+      Master_Bus_Latency_Counter[7:0] <= Master_Bus_Latency_Counter[7:0] + 8'h01;
+      Master_Bus_Latency_Disconnect_Reg <= Master_Bus_Latency_Disconnect_Reg
+                      | (Master_Bus_Latency_Counter[7:0]
+                                 >= master_latency_value[7:0]);
 // synopsys translate_off
 `ifdef VERBOSE_MASTER_DEVICE
-      if (   (Master_Bus_Latency_Disconnect == 1'b0)
-           & (Master_Bus_Latency_Timer[7:0]
-                                 == master_latency_value[7:0]))
+      if (   (Master_Bus_Latency_Disconnect_Reg == 1'b0)
+           & (Master_Bus_Latency_Counter[7:0]
+                                 >= master_latency_value[7:0]))
         $display ("%m PCI Master Bus Latency Disconnect detected, at time %t", $time);
 `endif  // VERBOSE_MASTER_DEVICE
 // synopsys translate_on
@@ -774,11 +774,14 @@ module pci_blue_master (
 // synopsys translate_off
     else
     begin
-      Master_Bus_Latency_Timer[7:0] <= 8'hXX;
-      Master_Bus_Latency_Disconnect <= 1'bX;
+      Master_Bus_Latency_Counter[7:0] <= 8'hXX;
+      Master_Bus_Latency_Disconnect_Reg <= 1'bX;
     end
 // synopsys translate_on
   end
+
+  wire    Master_Bus_Latency_Disconnect = Master_Bus_Latency_Disconnect_Reg
+                                        & ~pci_gnt_in_critical;
 
 // EXTREME NIGHTMARE.  A PCI Master must assert Valid Write Enables
 //   on all clocks, EVEN if IRDY is not asserted.  See the PCI Local
@@ -1369,7 +1372,7 @@ endfunction
                 Request_FIFO_CONTAINS_DATA_MORE,
                 Request_FIFO_CONTAINS_DATA_LAST,
                 Master_Abort_Detected,
-                Master_Data_Latency_Disconnect, // | Master_Bus_Latency_Disconnect,  // NOTE: WORKING: test second term
+                Master_Data_Latency_Disconnect | Master_Bus_Latency_Disconnect,
                 pci_trdy_in_critical,
                 pci_stop_in_critical,
                 Fast_Back_to_Back_Possible
@@ -1422,8 +1425,7 @@ endfunction
   wire    Master_In_Park_Step_Addr_State =
                       (Master_In_Park_State == 1'b1)
                     | (Master_In_Step_State == 1'b1)
-                    | (PCI_Master_State[MS_Range:0] == PCI_MASTER_ADDR)
-                    | (PCI_Master_State[MS_Range:0] == PCI_MASTER_ADDR64);
+                    | (Master_In_Addr_State == 1'b1);
 
   wire    Master_In_No_IRDY_State =
                       (PCI_Master_State[MS_Range:0] == PCI_MASTER_MORE_PENDING)
@@ -1431,6 +1433,11 @@ endfunction
 
   wire    Master_In_Data_More_State =
                       (PCI_Master_State[MS_Range:0] == PCI_MASTER_DATA_MORE);
+
+  wire    Master_Asserting_Frame =
+                      (Master_In_Addr_State == 1'b1)
+                    | (Master_In_No_IRDY_State == 1'b1)
+                    | (Master_In_Data_More_State == 1'b1);
 
   wire    Master_In_Data_Last_State =
                       (PCI_Master_State[MS_Range:0] == PCI_MASTER_DATA_LAST)
@@ -1446,7 +1453,7 @@ endfunction
                         | (PCI_Master_State[MS_Range:0] == PCI_MASTER_DATA_LAST)
                         | (PCI_Master_State[MS_Range:0] == PCI_MASTER_DATA_MORE_TO_LAST));
 
-  wire    Master_In_Read_State =  ~Master_Retry_Write // NOTE: WORKING: Not Early enough?
+  wire    Master_In_Read_State =  ~Master_Retry_Write
                     &  (   (PCI_Master_State[MS_Range:0] == PCI_MASTER_ADDR)
                          | (PCI_Master_State[MS_Range:0] == PCI_MASTER_MORE_PENDING)
                          | (PCI_Master_State[MS_Range:0] == PCI_MASTER_LAST_PENDING)
@@ -1504,20 +1511,22 @@ endfunction
                       (   (PCI_Master_Prev_State[MS_Range:0] == PCI_MASTER_STEP)
                         & (PCI_Master_State[MS_Range:0] == PCI_MASTER_IDLE) )
                     | (   (PCI_Master_Prev_State[MS_Range:0] == PCI_MASTER_DATA_MORE_TO_LAST)
-                        & (PCI_Master_State[MS_Range:0] == PCI_MASTER_IDLE)
+                        & (PCI_Master_State[MS_Range:0] == PCI_MASTER_IDLE) )
                     | (   (Need_To_Retry_Address_But_No_Data == 1'b1)
-                        & (Master_In_No_IRDY_State == 1'b0)) );  // NOTE: WORKING
+                        & (Master_In_No_IRDY_State == 1'b0) );  // NOTE: WORKING
 
       Need_To_Retry_Address_Plus_Data <=
                       (   (PCI_Master_Prev_State[MS_Range:0] == PCI_MASTER_STOP_TURN)
-                        & (pci_trdy_in_prev == 1'b1)
+                        & (pci_trdy_in_prev == 1'b1) )
                     | (   (Need_To_Retry_Address_Plus_Data == 1'b1)
-                        & (Master_In_No_IRDY_State == 1'b0)) );  // NOTE: WORKING
+                        & (Master_In_No_IRDY_State == 1'b0) );  // NOTE: WORKING
 
       Need_To_Flush_FIFO <=
                       (   (PCI_Master_Prev_State[MS_Range:0] == PCI_MASTER_STOP_TURN)
                         & (pci_trdy_in_prev == 1'b0) )
                     | (1'b0);  // NOTE: WORKING
+
+// NOTE: WORKING: need to look at DEVSEL here, to detect Aborts vs. Retries.
 
 // NOTE: WORKING: Need to flush data from FIFO.  The data might have come in and
 //  been placed onto the bus (and sent to the Target).  Or the data might get there
@@ -1546,8 +1555,8 @@ endfunction
     end
   end
 
-// Note: Want to DELAY after an event which needs an abort.  This will let other
-//   people use the bus, and will let all my pipelines settle!
+// Want to DELAY after an request after an abort or disconnect.  This will let
+//   other people use the bus, and will let all my pipelines settle!
 // Tell the Fifo Entry Classifier how to act upon the FIFO contents;
   assign  proceed_with_new_address_plus_new_data =
                  ~Need_To_Delay_Next_Req
@@ -1599,10 +1608,10 @@ endfunction
 // This signal tells the Target to grab data from the PCI bus this clock.
   assign  Master_Captures_Data_On_TRDY = Master_Consumes_Request_FIFO_If_TRDY;  // drive outputs  // NOTE: WORKING  Only on READS!
 
-// Start the DEVSEL counter whenever an Address is sent out.
+// Start the Master Abort counter looking for DEVSEL whenever an Address is sent out.
   assign  Master_Clear_Master_Abort_Counter =
                         (Master_In_Idle_Park_Step_State == 1'b1)
-                      | (Master_In_Addr_State == 1'b1);  // NOTE: WORKING: fast back-to-back
+                      | (Master_In_Addr_State == 1'b1);
 
 // Start the Data Latency Counter whenever Address or IRDY & TRDY
   reg     Master_Transferring_Data_If_TRDY_prev;
@@ -1612,20 +1621,17 @@ endfunction
     Master_Transferring_Data_If_TRDY_prev <= Master_Transferring_Data_If_TRDY;
   end
 
-  assign  Master_Clear_Data_Latency_Counter =
-                        (Master_In_Idle_Park_Step_State == 1'b1)
-                      | (Master_In_Addr_State == 1'b1)
-                      | (   (Master_Transferring_Data_If_TRDY_prev == 1'b1)
-                          & pci_trdy_in_prev);
+// Data Latency Timer counts whenever Master waiting for more Master Data.
+  assign  Master_Clear_Data_Latency_Counter = ~Master_In_No_IRDY_State;
 
 // Bus Latency Timer counts whenever GNT not asserted.
-  assign  Master_Clear_Bus_Latency_Timer = 1'b0;  // NOTE: WORKING
+  assign  Master_Clear_Bus_Latency_Timer = ~Master_Asserting_Frame;
 
 // This signal muxes the Stored Address onto the PCI bus during retries.
   wire    Master_Select_Stored_Address =
                   (   proceed_with_stored_address_plus_new_data
                     | proceed_with_stored_address_plus_stored_data)
-                & (Master_In_Idle_Park_Step_State == 1'b1);  // NOTE: WORKING add fast back-to-back
+                & (Master_In_Idle_Park_Step_State == 1'b1);  // NOTE: WORKING: add retry of Stepped Address
 
 // This signal muxes the Stored Data onto the PCI bus during retries.
   wire    Master_Select_Stored_Data =
@@ -1634,7 +1640,7 @@ endfunction
 
   assign  Master_Mark_Status_Entry_Flushed = 1'b0;  // NOTE: WORKING
   assign  Master_Discards_Request_FIFO_Entry_After_Abort = 1'b0;  // NOTE: WORKING
-  assign  Master_Got_Retry = 1'b0;  // NOTE WORKING
+  assign  Master_Got_Retry = 1'b0;  // NOTE: WORKING
 
 // NOTE: WORKING: this plays in to the idea that fast back-to-back does NOT
 //   need to look at the FRAME and IRDY.  IT just lunges ahead, until it
@@ -1657,7 +1663,6 @@ endfunction
 // See the PCI Local Bus Spec Revision 2.2 section 3.4.1 for details.
 // Request whenever enabled, and an Address is available in the Master FIFO
 // or a retried address is available.
-// NOTE: WORKING: needs a Flop to make this Glitch-Free.  But no extra clocks?
   assign  pci_req_out_next = Request_FIFO_CONTAINS_ADDRESS
                            & (Master_In_Idle_Park_Step_State == 1'b1);
 
@@ -1836,10 +1841,10 @@ endfunction
       $display ("transition 8 seen");
 
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_STEP)
-         & (PCI_Master_State[4:0] == PCI_MASTER_IDLE) )
+         & (PCI_Master_State[4:0] == PCI_MASTER_ADDR) )
       $display ("transition 9 seen");
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_STEP)
-         & (PCI_Master_State[4:0] == PCI_MASTER_ADDR) )
+         & (PCI_Master_State[4:0] == PCI_MASTER_IDLE) )
       $display ("transition 10 seen");
 
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_ADDR)
