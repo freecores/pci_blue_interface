@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_interface.v,v 1.13 2001-06-27 08:41:21 bbeaver Exp $
+// $Id: pci_blue_interface.v,v 1.14 2001-07-01 10:34:26 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -1314,6 +1314,8 @@ pci_blue_target pci_blue_target (
 
 // Signals to control shared AD bus, Parity, and SERR signals
   wire    Master_Force_Address_Data, Master_Expects_TRDY, Master_Requests_PERR;
+// Signal to control Request pin if on-chip PCI devices share it
+  wire    Master_Forced_Off_Bus_By_Target_Abort;
 
 // Instantiate the Master Interface
 pci_blue_master pci_blue_master (
@@ -1324,13 +1326,13 @@ pci_blue_master pci_blue_master (
   .pci_gnt_in_comb            (pci_gnt_in_comb),
   .pci_ad_in_prev             (pci_ad_in_prev[31:0]),
   .pci_master_ad_out_next     (pci_master_ad_out_next[31:0]),
-  .pci_master_ad_en_next      (pci_master_ad_en_next),
   .pci_master_ad_out_oe_comb  (pci_master_ad_out_oe_comb),
   .pci_cbe_l_out_next         (pci_cbe_l_out_next[3:0]),
-  .pci_cbe_out_en_next        (pci_cbe_out_en_next),
   .pci_cbe_out_oe_comb        (pci_cbe_out_oe_comb),
+  .pci_frame_in_comb          (pci_frame_in_comb),
   .pci_frame_out_next         (pci_frame_out_next),
   .pci_frame_out_oe_comb      (pci_frame_out_oe_comb),
+  .pci_irdy_in_comb           (pci_irdy_in_comb),
   .pci_irdy_out_next          (pci_irdy_out_next),
   .pci_irdy_out_oe_comb       (pci_irdy_out_oe_comb),
   .pci_devsel_in_prev         (pci_devsel_in_prev),
@@ -1345,6 +1347,8 @@ pci_blue_master pci_blue_master (
   .Master_Force_Address_Data  (Master_Force_Address_Data),
   .Master_Expects_TRDY        (Master_Expects_TRDY),
   .Master_Requests_PERR       (Master_Requests_PERR),
+// Signal to control Request pin if on-chip PCI devices share it
+  .Master_Forced_Off_Bus_By_Target_Abort (Master_Forced_Off_Bus_By_Target_Abort),
 // Host Interface Request FIFO used to ask the PCI Interface to initiate
 //   PCI References to an external PCI Target.
   .pci_request_fifo_type      (pci_request_fifo_type[2:0]),

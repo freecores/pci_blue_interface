@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_master.v,v 1.2 2001-07-01 06:39:15 bbeaver Exp $
+// $Id: test_pci_master.v,v 1.3 2001-07-01 10:34:42 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -78,16 +78,17 @@ module pci_test_master (
   master_to_target_status_unload,
   pci_req_out_next, pci_req_out_oe_comb,
   pci_gnt_in_comb,
-  pci_master_ad_out_next,
-  pci_master_ad_en_next, pci_master_ad_out_oe_comb,
+  pci_master_ad_out_next,  pci_master_ad_out_oe_comb,
   pci_ad_in_prev,
-  pci_cbe_l_out_next,
-  pci_cbe_out_en_next, pci_cbe_out_oe_comb,
+  pci_cbe_l_out_next, pci_cbe_out_oe_comb,
+  pci_frame_in_comb,
   pci_frame_out_next, pci_frame_out_oe_comb,
+  pci_irdy_in_comb,
   pci_irdy_out_next, pci_irdy_out_oe_comb,
   pci_devsel_in_comb, pci_devsel_in_prev,
   pci_trdy_in_comb, pci_trdy_in_prev,
   pci_stop_in_comb, pci_stop_in_prev,
+  pci_perr_in_prev, pci_serr_in_prev,
   master_got_parity_error,
   master_caused_serr,
   master_caused_master_abort,
@@ -109,15 +110,17 @@ module pci_test_master (
   output  pci_gnt_in_comb;
   output [31:0] pci_ad_in_prev;
   output [31:0] pci_master_ad_out_next;
-  output  pci_master_ad_en_next;
   output  pci_master_ad_out_oe_comb;
   output [3:0] pci_cbe_l_out_next;
-  output  pci_cbe_out_en_next, pci_cbe_out_oe_comb;
+  output  pci_cbe_out_oe_comb;
+  output  pci_frame_in_comb;
   output  pci_frame_out_next, pci_frame_out_oe_comb;
+  output  pci_irdy_in_comb;
   output  pci_irdy_out_next, pci_irdy_out_oe_comb;
   output  pci_devsel_in_comb, pci_devsel_in_prev;
   output  pci_trdy_in_comb, pci_trdy_in_prev;
   output  pci_stop_in_comb, pci_stop_in_prev;
+  output  pci_perr_in_prev, pci_serr_in_prev;
   output  master_got_parity_error;
   output  master_caused_serr;
   output  master_caused_master_abort;
@@ -130,22 +133,27 @@ module pci_test_master (
   reg     pci_gnt_in_prev, pci_gnt_in_comb;
   reg    [31:0] pci_ad_in_prev;
   wire   [31:0] pci_master_ad_out_next;
-  wire    pci_master_ad_en_next, pci_master_ad_out_oe_comb;
+  wire    pci_master_ad_out_oe_comb;
   wire   [3:0] pci_cbe_l_out_next;
-  wire    pci_cbe_out_en_next, pci_cbe_out_oe_comb;
+  wire    pci_cbe_out_oe_comb;
+  reg     pci_frame_in_comb;
   wire    pci_frame_out_next, pci_frame_out_oe_comb;
+  reg     pci_irdy_in_comb;
   wire    pci_irdy_out_next, pci_irdy_out_oe_comb;
   reg     pci_devsel_in_prev, pci_devsel_in_comb;
   reg     pci_trdy_in_prev, pci_trdy_in_comb;
   reg     pci_stop_in_prev, pci_stop_in_comb;
   reg     pci_perr_in_prev, pci_serr_in_prev;
   wire    Master_Force_Address_Data, Master_Expects_TRDY, Master_Requests_PERR;
+// Signal to control Request pin if on-chip PCI devices share it
+  wire    Master_Forced_Off_Bus_By_Target_Abort;
 
   wire   [2:0] master_to_target_status_type;
   wire   [3:0] master_to_target_status_cbe;
   wire   [31:0] master_to_target_status_data;
   wire    master_to_target_status_available;
   reg     master_to_target_status_unload;
+
 // Signals from the Master to the Target to set bits in the Status Register
   wire    master_got_parity_error;
   wire    master_caused_serr;
@@ -216,6 +224,8 @@ task set_pci_idle;
   begin
     pci_gnt_in_comb = 1'b0;
     pci_ad_in_comb[31:0] = 32'hXXXXXXXX;
+    pci_frame_in_comb = 1'b0;
+    pci_irdy_in_comb = 1'b0;
     pci_devsel_in_comb = 1'b0;
     pci_trdy_in_comb = 1'b0;
     pci_stop_in_comb = 1'b0;
@@ -256,6 +266,18 @@ endtask
 task pci_grant;
   begin
     pci_gnt_in_comb = 1'b1;
+  end
+endtask
+
+task pci_frame;
+  begin
+    pci_frame_in_comb = 1'b1;
+  end
+endtask
+
+task pci_irdy;
+  begin
+    pci_irdy_in_comb = 1'b1;
   end
 endtask
 
@@ -305,12 +327,13 @@ endtask
   always @(posedge pci_clk)
   begin
     pci_host_request_submit <= 1'b0;
-    pci_host_request_submit <= 1'b0;
     pci_host_request_type[2:0] <= 3'hX;
     pci_host_request_cbe[3:0] <= 4'hX;
     pci_host_request_data[31:0] <= 32'hXXXXXXXX;
     pci_gnt_in_comb <= 1'b0;
     pci_gnt_in_prev <= pci_gnt_in_comb;
+    pci_frame_in_comb <= 1'b0;
+    pci_irdy_in_comb <= 1'b0;
     pci_devsel_in_comb <= 1'b0;
     pci_devsel_in_prev <= pci_devsel_in_comb;
     pci_trdy_in_comb <= 1'b0;
@@ -367,12 +390,17 @@ endtask
       do_clocks (4'h1);
     write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h55667788);
       do_clocks (1'b1);
-    pci_grant;
-      do_clocks (1'b1);  // loose arbitration
+    pci_grant;           // park
       do_clocks (1'b1);
-    pci_grant;
+    pci_grant;           // park
       do_clocks (1'b1);
-    pci_grant;
+    pci_grant;           // drive
+      do_clocks (1'b1);
+                         // loose arbitration
+      do_clocks (1'b1);
+    pci_grant;           // drive
+      do_clocks (1'b1);
+    pci_grant;           // drive
       do_clocks (4'h4);
     unload_target_data;
       do_clocks (4'h4);
@@ -385,12 +413,15 @@ endtask
       do_clocks (4'h1);
     write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h99AABBCC);
       do_clocks (1'b1);
-    pci_grant;
-      do_clocks (1'b1);  // loose arbitration
+    pci_grant;           // park
       do_clocks (1'b1);
-    pci_grant;
+    pci_grant;           // drive
       do_clocks (1'b1);
-    pci_grant;
+                         // loose arbitration
+      do_clocks (1'b1);
+    pci_grant;           // drive
+      do_clocks (1'b1);
+    pci_grant;           // drive
       do_clocks (4'h4);
     unload_target_data;
       do_clocks (4'h4);
@@ -401,12 +432,17 @@ endtask
       do_clocks (4'h1);
     write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h55667788);
       do_clocks (1'b1);
-    pci_grant;
-      do_clocks (1'b1);  // loose arbitration
+    pci_grant;           // park
       do_clocks (1'b1);
-    pci_grant;
+    pci_grant;           // park
       do_clocks (1'b1);
-    pci_grant;
+    pci_grant;           // drive
+      do_clocks (1'b1);
+                         // loose arbitration
+      do_clocks (1'b1);
+    pci_grant;           // drive
+      do_clocks (1'b1);
+    pci_grant;           // drive
       do_clocks (4'h4);
     unload_target_data;
       do_clocks (4'h4);
@@ -419,12 +455,15 @@ endtask
       do_clocks (4'h1);
     write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h99AABBCC);
       do_clocks (1'b1);
-    pci_grant;
-      do_clocks (1'b1);  // loose arbitration
+    pci_grant;           // park
       do_clocks (1'b1);
-    pci_grant;
+    pci_grant;           // drive
       do_clocks (1'b1);
-    pci_grant;
+                         // loose arbitration
+      do_clocks (1'b1);
+    pci_grant;           // drive
+      do_clocks (1'b1);
+    pci_grant;           // drive
       do_clocks (4'h4);
     unload_target_data;
       do_clocks (4'h4);
@@ -699,15 +738,14 @@ pci_blue_master pci_blue_master (
   .pci_req_out_oe_comb        (pci_req_out_oe_comb),
   .pci_gnt_in_prev            (pci_gnt_in_prev),
   .pci_gnt_in_comb            (pci_gnt_in_comb),
-  .pci_ad_in_prev             (pci_ad_in_prev[31:0]),
   .pci_master_ad_out_next     (pci_master_ad_out_next[31:0]),
-  .pci_master_ad_en_next      (pci_master_ad_en_next),
   .pci_master_ad_out_oe_comb  (pci_master_ad_out_oe_comb),
   .pci_cbe_l_out_next         (pci_cbe_l_out_next[3:0]),
-  .pci_cbe_out_en_next        (pci_cbe_out_en_next),
   .pci_cbe_out_oe_comb        (pci_cbe_out_oe_comb),
+  .pci_frame_in_comb          (pci_frame_in_comb),
   .pci_frame_out_next         (pci_frame_out_next),
   .pci_frame_out_oe_comb      (pci_frame_out_oe_comb),
+  .pci_irdy_in_comb           (pci_irdy_in_comb),
   .pci_irdy_out_next          (pci_irdy_out_next),
   .pci_irdy_out_oe_comb       (pci_irdy_out_oe_comb),
   .pci_devsel_in_prev         (pci_devsel_in_prev),
@@ -722,6 +760,8 @@ pci_blue_master pci_blue_master (
   .Master_Force_Address_Data  (Master_Force_Address_Data),
   .Master_Expects_TRDY        (Master_Expects_TRDY),
   .Master_Requests_PERR       (Master_Requests_PERR),
+// Signal to control Request pin if on-chip PCI devices share it
+  .Master_Forced_Off_Bus_By_Target_Abort (Master_Forced_Off_Bus_By_Target_Abort),
 // Host Interface Request FIFO used to ask the PCI Interface to initiate
 //   PCI References to an external PCI Target.
   .pci_request_fifo_type      (pci_request_fifo_type[2:0]),
