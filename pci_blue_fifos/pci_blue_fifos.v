@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_fifos.v,v 1.11 2001-08-05 06:35:42 bbeaver Exp $
+// $Id: pci_blue_fifos.v,v 1.12 2001-08-15 10:31:46 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -203,6 +203,7 @@ module pci_fifo_storage_request (
   wire   [3:0] write_address;
   wire   [3:0] read_address;
   wire    write_capture_data, read_enable;
+  wire    write_two_words_available_meta;  // unused
 
 pci_blue_fifo_flags pci_fifo_flags_request (
   .reset_flags_async          (reset_flags_async),
@@ -213,6 +214,7 @@ pci_blue_fifo_flags pci_fifo_flags_request (
   .write_submit               (write_submit),
   .write_capture_data         (write_capture_data),
   .write_room_available_meta  (write_room_available_meta),
+  .write_two_words_available_meta  (write_two_words_available_meta),
   .write_address              (write_address[3:0]),
   .write_error                (write_error),
   .read_flag_before_data_const        (read_flag_before_data_const),
@@ -346,6 +348,7 @@ module pci_fifo_storage_response (
   write_clk, write_sync_clk,
   write_submit,               // NOTE write_submit is VERY LATE
   write_room_available_meta,  // NOTE Needs extra settling time to avoid metastability
+  write_two_words_available_meta,  // NOTE Needs extra settling time to avoid metastability
   write_data,
   write_error,
   read_clk, read_sync_clk,
@@ -359,6 +362,7 @@ module pci_fifo_storage_response (
   input   write_clk, write_sync_clk;
   input   write_submit;               // NOTE write_submit is VERY LATE
   output  write_room_available_meta;  // NOTE Needs extra settling time to avoid metastability
+  output  write_two_words_available_meta;  // NOTE Needs extra settling time to avoid metastability
   input  [39:0] write_data;
   output  write_error;
   input   read_clk, read_sync_clk, read_remove;
@@ -430,6 +434,8 @@ module pci_fifo_storage_response (
   assign  write_data_int[38:0] = write_buffer_full_reg
                         ? write_data_reg[38:0] : write_data[38:0];
 
+  wire    read_two_words_available_meta;  // unused
+
 pci_blue_fifo_flags pci_fifo_flags_response (
   .reset_flags_async          (reset_flags_async),
   .double_sync_read_full_flag_const   (double_sync_read_full_flag_const),
@@ -439,6 +445,7 @@ pci_blue_fifo_flags pci_fifo_flags_response (
   .write_submit               (write_submit_int),
   .write_capture_data         (write_capture_data),
   .write_room_available_meta  (write_room_available_meta_raw),
+  .write_two_words_available_meta  (write_two_words_available_meta_raw),
   .write_address              (write_address[3:0]),
   .write_error                (write_error),
   .read_flag_before_data_const        (read_flag_before_data_const),
@@ -588,6 +595,9 @@ module pci_fifo_storage_delayed_read (
   wire   [3:0] read_address;
   wire    write_capture_data, read_enable;
 
+  wire    write_two_words_available_meta;  // unused
+  wire    read_two_words_available_meta;  // unused
+
 pci_blue_fifo_flags pci_fifo_flags_delayed_read (
   .reset_flags_async          (reset_flags_async),
   .double_sync_read_full_flag_const   (double_sync_read_full_flag_const),
@@ -597,6 +607,7 @@ pci_blue_fifo_flags pci_fifo_flags_delayed_read (
   .write_submit               (write_submit),
   .write_capture_data         (write_capture_data),
   .write_room_available_meta  (write_room_available_meta),
+  .write_two_words_available_meta  (write_two_words_available_meta),
   .write_address              (write_address[3:0]),
   .write_error                (write_error),
   .read_flag_before_data_const        (read_flag_before_data_const),

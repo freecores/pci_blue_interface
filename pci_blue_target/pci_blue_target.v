@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_target.v,v 1.19 2001-08-13 09:18:16 bbeaver Exp $
+// $Id: pci_blue_target.v,v 1.20 2001-08-15 10:31:47 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -147,6 +147,7 @@ module pci_blue_target (
   pci_response_fifo_cbe,
   pci_response_fifo_data,
   pci_response_fifo_room_available_meta,
+  pci_response_fifo_two_words_available_meta,
   pci_response_fifo_data_load,
   pci_response_fifo_error,
 // Host Interface Delayed Read Data FIFO used to pass the results of a
@@ -225,6 +226,7 @@ module pci_blue_target (
   output [PCI_BUS_CBE_RANGE:0] pci_response_fifo_cbe;
   output [PCI_BUS_DATA_RANGE:0] pci_response_fifo_data;
   input   pci_response_fifo_room_available_meta;
+  input   pci_response_fifo_two_words_available_meta;
   output  pci_response_fifo_data_load;
   input   pci_response_fifo_error;
 // Host Interface Delayed Read Data FIFO used to pass the results of a
@@ -260,6 +262,175 @@ module pci_blue_target (
   output  target_config_reg_signals_some_error;
   input   pci_clk;
   input   pci_reset_comb;
+
+
+
+// The PCI Blue Target gets data from the pci_delayed_read_fifo.
+// There are 2 main types of entries:
+// 1) Data sequences which are driven to the PCI bus (or discarded in the
+//      Master terminates the burst early, the usual case!)
+// 2) Data indicating it is the LAST ENTRY in a sequence, used to mark
+//      the end of one burst and the beginning of another.  When the
+//      PCI interface flushes the FIFO, it flushes until it unloads
+//      a Last Data Item;
+
+// Use standard FIFO prefetch trick to allow a single flop to control the
+//   unloading of the whole FIFO.
+  reg    [2:0] delayed_read_fifo_type_reg;
+  reg    [PCI_BUS_DATA_RANGE:0] delayed_read_fifo_data_reg;
+  wire    prefetching_delayed_read_fifo_data;  // forward reference
+
+  always @(posedge pci_clk)
+  begin
+    if (prefetching_delayed_read_fifo_data == 1'b1)
+    begin  // latch whenever data available and not already full
+      delayed_read_fifo_type_reg[2:0] <= pci_delayed_read_fifo_type[2:0];
+      delayed_read_fifo_data_reg[PCI_BUS_DATA_RANGE:0] <=
+                      pci_delayed_read_fifo_data[PCI_BUS_DATA_RANGE:0];
+// synopsys translate_off
+`ifdef CALL_OUT_TARGET_STATE_TRANSITIONS
+//       $display ("%m PCI Target prefetching data from Delayed Read FIFO %x %x, at time %t",
+//                   pci_delayed_read_fifo_type[2:0],
+//                   pci_delayed_read_fifo_data[PCI_BUS_DATA_RANGE:0], $time);
+`endif  // CALL_OUT_TARGET_STATE_TRANSITIONS
+// synopsys translate_on
+    end
+    else if (prefetching_delayed_read_fifo_data == 1'b0)  // hold
+    begin
+      delayed_read_fifo_type_reg[2:0] <= delayed_read_fifo_type_reg[2:0];
+      delayed_read_fifo_data_reg[PCI_BUS_DATA_RANGE:0] <=
+                      delayed_read_fifo_data_reg[PCI_BUS_DATA_RANGE:0];
+    end
+// synopsys translate_off
+    else
+    begin
+      delayed_read_fifo_type_reg[2:0] <= 3'hX;
+      delayed_read_fifo_data_reg[PCI_BUS_DATA_RANGE:0] <= `PCI_BUS_DATA_X;
+    end
+// synopsys translate_on
+  end
+
+  wire    Target_Consumes_Delayed_Read_FIFO_Data_Unconditionally_Critical;  // forward reference
+  wire    Target_Offering_Delayed_Read_Last = prefetching_delayed_read_fifo_data
+                      & (   (pci_delayed_read_fifo_type[2:0] ==  // unused
+                                    PCI_HOST_DELAYED_READ_DATA_VALID_LAST)
+                          | (pci_delayed_read_fifo_type[2:0] ==  // fence or register access
+                                    PCI_HOST_DELAYED_READ_DATA_VALID_LAST_PERR));
+
+// Target Request Full bit indicates when data prefetched on the way to PCI bus
+// Single FLOP is used to control activity of this FIFO.
+// NOTE: IRDY is VERY LATE.  This must be implemented to let IRDY operate quickly
+// FIFO data is consumed if Target_Consumes_Request_FIFO_Data_Unconditionally_Critical
+//                       or Target_Captures_Request_FIFO_If_IRDY and IRDY
+// If not unloading and not full and no data,  not full
+// If not unloading and not full and data,     full
+// If not unloading and full and no data,      full
+// If not unloading and full and data,         full
+// If unloading and not full and no data,      not full
+// If unloading and not full and data,         not full
+// If unloading and full and no data,          not full
+// If unloading and full and data,             full
+  reg     target_delayed_read_full;  // forward reference
+  wire    Target_Consumes_Delayed_Read_FIFO_If_IRDY;  // forward reference
+
+  always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
+  begin
+    if (pci_reset_comb == 1'b1)
+    begin
+      target_delayed_read_full <= 1'b0;
+    end
+    else if (pci_reset_comb == 1'b0)
+    begin
+      if (pci_irdy_in_critical == 1'b1)  // pci_trdy_in_critical is VERY LATE
+      begin
+        target_delayed_read_full <=
+            (   Target_Consumes_Delayed_Read_FIFO_Data_Unconditionally_Critical
+              | Target_Consumes_Delayed_Read_FIFO_If_IRDY )
+            ? (target_delayed_read_full & prefetching_delayed_read_fifo_data)   // unloading
+            : (target_delayed_read_full | prefetching_delayed_read_fifo_data);  // not unloading
+      end
+      else if (pci_irdy_in_critical == 1'b0)
+      begin
+        target_delayed_read_full <=
+                Target_Consumes_Delayed_Read_FIFO_Data_Unconditionally_Critical
+            ? (target_delayed_read_full & prefetching_delayed_read_fifo_data)   // unloading
+            : (target_delayed_read_full | prefetching_delayed_read_fifo_data);  // not unloading
+      end
+// synopsys translate_off
+      else
+      begin
+        target_delayed_read_full <= 1'bX;
+      end
+// synopsys translate_on
+    end
+// synopsys translate_off
+    else
+    begin
+      target_delayed_read_full <= 1'bX;
+    end
+// synopsys translate_on
+  end
+
+// Deliver data to the IO pads when needed.
+  wire   [2:0] pci_delayed_read_fifo_type_current =
+                        prefetching_delayed_read_fifo_data
+                      ? pci_delayed_read_fifo_type[2:0]
+                      : delayed_read_fifo_type_reg[2:0];
+  wire   [PCI_BUS_DATA_RANGE:0] pci_delayed_read_fifo_data_current =
+                        prefetching_delayed_read_fifo_data
+                      ? pci_delayed_read_fifo_data[PCI_BUS_DATA_RANGE:0]
+                      : delayed_read_fifo_data_reg[PCI_BUS_DATA_RANGE:0];
+
+// Create Data Available signals which depend on the FIFO, the Latch, AND the
+//   input of the status datapath, which can prevent the unloading of data.
+  wire    delayed_read_fifo_data_available_meta =
+                        (   pci_delayed_read_fifo_data_available_meta
+                          | target_delayed_read_full);  // available
+
+// Calculate whether to unload data from the Request FIFO
+  wire    master_to_target_status_loadable;  // forward reference
+  assign  prefetching_delayed_read_fifo_data =
+                                  pci_delayed_read_fifo_data_available_meta
+                                & ~target_delayed_read_full;
+  assign  pci_delayed_read_fifo_data_unload = prefetching_delayed_read_fifo_data;  // drive outputs
+
+// Add an extra level of pipelining to the PCI Response FIFO.  The IO pads
+//   have flops in them, but the flops can't hold.  The extra level of flops
+//   on the way to the Response FIFO lets the target safely say that 2 words
+//   of storage are available.  This ultimately should make it easier to
+//   fill the FIFO without having a large load on IRDY.
+
+// NOTE: CONTROVERSIAL!  Can this be built without the extra delay?  What if
+//    I added a "Two Words of Room" signal to the FIFO?  DO THAT ANYWAY!
+
+
+
+// Plan: Add an extra level of pipelining on the AD bus(?).  I think this MIGHT be
+//       necessary because sometimes the FIFO may be full, but data comes in.
+//       In the case of the Master, it must be combined with the Master info before
+//       it is stuck into the FIFO
+// Plan: Move Address Match into Config Registers?  Make this not care about
+//       the number and size of Config Registers.
+// Plan: Make a very critical way to write parity info into the FIFO directly
+//       from the external signal.  I want that Parity info to go in at the SAME
+//       time as the data does.  (The data is latched in the IO pads, and
+//       might also be held in the extra layer of flops.)
+// Plan: Doesn't seem to be much else tricky needed.  Make the Delayed Read
+//       collision detector look at present address, present address + 256 or
+//       some large number, so the present address doesn't need to be updated
+//       very often!
+// Plan: want to terminate burst when hitting end of Base Address range.
+//       More subtly, want to disconnect when CROSSING Base Address
+//       boundries.  This is because the Host hardware may be too stupid
+//       to handle this.  Certainly might be the case when writing!
+//       But doesn;t this require the Address to be up-to-date all the time?
+//       Might get away with having a signal which is a little early.
+//       MIGHT just force all references within epsilon of the Base Address
+//       register boundry to go as single-word references!
+// Plan: Understand the protocol to allow a delayed read, then writes, then BACK
+//       to the delayed read.  The CBE wires are one, the other, then back.
+//       Make sure this understands that detail.
+
 
 // Signals driven to control the external PCI interface
   wire   [PCI_BUS_DATA_RANGE:0] pci_config_write_data;
@@ -993,30 +1164,6 @@ endfunction
   assign  pci_response_fifo_data_load = 1'b0;  // NOTE: WORKING
 
   assign  master_to_target_status_unload = 1'b1;  // NOTE: WORKING.  Debugging Master
-
-// NOTE: WORKING
-`ifdef WORKING
-pci_critical_next_devsel pci_critical_next_devsel (
-  .PCI_Next_DEVSEL_Code       (PCI_Next_DEVSEL_Code[2:0]),
-  .pci_frame_in_critical      (pci_frame_in_critical),
-  .pci_irdy_in_critical       (pci_irdy_in_critical),
-  .pci_devsel_out_next        (pci_devsel_out_next)
-);
-
-pci_critical_next_trdy pci_critical_next_Trdy (
-  .PCI_Next_TRDY_Code         (PCI_Next_TRDY_Code[2:0]),
-  .pci_frame_in_critical      (pci_frame_in_critical),
-  .pci_irdy_in_critical       (pci_irdy_in_critical),
-  .pci_trdy_out_next          (pci_trdy_out_next)
-);
-
-pci_critical_next_stop pci_critical_next_stop (
-  .PCI_Next_STOP_Code         (PCI_Next_STOP_Code[2:0]),
-  .pci_frame_in_critical      (pci_frame_in_critical),
-  .pci_irdy_in_critical       (pci_irdy_in_critical),
-  .pci_stop_out_next          (pci_stop_out_next)
-);
-`endif  // working
 
 // Instantiate Configuration Registers.
 pci_blue_config_regs pci_blue_config_regs (

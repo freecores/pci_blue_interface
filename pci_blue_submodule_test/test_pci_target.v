@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_target.v,v 1.2 2001-08-13 09:18:16 bbeaver Exp $
+// $Id: test_pci_target.v,v 1.3 2001-08-15 10:31:47 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -68,7 +68,7 @@
 
 module pci_test_target (
   host_reset_comb,
-  pci_host_request_submit,
+  pci_host_response_data_available_meta,
   pci_request_fifo_error,
   master_to_target_status_type,
   master_to_target_status_cbe,
@@ -128,7 +128,7 @@ module pci_test_target (
 `include "pci_blue_constants.vh"
 
   output  host_reset_comb;
-  output  pci_host_request_submit;
+  output  pci_host_response_data_available_meta;
   output  pci_request_fifo_error;
   output [2:0] master_to_target_status_type;
   output [PCI_BUS_CBE_RANGE:0] master_to_target_status_cbe;
@@ -256,22 +256,36 @@ module pci_test_target (
   reg    host_reset_comb;
   reg    pci_clk;
 
-  wire    pci_host_request_room_available_meta;
-  reg     pci_host_request_submit;
-  reg    [2:0] pci_host_request_type;
-  reg    [PCI_BUS_CBE_RANGE:0] pci_host_request_cbe;
-  reg    [PCI_BUS_DATA_RANGE:0] pci_host_request_data;
-  wire    pci_host_request_error;
   reg    [PCI_BUS_DATA_RANGE:0] next_addr;
   reg    [PCI_BUS_DATA_RANGE:0] next_data;
 
-  wire    pci_request_fifo_data_available_meta;
-  wire    pci_request_fifo_two_words_available_meta;
-  wire    pci_request_fifo_data_unload;
-  wire   [2:0] pci_request_fifo_type;
-  wire   [PCI_BUS_CBE_RANGE:0] pci_request_fifo_cbe;
-  wire   [PCI_BUS_DATA_RANGE:0] pci_request_fifo_data;
-  wire    pci_request_fifo_error;
+// Wires used by the pci interface to request action by the host controller
+  wire   [PCI_BUS_DATA_RANGE:0] pci_host_response_data;
+  wire   [PCI_BUS_CBE_RANGE:0] pci_host_response_cbe;
+  wire   [3:0] pci_host_response_type;
+  wire    pci_host_response_data_available_meta;
+  reg     pci_host_response_unload;
+  wire    pci_host_response_error;
+
+// Wires used by the host controller to send delayed read data by the pci interface
+  wire   [PCI_BUS_DATA_RANGE:0] pci_host_delayed_read_data;
+  wire   [2:0] pci_host_delayed_read_type;
+  wire    pci_host_delayed_read_room_available_meta;
+  wire    pci_host_delayed_read_two_words_available_meta;
+  reg     pci_host_delayed_read_data_submit;
+  wire    pci_host_delayed_read_data_error;
+
+// Wires connecting the Host FIFOs to the PCI Interface
+  wire   [3:0] pci_response_fifo_type;
+  wire   [PCI_BUS_CBE_RANGE:0] pci_response_fifo_cbe;
+  wire   [PCI_BUS_DATA_RANGE:0] pci_response_fifo_data;
+  wire    pci_response_fifo_room_available_meta;
+  wire    pci_response_fifo_two_words_available_meta;
+  wire    pci_response_fifo_data_load, pci_response_fifo_error;
+  wire   [2:0] pci_delayed_read_fifo_type;
+  wire   [PCI_BUS_DATA_RANGE:0] pci_delayed_read_fifo_data;
+  wire    pci_delayed_read_fifo_data_available_meta;
+  wire    pci_delayed_read_fifo_data_unload, pci_delayed_read_fifo_error;
 
 task set_addr;
   input [PCI_BUS_DATA_RANGE:0] new_addr;
@@ -370,46 +384,16 @@ task write_fifo;
   input [PCI_BUS_CBE_RANGE:0] entry_cbe;
   input [PCI_BUS_DATA_RANGE:0] entry_data;
   begin
-    pci_host_request_submit <= 1'b1;
-    pci_host_request_type[2:0] <= entry_type[2:0];
-    pci_host_request_cbe[PCI_BUS_CBE_RANGE:0] <= entry_cbe[PCI_BUS_CBE_RANGE:0];
-    pci_host_request_data[PCI_BUS_DATA_RANGE:0] <= entry_data[PCI_BUS_DATA_RANGE:0];
-  end
-endtask
-
-task write_addr;
-  input [2:0] entry_type;
-  input [PCI_BUS_CBE_RANGE:0] entry_cbe;
-  begin
-    pci_host_request_submit <= 1'b1;
-    pci_host_request_type[2:0] <= entry_type[2:0];
-    pci_host_request_cbe[PCI_BUS_CBE_RANGE:0] <= entry_cbe[PCI_BUS_CBE_RANGE:0];
-    pci_host_request_data[PCI_BUS_DATA_RANGE:0] <= next_addr[PCI_BUS_DATA_RANGE:0];
-    inc_addr;
-  end
-endtask
-
-task write_data;
-  input [2:0] entry_type;
-  input [PCI_BUS_CBE_RANGE:0] entry_cbe;
-  begin
-    pci_host_request_submit <= 1'b1;
-    pci_host_request_type[2:0] <= entry_type[2:0];
-    pci_host_request_cbe[PCI_BUS_CBE_RANGE:0] <= entry_cbe[PCI_BUS_CBE_RANGE:0];
-    pci_host_request_data[PCI_BUS_DATA_RANGE:0] <= next_data[PCI_BUS_DATA_RANGE:0];
-    inc_data;
+    pci_delayed_read_submit <= 1'b1;
+    pci_delayed_read_type[2:0] <= entry_type[2:0];
+    pci_delayed_read_cbe[PCI_BUS_CBE_RANGE:0] <= entry_cbe[PCI_BUS_CBE_RANGE:0];
+    pci_delayed_read_data[PCI_BUS_DATA_RANGE:0] <= entry_data[PCI_BUS_DATA_RANGE:0];
   end
 endtask
 
 task unload_target_data;
   begin
     master_to_target_status_unload <= 1'b1;
-  end
-endtask
-
-task pci_grant;
-  begin
-    pci_gnt_in_critical <= 1'b1;
   end
 endtask
 
@@ -422,24 +406,6 @@ endtask
 task pci_irdy;
   begin
     pci_irdy_in_critical <= 1'b1;
-  end
-endtask
-
-task pci_devsel;
-  begin
-    pci_devsel_in_critical <= 1'b1;
-  end
-endtask
-
-task pci_trdy;
-  begin
-    pci_trdy_in_critical <= 1'b1;
-  end
-endtask
-
-task pci_stop;
-  begin
-    pci_stop_in_critical <= 1'b1;
   end
 endtask
 
@@ -1417,6 +1383,8 @@ pci_fifo_storage_response pci_fifo_storage_response (
   .write_submit               (pci_response_fifo_data_load),
 // NOTE Needs extra settling time to avoid metastability
   .write_room_available_meta  (pci_response_fifo_room_available_meta),
+// NOTE Needs extra settling time to avoid metastability
+  .write_two_words_available_meta  (pci_response_fifo_two_words_available_meta),
   .write_data                 ({pci_response_fifo_type[3:0],
                                 pci_response_fifo_cbe[PCI_BUS_CBE_RANGE:0],
                                 pci_response_fifo_data[PCI_BUS_DATA_RANGE:0]}),
@@ -1444,6 +1412,8 @@ pci_fifo_storage_delayed_read pci_fifo_storage_delayed_read (
   .write_submit               (pci_host_delayed_read_data_submit),
 // NOTE Needs extra settling time to avoid metastability
   .write_room_available_meta  (pci_host_delayed_read_room_available_meta),
+// NOTE Needs extra settling time to avoid metastability
+  .write_two_words_available_meta  (pci_host_delayed_read_two_words_available_meta),
   .write_data                 ({pci_host_delayed_read_type[2:0],
                                 pci_host_delayed_read_data[PCI_BUS_DATA_RANGE:0]}), 
   .write_error                (pci_host_delayed_read_data_error),
@@ -1499,6 +1469,7 @@ pci_blue_target pci_blue_target (
   .pci_response_fifo_cbe      (pci_response_fifo_cbe[PCI_BUS_CBE_RANGE:0]),
   .pci_response_fifo_data     (pci_response_fifo_data[PCI_BUS_DATA_RANGE:0]),
   .pci_response_fifo_room_available_meta (pci_response_fifo_room_available_meta),
+  .pci_response_fifo_two_words_available_meta (pci_response_fifo_two_words_available_meta),
   .pci_response_fifo_data_load (pci_response_fifo_data_load),
   .pci_response_fifo_error    (pci_response_fifo_error),
 // Host Interface Delayed Read Data FIFO used to pass the results of a

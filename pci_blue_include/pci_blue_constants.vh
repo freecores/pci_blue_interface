@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_constants.vh,v 1.13 2001-08-05 06:35:42 bbeaver Exp $
+// $Id: pci_blue_constants.vh,v 1.14 2001-08-15 10:31:46 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -144,6 +144,8 @@
 // Data Bits [15:8] are the single-byte Write Data used in writing the Config Register.
 // Data Bit  [16] indicates that a Config Write should be done.
 // Data Bit  [17] indicates that a Config Read should be done.
+// Data Bits [20:18] are used to select individual function register sets in the
+//   case that a multi-function PCI interface is created.
 // This Request must be issued with either Data Bits 16 or 17 set to 1'b1.
 // `define PCI_HOST_REQUEST_READ_WRITE_CONFIG_REGISTER   (3'h1)
 // Fourth, the Requests which start a Read or a Write.  Writes can be started

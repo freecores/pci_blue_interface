@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_interface.v,v 1.23 2001-08-13 09:18:15 bbeaver Exp $
+// $Id: pci_blue_interface.v,v 1.24 2001-08-15 10:31:46 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -1170,6 +1170,7 @@ pci_synchronizer_flop sync_SERR_flop (
   wire   [PCI_BUS_CBE_RANGE:0] pci_response_fifo_cbe;
   wire   [PCI_BUS_DATA_RANGE:0] pci_response_fifo_data;
   wire    pci_response_fifo_room_available_meta;
+  wire    pci_response_fifo_two_words_available_meta;
   wire    pci_response_fifo_data_load, pci_response_fifo_error;
   wire   [2:0] pci_delayed_read_fifo_type;
   wire   [PCI_BUS_DATA_RANGE:0] pci_delayed_read_fifo_data;
@@ -1213,6 +1214,8 @@ pci_fifo_storage_response pci_fifo_storage_response (
   .write_submit               (pci_response_fifo_data_load),
 // NOTE Needs extra settling time to avoid metastability
   .write_room_available_meta  (pci_response_fifo_room_available_meta),
+// NOTE Needs extra settling time to avoid metastability
+  .write_two_words_available_meta  (pci_response_fifo_two_words_available_meta),
   .write_data                 ({pci_response_fifo_type[3:0],
                                 pci_response_fifo_cbe[PCI_BUS_CBE_RANGE:0],
                                 pci_response_fifo_data[PCI_BUS_DATA_RANGE:0]}),
@@ -1326,6 +1329,7 @@ pci_blue_target pci_blue_target (
   .pci_response_fifo_cbe      (pci_response_fifo_cbe[PCI_BUS_CBE_RANGE:0]),
   .pci_response_fifo_data     (pci_response_fifo_data[PCI_BUS_DATA_RANGE:0]),
   .pci_response_fifo_room_available_meta (pci_response_fifo_room_available_meta),
+  .pci_response_fifo_two_words_available_meta (pci_response_fifo_two_words_available_meta),
   .pci_response_fifo_data_load (pci_response_fifo_data_load),
   .pci_response_fifo_error    (pci_response_fifo_error),
 // Host Interface Delayed Read Data FIFO used to pass the results of a
