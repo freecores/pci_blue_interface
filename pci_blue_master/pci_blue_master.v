@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_master.v,v 1.36 2001-08-12 11:21:29 bbeaver Exp $
+// $Id: pci_blue_master.v,v 1.37 2001-08-12 23:05:28 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -1401,6 +1401,8 @@ endfunction
                 pci_gnt_in_critical
               );
 
+wire working = Master_Data_Latency_Disconnect | Master_Bus_Latency_Disconnect;  // TOADS
+
 // NOTE: WORKING: rewrite state machine to have case ({pci_trdy_in, pci_stop_in})
 //   right before the flops.  Rewrite state machine into 4 based on TRDY, STOP,
 //   plus 2 based on Bus Available (one might always go to idle)
@@ -2129,8 +2131,6 @@ endfunction
       $display ("*** %m PCI Master Request Fifo Unload Error at time %t", $time);
     end
   end
-
-wire working = master_request_fifo_error;  // TOADS
 // synopsys translate_on
 
 // synopsys translate_off

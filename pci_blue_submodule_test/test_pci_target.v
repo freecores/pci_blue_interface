@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_master.v,v 1.21 2001-08-12 23:05:29 bbeaver Exp $
+// $Id: test_pci_target.v,v 1.1 2001-08-12 23:05:29 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -60,11 +60,13 @@
 //        The waveforms will be examined to determine pass
 //        or fail.
 //
+// NOTE: NOT WORKED ON YET.  A copy of TEST_PCI_MASTER!
+//
 //===========================================================================
 
 `timescale 1ns/1ps
 
-module pci_test_master (
+module pci_test_target (
   host_reset_comb,
   pci_host_request_submit,
   pci_request_fifo_error,
