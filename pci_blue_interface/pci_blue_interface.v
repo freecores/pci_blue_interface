@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_interface.v,v 1.19 2001-07-14 09:08:38 bbeaver Exp $
+// $Id: pci_blue_interface.v,v 1.20 2001-07-23 09:43:40 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -1293,6 +1293,7 @@ pci_blue_target pci_blue_target (
   .master_to_target_status_flush  (master_to_target_status_flush),
   .master_to_target_status_available (master_to_target_status_available),
   .master_to_target_status_unload (master_to_target_status_unload),
+  .master_to_target_status_two_words_free (master_to_target_status_two_words_free),
 // Signals from the Master to the Target to set bits in the Status Register
   .master_got_parity_error    (master_got_parity_error),
   .master_caused_serr         (master_caused_serr),
@@ -1319,7 +1320,7 @@ pci_blue_target pci_blue_target (
   wire    pci_master_perr_out_next, pci_master_perr_out_oe_comb;
 
 // Signals to control shared AD bus, Parity, and SERR signals
-  wire    Master_Force_AD_to_Address_Data, Master_Exposes_Data_On_TRDY;
+  wire    Master_Force_AD_to_Address_Data_Critical, Master_Exposes_Data_On_TRDY;
   wire    Master_Forces_PERR;
   wire    PERR_Detected_While_Master_Read;
 // Signal to control Request pin if on-chip PCI devices share it
@@ -1352,7 +1353,7 @@ pci_blue_master pci_blue_master (
   .pci_perr_in_prev           (pci_perr_in_prev),
   .pci_serr_in_prev           (pci_serr_in_prev),
 // Signals to control shared AD bus, Parity, and SERR signals
-  .Master_Force_AD_to_Address_Data (Master_Force_AD_to_Address_Data),
+  .Master_Force_AD_to_Address_Data_Critical (Master_Force_AD_to_Address_Data_Critical),
   .Master_Captures_Data_On_TRDY (Master_Captures_Data_On_TRDY),
   .Master_Exposes_Data_On_TRDY (Master_Exposes_Data_On_TRDY),
   .Master_Forces_PERR         (Master_Forces_PERR),
@@ -1410,7 +1411,7 @@ pci_critical_data_latch_enable pci_critical_data_latch_enable (
   .pci_trdy_in_critical       (pci_trdy_in_critical),
   .Target_Expects_IRDY        (Target_Exposes_Data_On_IRDY),
   .pci_irdy_in_critical       (pci_irdy_in_critical),
-  .New_Data_Unconditional     (   Master_Force_AD_to_Address_Data
+  .New_Data_Unconditional     (   Master_Force_AD_to_Address_Data_Critical
                                 | Target_Force_AD_to_Data),
   .pci_ad_out_en_next         (pci_ad_out_en_next)
 );
