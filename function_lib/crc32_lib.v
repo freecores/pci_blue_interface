@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: crc32_lib.v,v 1.6 2001-08-23 10:00:31 bbeaver Exp $
+// $Id: crc32_lib.v,v 1.7 2001-08-23 11:42:59 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -263,14 +263,14 @@ module crc_32_16_private (
 // 2_numbered terms are calculated in 1 XOR times.
 // NOTE: In a Xilinx chip, it would be fine to constrain X0 and X0_1 to
 //       be calculated in the same CLB, and so on for all bits.
-  wire    X0_1   = X0  ^ X1;   wire    X1_2   = X1  ^ X2;
-  wire    X2_3   = X2  ^ X3;   wire    X3_4   = X3  ^ X4;
-  wire    X4_5   = X4  ^ X5;   wire    X5_6   = X5  ^ X6;
-  wire    X6_7   = X6  ^ X7;   wire    X7_8   = X7  ^ X8;
+  wire    X0_1   = X0  ^ X1;     wire    X1_2   = X1  ^ X2;
+  wire    X2_3   = X2  ^ X3;     wire    X3_4   = X3  ^ X4;
+  wire    X4_5   = X4  ^ X5;     wire    X5_6   = X5  ^ X6;
+  wire    X6_7   = X6  ^ X7;     wire    X7_8   = X7  ^ X8;
 // Use odd-ordered XOR terms because it seems these might be useful
-  wire    X8_12  = X8  ^ X12;  wire    X12_9  = X12 ^ X9;
-  wire    X9_13  = X9  ^ X13;  wire    X13_10 = X13 ^ X10;
-  wire    X10_14 = X10 ^ X14;  wire    X14_11 = X14 ^ X11;
+  wire    X8_12  = X8  ^ X12;    wire    X12_9  = X12 ^ X9;
+  wire    X9_13  = X9  ^ X13;    wire    X13_10 = X13 ^ X10;
+  wire    X10_14 = X10 ^ X14;    wire    X14_11 = X14 ^ X11;
   wire    X11_15 = X11 ^ X15;
 
 // Calculate terms which might have a single use.  They are calculated here
@@ -301,39 +301,39 @@ module crc_32_16_private (
 //         was registered as an input to the module in that CLB.
   assign  next_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] =
     {
-     (C15_5  ^ X8_9)   ^ X11_15,
-     (C14_4  ^ X7_8)   ^ X10_14,
-     (C13_3  ^ X6_7)   ^ X9_13,
-     (C12_2  ^ X5_6)   ^ X8_12,
-     (C11_1  ^ X4_5)   ^ X7_11,
-     (C10_0  ^ X3_4)   ^ X6_10,
-     (C9_8   ^ X2_3)   ^ X11_15,
-     (C8_7   ^ X1_2)   ^ X10_14,
-     (C7_6   ^ X0_1)   ^ (X9_13  ^ X15),
-     (C6_0   ^ X12_9)  ^ X14_11,
-     (C5_5   ^ X9_13)  ^ X10,
-     (C4_4   ^ X8_12)  ^ X9,
-     (C3_3   ^ X7_8)   ^ X11_15,
-     (C2_2   ^ X6_7)   ^ (X14_15 ^ X10),
-     (C1_1   ^ X5_6)   ^ (X9_13  ^ X14),
-     (C0_0   ^ X4_5)   ^ (X8_12  ^ X13),
-     (X3_4   ^ X5_15)  ^ (X7_8   ^ X12_9),
-    ((X2_3   ^ X4_8)   ^ (X6_7   ^ X14_15)) ^ X11,
-    ((X1_2   ^ X3_7)   ^ (X5_6   ^ X13_10)) ^ X14,
-    ((X0_1   ^ X2_6)   ^ (X4_5   ^ X12_9))  ^ X13_15,
-     (X0_1   ^ X3_4)   ^ (X12_9  ^ X14_15),
-     (X0_5   ^ X2_3)   ^ (X9_13  ^ X14),
-     (X1_2   ^ X4_5)   ^ (X12_9  ^ X13_11),
-     (X0_1   ^ X3_4)   ^ (X8_12  ^ X10_11),
-     (X0_5   ^ X2_3)   ^ (X7_8   ^ X10_15),
-    ((X1_2   ^ X4_5)   ^ (X6_7   ^ X14_11)) ^ X8,
-    ((X0_1   ^ X3_4)   ^ (X5_6   ^ X13_10)) ^ X7,
-    ((X0_6   ^ X2_3)   ^ (X8_12  ^ X11_15)) ^ X4,
-    ((X1_2   ^ X3_9)   ^ (X7_8   ^ X10_14)) ^ X15,
-    ((X0_1   ^ X2_8)   ^ (X6_7   ^ X9_13))  ^ X14,
-     (X0_1   ^ X6_7)   ^ (X12_9  ^ X13_11),
-     (X0_6   ^ X12_9)  ^ X10                  
-};
+      (C15_5  ^ X8_9)   ^ X11_15,
+      (C14_4  ^ X7_8)   ^ X10_14,
+      (C13_3  ^ X6_7)   ^ X9_13,
+      (C12_2  ^ X5_6)   ^ X8_12,
+      (C11_1  ^ X4_5)   ^ X7_11,
+      (C10_0  ^ X3_4)   ^ X6_10,
+      (C9_8   ^ X2_3)   ^ X11_15,
+      (C8_7   ^ X1_2)   ^ X10_14,
+      (C7_6   ^ X0_1)   ^ (X9_13  ^ X15),
+      (C6_0   ^ X12_9)  ^ X14_11,
+      (C5_5   ^ X9_13)  ^ X10,
+      (C4_4   ^ X8_12)  ^ X9,
+      (C3_3   ^ X7_8)   ^ X11_15,
+      (C2_2   ^ X6_7)   ^ (X14_15 ^ X10),
+      (C1_1   ^ X5_6)   ^ (X9_13  ^ X14),
+      (C0_0   ^ X4_5)   ^ (X8_12  ^ X13),
+      (X3_4   ^ X5_15)  ^ (X7_8   ^ X12_9),
+     ((X2_3   ^ X4_8)   ^ (X6_7   ^ X14_15)) ^ X11,
+     ((X1_2   ^ X3_7)   ^ (X5_6   ^ X13_10)) ^ X14,
+     ((X0_1   ^ X2_6)   ^ (X4_5   ^ X12_9))  ^ X13_15,
+      (X0_1   ^ X3_4)   ^ (X12_9  ^ X14_15),
+      (X0_5   ^ X2_3)   ^ (X9_13  ^ X14),
+      (X1_2   ^ X4_5)   ^ (X12_9  ^ X13_11),
+      (X0_1   ^ X3_4)   ^ (X8_12  ^ X10_11),
+      (X0_5   ^ X2_3)   ^ (X7_8   ^ X10_15),
+     ((X1_2   ^ X4_5)   ^ (X6_7   ^ X14_11)) ^ X8,
+     ((X0_1   ^ X3_4)   ^ (X5_6   ^ X13_10)) ^ X7,
+     ((X0_6   ^ X2_3)   ^ (X8_12  ^ X11_15)) ^ X4,
+     ((X1_2   ^ X3_9)   ^ (X7_8   ^ X10_14)) ^ X15,
+     ((X0_1   ^ X2_8)   ^ (X6_7   ^ X9_13))  ^ X14,
+      (X0_1   ^ X6_7)   ^ (X12_9  ^ X13_11),
+      (X0_6   ^ X12_9)  ^ X10                  
+    };
 endmodule
 
 module crc_32_32_private (
@@ -401,59 +401,87 @@ module crc_32_32_private (
 // Calculate higher_order terms, to make parity trees.
 // NOTE: In a Xilinx chip, it would be fine to constrain X0 and X0_1 to
 //       be calculated in the same CLB, and so on for all bits.
-  wire    X0_1   = X0  ^ X1;   wire    X1_2   = X1  ^ X2;
-  wire    X2_3   = X2  ^ X3;   wire    X3_4   = X3  ^ X4;
-  wire    X4_5   = X4  ^ X5;   wire    X5_6   = X5  ^ X6;
-  wire    X6_7   = X6  ^ X7;   wire    X7_8   = X7  ^ X8;
+  wire    X0_1   = X0  ^ X1;     wire    X1_2   = X1  ^ X2;
+  wire    X2_3   = X2  ^ X3;     wire    X3_4   = X3  ^ X4;
+  wire    X4_5   = X4  ^ X5;     wire    X5_6   = X5  ^ X6;
+  wire    X6_7   = X6  ^ X7;     wire    X7_8   = X7  ^ X8;
 // Use odd-ordered XOR terms because it seems these might be useful
-  wire    X8_12  = X8  ^ X12;  wire    X12_9  = X12 ^ X9;
-  wire    X9_13  = X9  ^ X13;  wire    X13_10 = X13 ^ X10;
-  wire    X10_14 = X10 ^ X14;  wire    X14_11 = X14 ^ X11;
+  wire    X8_12  = X8  ^ X12;    wire    X12_9  = X12 ^ X9;
+  wire    X9_13  = X9  ^ X13;    wire    X13_10 = X13 ^ X10;
+  wire    X10_14 = X10 ^ X14;    wire    X14_11 = X14 ^ X11;
   wire    X11_15 = X11 ^ X15;
-                               wire    X15_16 = X15 ^ X16;
-  wire    X16_17 = X16 ^ X17;  wire    X17_18 = X17 ^ X18;
-  wire    X18_19 = X18 ^ X19;  wire    X19_20 = X19 ^ X20;
-  wire    X20_21 = X20 ^ X21;  wire    X21_22 = X21 ^ X22;
-  wire    X22_23 = X22 ^ X23;  wire    X23_24 = X23 ^ X24;
-  wire    X24_25 = X24 ^ X25;  wire    X25_26 = X25 ^ X26;
-  wire    X26_27 = X26 ^ X27;  wire    X27_28 = X27 ^ X28;
-  wire    X28_29 = X28 ^ X29;  wire    X29_30 = X29 ^ X30;
+// back to simple ordering
+                                 wire    X15_16 = X15 ^ X16;
+  wire    X16_17 = X16 ^ X17;    wire    X17_18 = X17 ^ X18;
+  wire    X18_19 = X18 ^ X19;    wire    X19_20 = X19 ^ X20;
+  wire    X20_21 = X20 ^ X21;    wire    X21_22 = X21 ^ X22;
+  wire    X22_23 = X22 ^ X23;    wire    X23_24 = X23 ^ X24;
+  wire    X24_25 = X24 ^ X25;    wire    X25_26 = X25 ^ X26;
+  wire    X26_27 = X26 ^ X27;    wire    X27_28 = X27 ^ X28;
+  wire    X28_29 = X28 ^ X29;    wire    X29_30 = X29 ^ X30;
   wire    X30_31 = X30 ^ X31;
+
+// Calculate terms which might have a single use.  They are calculated here
+//   so that the parity trees can be balanced.
+  wire    X8_9   = X8 ^ X9;      wire    X29_31 = X29 ^ X31;
+  wire    X28_30 = X28 ^ X30;    wire    X28_31 = X28 ^ X31;
+  wire    X27_29 = X27 ^ X29;    wire    X4_6   = X4 ^ X6;
+  wire    X7_11  = X7 ^ X11;     wire    X6_10  = X6 ^ X10;
+  wire    X22_24 = X22 ^ X24;    wire    X21_23 = X21 ^ X23;
+  wire    X20_22 = X20 ^ X22;    wire    X19_21 = X19 ^ X21;
+  wire    X18_20 = X18 ^ X20;    wire    X17_19 = X17 ^ X19;
+  wire    X24_27 = X24 ^ X27;    wire    X23_26 = X23 ^ X26;
+  wire    X22_25 = X22 ^ X25;    wire    X21_24 = X21 ^ X24;
+
+  wire    X20_26 = X20 ^ X26;    wire    X25_27 = X25 ^ X27;
+  wire    X24_26 = X24 ^ X26;    wire    X18_30 = X18 ^ X30;
+  wire    X15_17 = X15 ^ X17;    wire    X14_16 = X14 ^ X16;
+  wire    X13_15 = X13 ^ X15;    wire    X13_11 = X13 ^ X11;
+  wire    X10_11 = X10 ^ X11;    wire    X10_15 = X10 ^ X15;
+  wire    X3_5  = X3 ^ X5;       wire    X2_4   = X2 ^ X4;
+  wire    X3_9  = X3 ^ X9;       wire    X0_5  = X0 ^ X5;
+  wire    X17_20 = X17 ^ X20;    wire    X16_19 = X16 ^ X19;
+  wire    X16_21 = X16 ^ X21;    wire    X15_19 = X15 ^ X19;
+  wire    X27_31 = X27 ^ X31;    wire    X20_31 = X20 ^ X31;
+  wire    X2_8   = X2 ^ X8;
+  wire    X14_18 = X14 ^ X18;
+  wire    X0_6   = X0 ^ X6;
+  wire    X10_16 = X10 ^ X16;
 
   assign  next_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] =
     {
-                            ^ X5           ^ X8       ^ X9                   ^ X11_15                                           ^ X23 ^ X24 ^ X25       ^ X27 ^ X28 ^ X29 ^ X30 ^ X31,
-                       ^ X4           ^ X7_8                  ^ X10_14                                                 ^ X22 ^ X23 ^ X24       ^ X26 ^ X27 ^ X28 ^ X29 ^ X30      ,
-                  ^ X3           ^ X6_7            ^ X9_13                                                       ^ X21 ^ X22 ^ X23       ^ X25 ^ X26 ^ X27 ^ X28 ^ X29       ^ X31,
-             ^ X2           ^ X5_6      ^ X8 ^ X12                                                            ^ X20 ^ X21 ^ X22       ^ X24 ^ X25 ^ X26 ^ X27 ^ X28       ^ X30      ,
-        ^ X1           ^ X4_5      ^ X7                                   ^ X11                         ^ X19 ^ X20 ^ X21       ^ X23 ^ X24 ^ X25 ^ X26 ^ X27       ^ X29            ,
-     X0           ^ X3_4      ^ X6                            ^ X10                               ^ X18 ^ X19 ^ X20       ^ X22 ^ X23 ^ X24 ^ X25 ^ X26       ^ X28             ^ X31,
-             ^ X2_3                     ^ X8                              ^ X11_15       ^ X17 ^ X18 ^ X19       ^ X21 ^ X22                               ^ X28 ^ X29       ^ X31,
-        ^ X1_2                     ^ X7                       ^ X10_14             ^ X16 ^ X17 ^ X18       ^ X20 ^ X21                               ^ X27 ^ X28       ^ X30      ,
-     X0_1                     ^ X6                 ^ X9_13                   ^ X15 ^ X16 ^ X17       ^ X19 ^ X20                               ^ X26 ^ X27       ^ X29       ^ X31,
-     X0                                         ^ X12_9             ^ X14_11       ^ X16       ^ X18 ^ X19                   ^ X23 ^ X24       ^ X26 ^ X27       ^ X29       ^ X31,
-                            ^ X5                      ^ X9_13 ^ X10                         ^ X17 ^ X18                   ^ X22       ^ X24       ^ X26 ^ X27       ^ X29       ^ X31,
-                       ^ X4                ^ X8_12 ^ X9                               ^ X16 ^ X17                   ^ X21       ^ X23       ^ X25 ^ X26       ^ X28       ^ X30      ,
-                  ^ X3                ^ X7_8                              ^ X11_15 ^ X16                   ^ X20       ^ X22       ^ X24 ^ X25       ^ X27       ^ X29            ,
-             ^ X2                ^ X6_7                       ^ X10_14       ^ X15                   ^ X19       ^ X21       ^ X23 ^ X24       ^ X26       ^ X28             ^ X31,
-        ^ X1                ^ X5_6                 ^ X9_13       ^ X14                         ^ X18       ^ X20       ^ X22 ^ X23       ^ X25       ^ X27             ^ X30 ^ X31,
-     X0                ^ X4_5           ^ X8_12      ^ X13                               ^ X17       ^ X19       ^ X21 ^ X22       ^ X24       ^ X26             ^ X29 ^ X30      ,
-                  ^ X3_4 ^ X5      ^ X7_8 ^ X12_9                         ^ X15 ^ X16       ^ X18       ^ X20 ^ X21             ^ X24             ^ X27             ^ X30      ,
-             ^ X2_3 ^ X4      ^ X6_7 ^ X8                        ^ X14_11 ^ X15       ^ X17       ^ X19 ^ X20             ^ X23             ^ X26             ^ X29            ,
-        ^ X1_2 ^ X3      ^ X5_6 ^ X7                 ^ X13_10 ^ X14             ^ X16       ^ X18 ^ X19             ^ X22             ^ X25             ^ X28             ^ X31,
-     X0_1 ^ X2      ^ X4_5 ^ X6           ^ X12_9 ^ X13                   ^ X15       ^ X17 ^ X18             ^ X21             ^ X24             ^ X27             ^ X30 ^ X31,
-     X0_1      ^ X3_4                     ^ X12_9             ^ X14       ^ X15 ^ X16 ^ X17             ^ X20                   ^ X24 ^ X25 ^ X26 ^ X27 ^ X28             ^ X31,
-     X0      ^ X2_3      ^ X5                      ^ X9_13       ^ X14             ^ X16             ^ X19                                     ^ X26       ^ X28 ^ X29       ^ X31,
-        ^ X1_2      ^ X4_5                ^ X12_9 ^ X13             ^ X11                   ^ X18                         ^ X23 ^ X24                         ^ X29            ,
-     X0_1      ^ X3_4                ^ X8_12            ^ X10       ^ X11             ^ X17                         ^ X22 ^ X23                         ^ X28             ^ X31,
-     X0      ^ X2_3      ^ X5      ^ X7_8                  ^ X10             ^ X15 ^ X16                         ^ X21 ^ X22 ^ X23 ^ X24 ^ X25             ^ X28 ^ X29            ,
-        ^ X1_2      ^ X4_5 ^ X6_7 ^ X8                        ^ X14 ^ X11                               ^ X20 ^ X21 ^ X22             ^ X25                   ^ X29 ^ X30      ,
-     X0_1      ^ X3_4 ^ X5_6 ^ X7                 ^ X13_10                                     ^ X19 ^ X20 ^ X21             ^ X24                   ^ X28 ^ X29            ,
-     X0      ^ X2_3 ^ X4      ^ X6      ^ X8_12                        ^ X11 ^ X15             ^ X18 ^ X19 ^ X20                   ^ X24 ^ X25                   ^ X29 ^ X30 ^ X31,
-        ^ X1_2 ^ X3                ^ X7_8       ^ X9       ^ X10 ^ X14       ^ X15       ^ X17 ^ X18 ^ X19                               ^ X25       ^ X27                   ^ X31,
-     X0_1 ^ X2                ^ X6_7 ^ X8       ^ X9_13       ^ X14             ^ X16 ^ X17 ^ X18                               ^ X24       ^ X26                   ^ X30 ^ X31,
-     X0_1                     ^ X6_7      ^ X12_9 ^ X13             ^ X11       ^ X16 ^ X17                                     ^ X24             ^ X27 ^ X28                  ,
-     X0                          ^ X6           ^ X12_9       ^ X10                   ^ X16                                           ^ X24 ^ X25 ^ X26       ^ X28 ^ X29 ^ X30 ^ X31
+     ((X5   ^ X8_9)  ^ (X11_15 ^ X23_24)) ^ ((X25    ^ X27_28) ^ (X29_30 ^ X31)),
+     ((X4   ^ X7_8)  ^ (X10_14 ^ X22_23)) ^ ((X24    ^ X26_27) ^ (X28_29 ^ X30)),
+     ((X3   ^ X6_7)  ^ (X9_13  ^ X21_22)) ^ ((X23    ^ X25_26) ^ (X27_28 ^ X29_31)),
+     ((X2   ^ X5_6)  ^ (X8_12  ^ X20_21)) ^ ((X22    ^ X24_25) ^ (X26_27 ^ X28_30)),
+     ((X1   ^ X4_5)  ^ (X7_11  ^ X19_20)) ^ ((X21    ^ X23_24) ^ (X25_26 ^ X27_29)),
+     ((X0   ^ X3_4)  ^ (X6_10  ^ X18_19)) ^ ((X20_26 ^ X22_23) ^ (X24_25 ^ X28_31)),
+     ((X2_3 ^ X8)    ^ (X11_15 ^ X17_18)) ^ ((X19    ^ X21_22) ^ (X28_29 ^ X31)),
+     ((X1_2 ^ X7)    ^ (X10_14 ^ X16_17)) ^ ((X18    ^ X20_21) ^ (X27_28 ^ X30)),
+     ((X0_1 ^ X6)    ^ (X9_13  ^ X15_16)) ^ ((X17    ^ X19_20) ^ (X26_27 ^ X29_31)),
+     ((X0   ^ X12_9) ^ (X14_11 ^ X16))    ^ ((X18_19 ^ X23_24) ^ (X26_27 ^ X29_31)),
+     ((X5   ^ X9_13) ^ (X10    ^ X17_18)) ^ ((X22_24 ^ X26_27) ^ (X29_31)),
+     ((X4   ^ X8_12) ^ (X9     ^ X16_17)) ^ ((X21_23 ^ X25_26) ^ (X28_30)),
+     ((X3   ^ X7_8)  ^ (X11_15 ^ X16))    ^ ((X20_22 ^ X24_25) ^ (X27_29)),
+     ((X2   ^ X6_7)  ^ (X10_14 ^ X15))    ^ ((X19_21 ^ X23_24) ^ (X26    ^ X28_31)),
+     ((X1   ^ X5_6)  ^ (X9_13  ^ X14))    ^ ((X18_20 ^ X22_23) ^ (X25_27 ^ X30_31)),
+     ((X0   ^ X4_5)  ^ (X8_12  ^ X13))    ^ ((X17_19 ^ X21_22) ^ (X24_26 ^ X29_30)),
+     ((X3_4 ^ X5)    ^ (X7_8   ^ X12_9))  ^ ((X15_16 ^ X18_30) ^ (X20_21 ^ X24_27)),
+     ((X2_3 ^ X4_6)  ^ (X7_8   ^ X14_11)) ^ ((X15_17 ^ X19_20) ^ (X23_26 ^ X29)),
+     ((X1_2 ^ X3_5)  ^ (X6_7   ^ X13_10)) ^ ((X14_16 ^ X18_19) ^ (X22_25 ^ X28_31)),
+     ((X0_1 ^ X2_4)  ^ (X5_6   ^ X12_9))  ^ ((X13_15 ^ X17_18) ^ (X21_24 ^ X27))    ^ X30_31,
+     ((X0_1 ^ X3_4)  ^ (X12_9  ^ X14))    ^ ((X15_16 ^ X17_20) ^ (X24_25 ^ X26_27)) ^ X28_31,
+     ((X0_5 ^ X2_3)  ^ (X9_13  ^ X14))    ^ ((X16_19 ^ X26)    ^ (X28_29 ^ X31)),
+     ((X1_2 ^ X4_5)  ^ (X12_9  ^ X13_11)) ^ ((X18    ^ X23_24) ^ (X29)),
+     ((X0_1 ^ X3_4)  ^ (X8_12  ^ X10_11)) ^ ((X17    ^ X22_23) ^ (X28_31)),
+     ((X0_5 ^ X2_3)  ^ (X7_8   ^ X10_15)) ^ ((X16_21 ^ X22_23) ^ (X24_25 ^ X28_29)),
+     ((X1_2 ^ X4_5)  ^ (X6_7   ^ X8))     ^ ((X14_11 ^ X20_21) ^ (X22_25 ^ X29_30)),
+     ((X0_1 ^ X3_4)  ^ (X5_6   ^ X7))     ^ ((X13_10 ^ X19_20) ^ (X21_24 ^ X28_29)),
+     ((X0   ^ X2_3)  ^ (X4_6   ^ X8_12))  ^ ((X11_15 ^ X18_19) ^ (X20_31 ^ X24_25)) ^ X29_30,
+     ((X1_2 ^ X3_9)  ^ (X7_8   ^ X10_14)) ^ ((X15_19 ^ X17_18) ^ (X25    ^ X27_31)),
+     ((X0_1 ^ X2_8)  ^ (X6_7   ^ X9_13))  ^ ((X14_18 ^ X16_17) ^ (X24_26 ^ X30_31)),
+     ((X0_1 ^ X6_7)  ^ (X12_9  ^ X13_11)) ^ ((X16_17 ^ X24)    ^ (X27_28)),
+     ((X0_6 ^ X12_9) ^ (X10_16 ^ X24_25)) ^ ((X26    ^ X28_29) ^ (X30_31))
     };
 endmodule
 
@@ -798,10 +826,10 @@ endtask
 //        The receiver sees the value 32'hC704DD7B when the message is
 //          received no errors.  Bit reversed, that is 32'hDEBB20E3.
     if (present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hC704DD7B)
-      $display ("*** 1-bit after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
+      $display ("*** 1-bit 0's after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
                   present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
     if (present_crc_8[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hC704DD7B)
-      $display ("*** 8-bit after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
+      $display ("*** 8-bit 0's after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
                   present_crc_8[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
 
     use_F_for_CRC = 1'b1;
@@ -820,7 +848,7 @@ endtask
     data_in_16[15:0] = 16'h7F99;
     apply_byte_to_crc;
     if (present_crc_16[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hC704DD7B)
-      $display ("*** 16-bit after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
+      $display ("*** 16-bit 0's after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
                   present_crc_16[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
 
     use_F_for_CRC = 1'b1;
@@ -837,7 +865,7 @@ endtask
     data_in_32[31:0] = 32'h864D7F99;
     apply_byte_to_crc;
     if (present_crc_32[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hC704DD7B)
-      $display ("*** 32-bit after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
+      $display ("*** 32-bit 0's after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
                   present_crc_32[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
 
 
@@ -855,10 +883,10 @@ endtask
     data_in[7:0] = 8'h28;
     apply_byte_to_crc;
     if (~present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hC55E457A)
-      $display ("*** 1-bit after 40 bytes of 1'b0, I want 32'hC55E457A, I get 32\`h%x",
+      $display ("*** 1-bit after 40 bytes of 1'b1, I want 32'hC55E457A, I get 32\`h%x",
                  ~present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
     if (~present_crc_8[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hC55E457A)
-      $display ("*** 8-bit after 40 bytes of 1'b0, I want 32'hC55E457A, I get 32\`h%x",
+      $display ("*** 8-bit after 40 bytes of 1'b1, I want 32'hC55E457A, I get 32\`h%x",
                  ~present_crc_8[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
     data_in[7:0] = 8'hC5;
     apply_byte_to_crc;
@@ -869,11 +897,49 @@ endtask
     data_in[7:0] = 8'h7A;
     apply_byte_to_crc;
     if (present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hC704DD7B)
-      $display ("*** 1-bit after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
+      $display ("*** 1-bit 1's after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
                   present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
     if (present_crc_8[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hC704DD7B)
-      $display ("*** 8-bit after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
+      $display ("*** 8-bit 1's after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
                   present_crc_8[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
+
+    use_F_for_CRC = 1'b1;
+    for (i = 0; i < 20; i = i + 1)
+    begin
+      data_in_16[15:0] = 16'hFFFF;
+      apply_byte_to_crc;
+    end
+    data_in_16[15:0] = 16'h0000;
+    apply_byte_to_crc;
+    data_in_16[15:0] = 16'h0028;
+    apply_byte_to_crc;
+    if (~present_crc_16[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hC55E457A)
+      $display ("*** 16-bit after 40 bytes of 1'b1, I want 32'hC55E457A, I get 32\`h%x",
+                 ~present_crc_16[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
+    data_in_16[15:0] = 16'hC55E;
+    apply_byte_to_crc;
+    data_in_16[15:0] = 16'h457A;
+    apply_byte_to_crc;
+    if (present_crc_16[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hC704DD7B)
+      $display ("*** 16-bit 1's after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
+                  present_crc_16[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
+
+    use_F_for_CRC = 1'b1;
+    for (i = 0; i < 10; i = i + 1)
+    begin
+      data_in_32[31:0] = 32'hFFFFFFFF;
+      apply_byte_to_crc;
+    end
+    data_in_32[31:0] = 32'h00000028;
+    apply_byte_to_crc;
+    if (~present_crc_32[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hC55E457A)
+      $display ("*** 32-bit after 40 bytes of 1'b1, I want 32'hC55E457A, I get 32\`h%x",
+                 ~present_crc_32[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
+    data_in_32[31:0] = 32'hC55E457A;
+    apply_byte_to_crc;
+    if (present_crc_32[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hC704DD7B)
+      $display ("*** 32-bit 1's after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
+                  present_crc_32[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
 
     use_F_for_CRC = 1'b1;
     for (i = 0; i < 40; i = i + 1)
@@ -890,10 +956,10 @@ endtask
     data_in[7:0] = 8'h28;
     apply_byte_to_crc;
     if (~present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hBF671ED0)
-      $display ("*** 1-bit after 40 bytes of 1'b0, I want 32'hBF671ED0, I get 32\`h%x",
+      $display ("*** 1-bit after 40 bytes of i+1, I want 32'hBF671ED0, I get 32\`h%x",
                  ~present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
     if (~present_crc_8[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hBF671ED0)
-      $display ("*** 8-bit after 40 bytes of 1'b0, I want 32'hBF671ED0, I get 32\`h%x",
+      $display ("*** 8-bit after 40 bytes of i+1, I want 32'hBF671ED0, I get 32\`h%x",
                  ~present_crc_8[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
     data_in[7:0] = 8'hBF;
     apply_byte_to_crc;
@@ -904,11 +970,51 @@ endtask
     data_in[7:0] = 8'hD0;
     apply_byte_to_crc;
     if (present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hC704DD7B)
-      $display ("*** 1-bit after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
+      $display ("*** 1-bit i+1 after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
                   present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
     if (present_crc_8[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hC704DD7B)
-      $display ("*** 8-bit after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
+      $display ("*** 8-bit i+1 after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
                   present_crc_8[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
+
+    use_F_for_CRC = 1'b1;
+    for (i = 0; i < 20; i = i + 1)
+    begin
+      data_in_16[15:0] = (((2 * i) + 1) << 8) | ((2 * i) + 2);
+      apply_byte_to_crc;
+    end
+    data_in_16[15:0] = 16'h0000;
+    apply_byte_to_crc;
+    data_in_16[15:0] = 16'h0028;
+    apply_byte_to_crc;
+    if (~present_crc_16[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hBF671ED0)
+      $display ("*** 16-bit after 40 bytes of i+1, I want 32'hBF671ED0, I get 32\`h%x",
+                 ~present_crc_16[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
+    data_in_16[15:0] = 16'hBF67;
+    apply_byte_to_crc;
+    data_in_16[15:0] = 16'h1ED0;
+    apply_byte_to_crc;
+    if (present_crc_16[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hC704DD7B)
+      $display ("*** 16-bit i+1 after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
+                  present_crc_16[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
+
+    use_F_for_CRC = 1'b1;
+    for (i = 0; i < 10; i = i + 1)
+    begin
+      data_in_32[31:0] = (((4 * i) + 1) << 24) | (((4 * i) + 2) << 16)
+                       | (((4 * i) + 3) << 8)  |  ((4 * i) + 4);
+      apply_byte_to_crc;
+    end
+    data_in_32[31:0] = 32'h00000028;
+    apply_byte_to_crc;
+    if (~present_crc_32[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hBF671ED0)
+      $display ("*** 32-bit after 40 bytes of i+1, I want 32'hBF671ED0, I get 32\`h%x",
+                 ~present_crc_32[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
+    data_in_32[31:0] = 32'hBF671ED0;
+    apply_byte_to_crc;
+    if (present_crc_32[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hC704DD7B)
+      $display ("*** 32-bit i+1 after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
+                  present_crc_32[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
+
   end
 
 crc_32_1_bit_at_a_time test_1_bit (
