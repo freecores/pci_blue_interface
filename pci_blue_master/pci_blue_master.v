@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_master.v,v 1.22 2001-07-07 03:11:58 bbeaver Exp $
+// $Id: pci_blue_master.v,v 1.23 2001-07-07 06:24:38 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -177,7 +177,7 @@ module pci_blue_master (
 );
 
 `include "pci_blue_options.vh"
-`include "pci_blue_constants.vh"\
+`include "pci_blue_constants.vh"
 
 // Signals driven to control the external PCI interface
   output  pci_req_out_next;
@@ -951,73 +951,73 @@ module pci_blue_master (
 //    MASTER_NO_IRDY,     FIFO Empty           1      0    (Impossible?)
 // Master Abort        X      X                0      1  -> MASTER_STOP_TURN
 // Target Wait         0      0                1      0  -> MASTER_NO_IRDY
+// Target DRA          0      1                0      1  -> MASTER_STOP_TURN
 // Target Data         1      0                1      0  -> MASTER_NO_IRDY
 // Target Last Data    1      1                1      0  -> MASTER_NO_IRDY
-// Target DRA          0      1                0      1  -> MASTER_STOP_TURN
 //                    TRDY   STOP            FRAME   IRDY
 //    MASTER_NO_IRDY,     FIFO non-Last Data   1      0
 // Master Abort        X      X                0      1  -> MASTER_STOP_TURN
 // Target Wait         0      0                1      1  -> MASTER_DATA_MORE
+// Target DRA          0      1                0      1  -> MASTER_STOP_TURN
 // Target Data         1      0                1      1  -> MASTER_DATA_MORE
 // Target Last Data    1      1                0      1  -> MASTER_DATA_LAST
-// Target DRA          0      1                0      1  -> MASTER_STOP_TURN
 //                    TRDY   STOP            FRAME   IRDY
 //    MASTER_NO_IRDY,     FIFO Last Data       1      0
 // Master Abort        X      X                0      1  -> MASTER_STOP_TURN
 // Target Wait         0      0                0      1  -> MASTER_DATA_LAST
+// Target DRA          0      1                0      1  -> MASTER_STOP_TURN
 // Target Data         1      0                0      1  -> MASTER_DATA_LAST
 // Target Last Data    1      1                0      1  -> MASTER_DATA_LAST
-// Target DRA          0      1                0      1  -> MASTER_STOP_TURN
 //                    TRDY   STOP            FRAME   IRDY
 //    MASTER_DATA_MORE,   FIFO Empty           1      1
 // Master Abort        X      X                0      1  -> MASTER_STOP_TURN
 // Target Wait         0      0                1      1  -> MASTER_DATA_MORE
+// Target DRA          0      1                0      1  -> MASTER_STOP_TURN
 // Target Data         1      0                1      0  -> MASTER_NO_IRDY
 // Target Last Data    1      1                0      1  -> MASTER_DATA_LAST
-// Target DRA          0      1                0      1  -> MASTER_STOP_TURN
 //                    TRDY   STOP            FRAME   IRDY
 //    MASTER_DATA_MORE,   FIFO non-Last Data   1      1
 // Master Abort        X      X                0      1  -> MASTER_STOP_TURN
 // Target Wait         0      0                1      1  -> MASTER_DATA_MORE
+// Target DRA          0      1                0      1  -> MASTER_STOP_TURN
 // Target Data         1      0                1      1  -> MASTER_DATA_MORE
 // Target Last Data    1      1                0      1  -> MASTER_DATA_LAST
-// Target DRA          0      1                0      1  -> MASTER_STOP_TURN
 //                    TRDY   STOP            FRAME   IRDY
 //    MASTER_DATA_MORE,   FIFO Last Data       1      1
 // Master Abort        X      X                0      1  -> MASTER_STOP_TURN
 // Target Wait         0      0                1      1  -> MASTER_DATA_MORE
+// Target DRA          0      1                0      1  -> MASTER_STOP_TURN
 // Target Data         1      0                0      1  -> MASTER_DATA_LAST
 // Target Last Data    1      1                0      1  -> MASTER_DATA_LAST
-// Target DRA          0      1                0      1  -> MASTER_STOP_TURN
 //                    TRDY   STOP            FRAME   IRDY
 //    MASTER_DATA_LAST,   FIFO Empty           0      1 (or if no Fast Back-to-Back)
-// Master Abort        X      X                0      1  -> MASTER_STOP_TURN
+// Master Abort        X      X                0      1  -> MASTER_IDLE
 // Target Wait         0      0                0      1  -> MASTER_DATA_LAST
+// Target DRA          0      1                0      0  -> MASTER_IDLE
 // Target Data         1      0                0      0  -> MASTER_IDLE
 // Target Last Data    1      1                0      0  -> MASTER_IDLE
+//                    TRDY   STOP            FRAME   IRDY
+//    MASTER_DATA_LAST,   FIFO Address         0      1 (no step and if Fast Back-to-Back)
+// Master Abort        X      X                0      1  -> MASTER_IDLE
+// Target Wait         0      0                0      1  -> MASTER_DATA_LAST
 // Target DRA          0      1                0      0  -> MASTER_IDLE
+// Target Data         1      0                1      0  -> MASTER_ADDR
+// Target Last Data    1      1                1      0  -> MASTER_ADDR
 //                    TRDY   STOP            FRAME   IRDY
-//    MASTER_DATA_LAST,   FIFO Address         0      1 (and if Fast Back-to-Back)
-// Master Abort        X      X                0      1  -> MASTER_STOP_TURN
+//    MASTER_DATA_LAST,   FIFO Address         0      1 (step and if Fast Back-to-Back)
+// Master Abort        X      X                0      1  -> MASTER_IDLE
 // Target Wait         0      0                0      1  -> MASTER_DATA_LAST
-// Target Data         1      0                0      0  -> MASTER_ADDR
-// Target Last Data    1      1                0      0  -> MASTER_ADDR
-// Target DRA          0      1                0      0  -> MASTER_ADDR
+// Target DRA          0      1                0      0  -> MASTER_IDLE
+// Target Data         1      0                0      0  -> MASTER_IDLE
+// Target Last Data    1      1                0      0  -> MASTER_IDLE
 //                    TRDY   STOP            FRAME   IRDY
-//    MASTER_DATA_LAST,   FIFO Address         0      1 (and if Fast Back-to-Back)
-// Master Abort        X      X                0      1  -> MASTER_STOP_TURN
-// Target Wait         0      0                0      1  -> MASTER_DATA_LAST
-// Target Data         1      0                0      0  -> MASTER_STEP
-// Target Last Data    1      1                0      0  -> MASTER_STEP
-// Target DRA          0      1                0      0  -> MASTER_STEP
-//                    TRDY   STOP            FRAME   IRDY
-//    MASTER_STOP_TURN,   FIFO Empty           0      1 (or if no Fast Back-to-Back)
+//    MASTER_STOP_TURN,   FIFO Empty           0      1 (don't care Fast Back-to-Back)
 // Handling Master Abort or Target Abort       0      0  -> MASTER_FLUSH
 // Target Don't Care   X      X                0      0  -> MASTER_IDLE
 //                    TRDY   STOP            FRAME   IRDY
-//    MASTER_STOP_TURN,   FIFO Address         0      1 (and if Fast Back-to-Back)
+//    MASTER_STOP_TURN,   FIFO Address         0      1 (don't care Fast Back-to-Back)
 // Handling Master Abort or Target Abort       0      0  -> MASTER_FLUSH
-// Target Don't Care   X      X                1      0  -> MASTER_ADDR
+// Target Don't Care   X      X                1      0  -> MASTER_IDLE
 //
 // NOTE: In all cases, the FRAME and IRDY signals are calculated
 //   based on the TRDY and STOP signals, which are very late and very
@@ -1066,15 +1066,18 @@ module pci_blue_master (
 //    MASTER_DATA_MORE,   FIFO Last Data      011     100
 //    MASTER_DATA_LAST,   FIFO Empty          000     011 (or if no Fast Back-to-Back)
 //    MASTER_DATA_LAST,   FIFO Address        100     000 (and if Fast Back-to-Back)
+// NOTE: WORKING what about Step?  Punt to Idle!
 //    MASTER_STOP_TURN,   FIFO Empty          000     000 (or if no Fast Back-to-Back)
 //    MASTER_STOP_TURN,   FIFO Address        100     000 (and if Fast Back-to-Back)
 //    MASTER_PARK_BUS,    FIFO Empty          000     000 (no FRAME, IRDY)
 //    MASTER_PARK_BUS,    FIFO_Address        100     000 (Always FRAME)
 
-  parameter FRAME_0              = 2'b00;
-  parameter FRAME_UNLESS_STOP    = 2'b01;
-  parameter FRAME_UNLESS_LAST    = 2'b10;
-  parameter FRAME_WHILE_WAIT     = 2'b11;
+// NOTE: these declarations are duplicated in the Vendor Library.
+  parameter FRAME_0              = 3'b000;
+  parameter FRAME_UNLESS_STOP    = 3'b001;
+  parameter FRAME_UNLESS_LAST    = 3'b010;
+  parameter FRAME_WHILE_WAIT     = 3'b011;
+  parameter FRAME_1              = 3'b100;
 
   parameter IRDY_0               = 3'b000;
   parameter IRDY_IF_STOP         = 3'b001;
@@ -1093,7 +1096,7 @@ module pci_blue_master (
   parameter PCI_MASTER_STOP_TURN = 10'b0100000000;  // Stop makes Turn Around
   parameter PCI_MASTER_FLUSHING  = 10'b1000000000;  // Flushing Request FIFO
   parameter MS_Range   = 9;
-  reg    [MS_Range:0] PCI_Master_State;
+  parameter MS_X = {(MS_Range+1){1'bX}};
 
 // Classify the activity of the External Target.
 // These correspond to      {trdy, stop}
@@ -1135,6 +1138,320 @@ module pci_blue_master (
 //   need to look at the FRAME and IRDY.  IT just lunges ahead, until it
 //   sees the Bus Latency Timer time out.
 
+// Given a present Master State and all appropriate inputs, calculate the next state.
+function [MS_Range:0] Master_Next_State;
+  input  [MS_Range:0] Master_Present_State;
+  input   pci_bus_available;
+  input   FIFO_CONTAINS_ADDRESS;
+  input   Doing_Config_Reference;
+  input   Master_Abort;
+  input   FIFO_CONTAINS_DATA_MORE;
+  input   FIFO_CONTAINS_DATA_LAST;
+  input   pci_trdy_in;
+  input   pci_stop_in;
+  input   Back_to_Back_Possible;
+  input   fifo_data_available_meta;
+  reg    [MS_Range:0] Master_Next_State;
+
+  begin
+      case (Master_Present_State[MS_Range:0])
+      PCI_MASTER_IDLE:
+        begin
+          if (pci_bus_available == 1'b1)
+          begin                  // external_pci_bus_available is VERY LATE
+            if (FIFO_CONTAINS_ADDRESS == 1'b0)  // bus park
+              Master_Next_State[MS_Range:0] = PCI_MASTER_PARK;
+            else if (Doing_Config_Reference == 1'b1)
+              Master_Next_State[MS_Range:0] = PCI_MASTER_STEP;
+            else  // must be regular reference.
+              Master_Next_State[MS_Range:0] = PCI_MASTER_ADDR;
+          end
+          else
+            Master_Next_State[MS_Range:0] = PCI_MASTER_IDLE;
+        end
+      PCI_MASTER_PARK:
+        begin
+          if (pci_bus_available == 1'b1)
+          begin                  // external_pci_bus_available is VERY LATE
+            if (FIFO_CONTAINS_ADDRESS == 1'b0)  // bus park
+              Master_Next_State[MS_Range:0] = PCI_MASTER_PARK;
+            else if (Doing_Config_Reference == 1'b1)
+              Master_Next_State[MS_Range:0] = PCI_MASTER_STEP;
+            else  // must be rgular reference.
+              Master_Next_State[MS_Range:0] = PCI_MASTER_ADDR;
+          end
+          else
+            Master_Next_State[MS_Range:0] = PCI_MASTER_IDLE;
+        end
+      PCI_MASTER_STEP:
+        begin                    // external_pci_bus_available is VERY LATE
+          if (pci_bus_available == 1'b1)
+            Master_Next_State[MS_Range:0] = PCI_MASTER_ADDR;
+          else
+            Master_Next_State[MS_Range:0] = PCI_MASTER_IDLE;
+        end
+      PCI_MASTER_ADDR:
+        begin  // when 64-bit Address added, -> PCI_MASTER_ADDR2
+          Master_Next_State[MS_Range:0] = PCI_MASTER_NO_IRDY;
+        end
+      PCI_MASTER_ADDR2:
+        begin  // Not implemented yet. Will be identical to Wait
+          Master_Next_State[MS_Range:0] = PCI_MASTER_NO_IRDY;
+        end
+      PCI_MASTER_NO_IRDY:
+        begin
+          if (Master_Abort == 1'b1)
+          begin
+            Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN;
+          end
+          else if (   (FIFO_CONTAINS_DATA_MORE == 1'b0)
+                    & (FIFO_CONTAINS_DATA_LAST == 1'b0))  // hold
+          begin
+            case ({pci_trdy_in, pci_stop_in})
+            TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_NO_IRDY;
+            TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN;
+            TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_NO_IRDY;
+            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_NO_IRDY;
+            default:
+              begin
+// synopsys translate_off
+                Master_Next_State[MS_Range:0] = MS_X;  // error
+                $display ("*** %m PCI Master Wait TRDY, STOP Unknown %x %x at time %t",
+                           pci_trdy_in, pci_stop_in, $time);
+// synopsys translate_on
+              end
+            endcase
+          end
+          else if (FIFO_CONTAINS_DATA_MORE == 1'b1)
+          begin
+            case ({pci_trdy_in, pci_stop_in})
+            TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE;
+            TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN;
+            TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE;
+            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_LAST;
+            default:
+              begin
+// synopsys translate_off
+                Master_Next_State[MS_Range:0] = MS_X;  // error
+                $display ("*** %m PCI Master Wait TRDY, STOP Unknown %x %x at time %t",
+                           pci_trdy_in, pci_stop_in, $time);
+// synopsys translate_on
+              end
+            endcase
+          end
+          else if (FIFO_CONTAINS_DATA_LAST == 1'b1)
+          begin
+            case ({pci_trdy_in, pci_stop_in})
+            TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_LAST;
+            TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN;
+            TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_LAST;
+            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_LAST;
+            default:
+              begin
+// synopsys translate_off
+                Master_Next_State[MS_Range:0] = MS_X;  // error
+                $display ("*** %m PCI Master Wait TRDY, STOP Unknown %x %x at time %t",
+                           pci_trdy_in, pci_stop_in, $time);
+// synopsys translate_on
+              end
+            endcase
+          end
+          else  // Fifo has something wrong with it.  Bug.
+          begin
+            Master_Next_State[MS_Range:0] = MS_X;  // error
+// synopsys translate_off
+            $display ("*** %m PCI Master WAIT Fifo Contents Unknown %x at time %t",
+                           Master_Next_State[MS_Range:0], $time);
+// synopsys translate_on
+          end
+        end
+      PCI_MASTER_DATA_MORE:
+        begin
+          if (Master_Abort == 1'b1)
+          begin
+            Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN;
+          end
+          else if (   (FIFO_CONTAINS_DATA_MORE == 1'b0)
+                    & (FIFO_CONTAINS_DATA_LAST == 1'b0))  // hold
+          begin
+            case ({pci_trdy_in, pci_stop_in})
+            TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE;
+            TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN;
+            TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_NO_IRDY;
+            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_LAST;
+            default:
+              begin
+// synopsys translate_off
+                Master_Next_State[MS_Range:0] = MS_X;  // error
+                $display ("*** %m PCI Master Data More TRDY, STOP Unknown %x %x at time %t",
+                           pci_trdy_in, pci_stop_in, $time);
+// synopsys translate_on
+              end
+            endcase
+          end
+          else if (FIFO_CONTAINS_DATA_MORE == 1'b1)
+          begin
+            case ({pci_trdy_in, pci_stop_in})
+            TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE;
+            TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN;
+            TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE;
+            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_LAST;
+            default:
+              begin
+// synopsys translate_off
+                Master_Next_State[MS_Range:0] = MS_X;  // error
+                $display ("*** %m PCI Master Data More TRDY, STOP Unknown %x %x at time %t",
+                           pci_trdy_in, pci_stop_in, $time);
+// synopsys translate_on
+              end
+            endcase
+          end
+          else if (FIFO_CONTAINS_DATA_LAST == 1'b1)
+          begin
+            case ({pci_trdy_in, pci_stop_in})
+            TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE;
+            TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN;
+            TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_LAST;
+            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_LAST;
+            default:
+              begin
+// synopsys translate_off
+                Master_Next_State[MS_Range:0] = MS_X;  // error
+                $display ("*** %m PCI Master Data More TRDY, STOP Unknown %x %x at time %t",
+                           pci_trdy_in, pci_stop_in, $time);
+// synopsys translate_on
+              end
+            endcase
+          end
+          else  // Fifo has something wrong with it.  Bug.
+          begin
+            Master_Next_State[MS_Range:0] = MS_X;  // error
+// synopsys translate_off
+            $display ("*** %m PCI Master Data More Fifo Contents Unknown %x at time %t",
+                           Master_Next_State[MS_Range:0], $time);
+// synopsys translate_on
+          end
+        end
+      PCI_MASTER_DATA_LAST:
+        begin
+          if (Master_Abort == 1'b1)
+          begin
+            Master_Next_State[MS_Range:0] = PCI_MASTER_IDLE;
+          end
+          else if (   (FIFO_CONTAINS_ADDRESS == 1'b0)
+                    | (Back_to_Back_Possible == 1'b0))  // go idle
+          begin
+            case ({pci_trdy_in, pci_stop_in})
+            TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_LAST;
+            TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_IDLE;
+            TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_IDLE;
+            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_IDLE;
+            default:
+              begin
+// synopsys translate_off
+                Master_Next_State[MS_Range:0] = MS_X;  // error
+                $display ("*** %m PCI Master Data Last TRDY, STOP Unknown %x %x at time %t",
+                           pci_trdy_in, pci_stop_in, $time);
+// synopsys translate_on
+              end
+            endcase
+          end
+          else if (   (FIFO_CONTAINS_ADDRESS == 1'b1)
+                    & (Back_to_Back_Possible == 1'b1)
+                    & (Doing_Config_Reference == 1'b1))
+          begin
+            case ({pci_trdy_in, pci_stop_in})
+            TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_LAST;
+            TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STEP;
+            TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_STEP;
+            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_STEP;
+            default:
+              begin
+// synopsys translate_off
+                Master_Next_State[MS_Range:0] = MS_X;  // error
+                $display ("*** %m PCI Master Data Last TRDY, STOP Unknown %x %x at time %t",
+                           pci_trdy_in, pci_stop_in, $time);
+// synopsys translate_on
+              end
+            endcase
+          end
+          else  // must be regular reference.
+          begin
+            case ({pci_trdy_in, pci_stop_in})
+            TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_LAST;
+            TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_ADDR;
+            TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_ADDR;
+            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_ADDR;
+            default:
+              begin
+// synopsys translate_off
+                Master_Next_State[MS_Range:0] = MS_X;  // error
+                $display ("*** %m PCI Master Data Last TRDY, STOP Unknown %x %x at time %t",
+                           pci_trdy_in, pci_stop_in, $time);
+// synopsys translate_on
+              end
+            endcase
+          end
+// NOTE: No ELSE term to get to Bus Park.  It is not necessary to go directly
+//    to a parked condition.  Get to park by going through IDLE.  See the PCI
+//    Local Bus Spec Revision 2.2 section 3.4.3 for details.
+        end
+      PCI_MASTER_STOP_TURN:
+// NOTE: WORKING  Got here for one of several reasons:
+//  1) Got a Master Abort
+//  2) Got a Target Abort
+//  3) Got a Target Retry with no data transferred
+//  4) Got a Target Retry with data transferred
+// The correct actions have to be taken for each of these situations.
+// Most importantly, the FIFO may need to be flushed, or a transfer
+// may need to be re-executed.
+        begin
+          if (   (FIFO_CONTAINS_DATA_MORE == 1'b0)
+               & (FIFO_CONTAINS_DATA_LAST == 1'b0))
+          begin
+            Master_Next_State[MS_Range:0] = PCI_MASTER_IDLE;
+          end
+          else if (FIFO_CONTAINS_ADDRESS == 1'b1)
+          begin
+            Master_Next_State[MS_Range:0] = PCI_MASTER_ADDR;
+          end
+          else if (Master_Abort == 1'b1)
+          begin
+            Master_Next_State[MS_Range:0] = PCI_MASTER_FLUSHING;
+          end
+          else // Request_FIFO_CONTAINS_DATA_????.  Bug
+          begin
+            Master_Next_State[MS_Range:0] = MS_X;  // error
+// synopsys translate_off
+            $display ("*** %m PCI Master STOP_TURN Fifo Contents Unknown %x at time %t",
+                           Master_Next_State[MS_Range:0], $time);
+// synopsys translate_on
+          end
+        end
+      PCI_MASTER_FLUSHING:
+        begin
+          if (fifo_data_available_meta == 1'b0)
+            Master_Next_State[MS_Range:0] = PCI_MASTER_FLUSHING;  // NOTE: WORKING
+          else if (FIFO_CONTAINS_DATA_MORE == 1'b1)
+            Master_Next_State[MS_Range:0] = PCI_MASTER_FLUSHING;  // NOTE: WORKING
+          else if (FIFO_CONTAINS_DATA_LAST == 1'b1)
+            Master_Next_State[MS_Range:0] = PCI_MASTER_IDLE;  // NOTE: WORKING
+          else
+            Master_Next_State[MS_Range:0] = PCI_MASTER_IDLE;  // NOTE: WORKING
+        end
+      default:
+        begin
+          Master_Next_State[MS_Range:0] = MS_X;  // error
+// synopsys translate_off
+          $display ("*** %m PCI Master State Machine Unknown %x at time %t",
+                           Master_Next_State[MS_Range:0], $time);
+// synopsys translate_on
+        end
+      endcase
+  end
+endfunction
+
+// Start a reference when the bus is idle, or immediately if fast back-to-back.
   wire    Waiting_For_External_PCI_Bus_To_Go_Idle;  // forward reference
   wire    Fast_Back_to_Back_Possible;  // forward reference
 
@@ -1154,6 +1471,8 @@ module pci_blue_master (
 // The way to think about this is that the State Machine reflects the
 //   PRESENT state of the PCI wires.  When you are in the Address state,
 //   the Address is valid on the bus.
+  reg    [MS_Range:0] PCI_Master_State;
+
   always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
   begin
     if (pci_reset_comb == 1'b1)
@@ -1162,300 +1481,18 @@ module pci_blue_master (
     end
     else
     begin
-      case (PCI_Master_State[MS_Range:0])
-      PCI_MASTER_IDLE:
-        begin
-          if (external_pci_bus_available == 1'b1)
-          begin                  // external_pci_bus_available is VERY LATE
-            if (Request_FIFO_CONTAINS_ADDRESS == 1'b0)  // bus park
-              PCI_Master_State[MS_Range:0] <= PCI_MASTER_PARK;
-            else if (Master_Doing_Config_Reference == 1'b1)
-              PCI_Master_State[MS_Range:0] <= PCI_MASTER_STEP;
-            else  // must be regular reference.
-              PCI_Master_State[MS_Range:0] <= PCI_MASTER_ADDR;
-          end
-          else
-            PCI_Master_State[MS_Range:0] <= PCI_MASTER_IDLE;
-        end
-      PCI_MASTER_PARK:
-        begin
-          if (external_pci_bus_available == 1'b1)
-          begin                  // external_pci_bus_available is VERY LATE
-            if (Request_FIFO_CONTAINS_ADDRESS == 1'b0)  // bus park
-              PCI_Master_State[MS_Range:0] <= PCI_MASTER_PARK;
-            else if (Master_Doing_Config_Reference == 1'b1)
-              PCI_Master_State[MS_Range:0] <= PCI_MASTER_STEP;
-            else  // must be regular reference.
-              PCI_Master_State[MS_Range:0] <= PCI_MASTER_ADDR;
-          end
-          else
-            PCI_Master_State[MS_Range:0] <= PCI_MASTER_IDLE;
-        end
-      PCI_MASTER_STEP:
-        begin                    // external_pci_bus_available is VERY LATE
-          if (external_pci_bus_available == 1'b1)
-            PCI_Master_State[MS_Range:0] <= PCI_MASTER_ADDR;
-          else
-            PCI_Master_State[MS_Range:0] <= PCI_MASTER_IDLE;
-        end
-      PCI_MASTER_ADDR:
-        begin  // when 64-bit Address added, -> PCI_MASTER_ADDR2
-          PCI_Master_State[MS_Range:0] <= PCI_MASTER_NO_IRDY;
-        end
-      PCI_MASTER_ADDR2:
-        begin  // Not implemented yet. Will be identical to Wait
-          PCI_Master_State[MS_Range:0] <= PCI_MASTER_NO_IRDY;
-        end
-      PCI_MASTER_NO_IRDY:
-        begin
-          if (Master_Abort_Detected == 1'b1)
-          begin
-            PCI_Master_State[MS_Range:0] <= PCI_MASTER_STOP_TURN;
-          end
-          else if (   (Request_FIFO_CONTAINS_DATA_MORE == 1'b0)
-                    & (Request_FIFO_CONTAINS_DATA_LAST == 1'b0))  // hold
-          begin
-            case ({pci_trdy_in_critical, pci_stop_in_critical})
-            TARGET_IDLE:      PCI_Master_State[MS_Range:0] <= PCI_MASTER_NO_IRDY;
-            TARGET_TAR:       PCI_Master_State[MS_Range:0] <= PCI_MASTER_STOP_TURN;
-            TARGET_DATA_MORE: PCI_Master_State[MS_Range:0] <= PCI_MASTER_NO_IRDY;
-            TARGET_DATA_LAST: PCI_Master_State[MS_Range:0] <= PCI_MASTER_NO_IRDY;
-            default:
-              begin
-// synopsys translate_off
-                PCI_Master_State[MS_Range:0] <= PCI_MASTER_IDLE;  // error
-                $display ("*** %m PCI Master Wait TRDY, STOP Unknown %x %x at time %t",
-                           pci_trdy_in_critical, pci_stop_in_critical, $time);
-// synopsys translate_on
-              end
-            endcase
-          end
-          else if (Request_FIFO_CONTAINS_DATA_MORE == 1'b1)
-          begin
-            case ({pci_trdy_in_critical, pci_stop_in_critical})
-            TARGET_IDLE:      PCI_Master_State[MS_Range:0] <= PCI_MASTER_DATA_MORE;
-            TARGET_TAR:       PCI_Master_State[MS_Range:0] <= PCI_MASTER_STOP_TURN;
-            TARGET_DATA_MORE: PCI_Master_State[MS_Range:0] <= PCI_MASTER_DATA_MORE;
-            TARGET_DATA_LAST: PCI_Master_State[MS_Range:0] <= PCI_MASTER_DATA_LAST;
-            default:
-              begin
-// synopsys translate_off
-                PCI_Master_State[MS_Range:0] <= PCI_MASTER_IDLE;  // error
-                $display ("*** %m PCI Master Wait TRDY, STOP Unknown %x %x at time %t",
-                           pci_trdy_in_critical, pci_stop_in_critical, $time);
-// synopsys translate_on
-              end
-            endcase
-          end
-          else if (Request_FIFO_CONTAINS_DATA_LAST == 1'b1)
-          begin
-            case ({pci_trdy_in_critical, pci_stop_in_critical})
-            TARGET_IDLE:      PCI_Master_State[MS_Range:0] <= PCI_MASTER_DATA_LAST;
-            TARGET_TAR:       PCI_Master_State[MS_Range:0] <= PCI_MASTER_STOP_TURN;
-            TARGET_DATA_MORE: PCI_Master_State[MS_Range:0] <= PCI_MASTER_DATA_LAST;
-            TARGET_DATA_LAST: PCI_Master_State[MS_Range:0] <= PCI_MASTER_DATA_LAST;
-            default:
-              begin
-// synopsys translate_off
-                PCI_Master_State[MS_Range:0] <= PCI_MASTER_IDLE;  // error
-                $display ("*** %m PCI Master Wait TRDY, STOP Unknown %x %x at time %t",
-                           pci_trdy_in_critical, pci_stop_in_critical, $time);
-// synopsys translate_on
-              end
-            endcase
-          end
-          else  // Fifo has something wrong with it.  Bug.
-          begin
-            PCI_Master_State[MS_Range:0] <= PCI_MASTER_IDLE;  // error
-// synopsys translate_off
-            $display ("*** %m PCI Master WAIT Fifo Contents Unknown %x at time %t",
-                           PCI_Master_State[MS_Range:0], $time);
-// synopsys translate_on
-          end
-        end
-      PCI_MASTER_DATA_MORE:
-        begin
-          if (Master_Abort_Detected == 1'b1)
-          begin
-            PCI_Master_State[MS_Range:0] <= PCI_MASTER_STOP_TURN;
-          end
-          else if (   (Request_FIFO_CONTAINS_DATA_MORE == 1'b0)
-                    & (Request_FIFO_CONTAINS_DATA_LAST == 1'b0))  // hold
-          begin
-            case ({pci_trdy_in_critical, pci_stop_in_critical})
-            TARGET_IDLE:      PCI_Master_State[MS_Range:0] <= PCI_MASTER_DATA_MORE;
-            TARGET_TAR:       PCI_Master_State[MS_Range:0] <= PCI_MASTER_STOP_TURN;
-            TARGET_DATA_MORE: PCI_Master_State[MS_Range:0] <= PCI_MASTER_NO_IRDY;
-            TARGET_DATA_LAST: PCI_Master_State[MS_Range:0] <= PCI_MASTER_DATA_LAST;
-            default:
-              begin
-// synopsys translate_off
-                PCI_Master_State[MS_Range:0] <= PCI_MASTER_IDLE;  // error
-                $display ("*** %m PCI Master Data More TRDY, STOP Unknown %x %x at time %t",
-                           pci_trdy_in_critical, pci_stop_in_critical, $time);
-// synopsys translate_on
-              end
-            endcase
-          end
-          else if (Request_FIFO_CONTAINS_DATA_MORE == 1'b1)
-          begin
-            case ({pci_trdy_in_critical, pci_stop_in_critical})
-            TARGET_IDLE:      PCI_Master_State[MS_Range:0] <= PCI_MASTER_DATA_MORE;
-            TARGET_TAR:       PCI_Master_State[MS_Range:0] <= PCI_MASTER_STOP_TURN;
-            TARGET_DATA_MORE: PCI_Master_State[MS_Range:0] <= PCI_MASTER_DATA_MORE;
-            TARGET_DATA_LAST: PCI_Master_State[MS_Range:0] <= PCI_MASTER_DATA_LAST;
-            default:
-              begin
-// synopsys translate_off
-                PCI_Master_State[MS_Range:0] <= PCI_MASTER_IDLE;  // error
-                $display ("*** %m PCI Master Data More TRDY, STOP Unknown %x %x at time %t",
-                           pci_trdy_in_critical, pci_stop_in_critical, $time);
-// synopsys translate_on
-              end
-            endcase
-          end
-          else if (Request_FIFO_CONTAINS_DATA_LAST == 1'b1)
-          begin
-            case ({pci_trdy_in_critical, pci_stop_in_critical})
-            TARGET_IDLE:      PCI_Master_State[MS_Range:0] <= PCI_MASTER_DATA_MORE;
-            TARGET_TAR:       PCI_Master_State[MS_Range:0] <= PCI_MASTER_STOP_TURN;
-            TARGET_DATA_MORE: PCI_Master_State[MS_Range:0] <= PCI_MASTER_DATA_LAST;
-            TARGET_DATA_LAST: PCI_Master_State[MS_Range:0] <= PCI_MASTER_DATA_LAST;
-            default:
-              begin
-// synopsys translate_off
-                PCI_Master_State[MS_Range:0] <= PCI_MASTER_IDLE;  // error
-                $display ("*** %m PCI Master Data More TRDY, STOP Unknown %x %x at time %t",
-                           pci_trdy_in_critical, pci_stop_in_critical, $time);
-// synopsys translate_on
-              end
-            endcase
-          end
-          else  // Fifo has something wrong with it.  Bug.
-          begin
-            PCI_Master_State[MS_Range:0] <= PCI_MASTER_IDLE;  // error
-// synopsys translate_off
-            $display ("*** %m PCI Master Data More Fifo Contents Unknown %x at time %t",
-                           PCI_Master_State[MS_Range:0], $time);
-// synopsys translate_on
-          end
-        end
-      PCI_MASTER_DATA_LAST:
-        begin
-          if (Master_Abort_Detected == 1'b1)
-          begin
-            PCI_Master_State[MS_Range:0] <= PCI_MASTER_STOP_TURN;
-          end
-          else if (   (Request_FIFO_CONTAINS_ADDRESS == 1'b0)
-                    | (Fast_Back_to_Back_Possible == 1'b0))  // go idle
-          begin
-            case ({pci_trdy_in_critical, pci_stop_in_critical})
-            TARGET_IDLE:      PCI_Master_State[MS_Range:0] <= PCI_MASTER_DATA_LAST;
-            TARGET_TAR:       PCI_Master_State[MS_Range:0] <= PCI_MASTER_IDLE;
-            TARGET_DATA_MORE: PCI_Master_State[MS_Range:0] <= PCI_MASTER_IDLE;
-            TARGET_DATA_LAST: PCI_Master_State[MS_Range:0] <= PCI_MASTER_IDLE;
-            default:
-              begin
-// synopsys translate_off
-                PCI_Master_State[MS_Range:0] <= PCI_MASTER_NO_IRDY;  // error
-                $display ("*** %m PCI Master Data Last TRDY, STOP Unknown %x %x at time %t",
-                           pci_trdy_in_critical, pci_stop_in_critical, $time);
-// synopsys translate_on
-              end
-            endcase
-          end
-          else if (   (Request_FIFO_CONTAINS_ADDRESS == 1'b1)
-                    & (Fast_Back_to_Back_Possible == 1'b1)
-                    & (Master_Doing_Config_Reference == 1'b1))
-          begin
-            case ({pci_trdy_in_critical, pci_stop_in_critical})
-            TARGET_IDLE:      PCI_Master_State[MS_Range:0] <= PCI_MASTER_DATA_LAST;
-            TARGET_TAR:       PCI_Master_State[MS_Range:0] <= PCI_MASTER_STEP;
-            TARGET_DATA_MORE: PCI_Master_State[MS_Range:0] <= PCI_MASTER_STEP;
-            TARGET_DATA_LAST: PCI_Master_State[MS_Range:0] <= PCI_MASTER_STEP;
-            default:
-              begin
-// synopsys translate_off
-                PCI_Master_State[MS_Range:0] <= PCI_MASTER_NO_IRDY;  // error
-                $display ("*** %m PCI Master Data Last TRDY, STOP Unknown %x %x at time %t",
-                           pci_trdy_in_critical, pci_stop_in_critical, $time);
-// synopsys translate_on
-              end
-            endcase
-          end
-          else  // must be regular reference.
-          begin
-            case ({pci_trdy_in_critical, pci_stop_in_critical})
-            TARGET_IDLE:      PCI_Master_State[MS_Range:0] <= PCI_MASTER_DATA_LAST;
-            TARGET_TAR:       PCI_Master_State[MS_Range:0] <= PCI_MASTER_ADDR;
-            TARGET_DATA_MORE: PCI_Master_State[MS_Range:0] <= PCI_MASTER_ADDR;
-            TARGET_DATA_LAST: PCI_Master_State[MS_Range:0] <= PCI_MASTER_ADDR;
-            default:
-              begin
-// synopsys translate_off
-                PCI_Master_State[MS_Range:0] <= PCI_MASTER_NO_IRDY;  // error
-                $display ("*** %m PCI Master Data Last TRDY, STOP Unknown %x %x at time %t",
-                           pci_trdy_in_critical, pci_stop_in_critical, $time);
-// synopsys translate_on
-              end
-            endcase
-          end
-// NOTE: No ELSE term to get to Bus Park.  It is not necessary to go directly
-//    to a parked condition.  Get to park by going through IDLE.  See the PCI
-//    Local Bus Spec Revision 2.2 section 3.4.3 for details.
-        end
-      PCI_MASTER_STOP_TURN:
-// NOTE: WORKING  Got here for one of several reasons:
-//  1) Got a Master Abort
-//  2) Got a Target Abort
-//  3) Got a Target Retry with no data transferred
-//  4) Got a Target Retry with data transferred
-// The correct actions have to be taken for each of these situations.
-// Most importantly, the FIFO may need to be flushed, or a transfer
-// may need to be re-executed.
-        begin
-          if (   (Request_FIFO_CONTAINS_DATA_MORE == 1'b0)
-               & (Request_FIFO_CONTAINS_DATA_LAST == 1'b0))
-          begin
-            PCI_Master_State[MS_Range:0] <= PCI_MASTER_IDLE;
-          end
-          else if (Request_FIFO_CONTAINS_ADDRESS == 1'b1)
-          begin
-            PCI_Master_State[MS_Range:0] <= PCI_MASTER_ADDR;
-          end
-          else if (Master_Abort_Detected == 1'b1)
-          begin
-            PCI_Master_State[MS_Range:0] <= PCI_MASTER_FLUSHING;
-          end
-          else // Request_FIFO_CONTAINS_DATA_????.  Bug
-          begin
-            PCI_Master_State[MS_Range:0] <= PCI_MASTER_IDLE;  // error
-// synopsys translate_off
-            $display ("*** %m PCI Master STOP_TURN Fifo Contents Unknown %x at time %t",
-                           PCI_Master_State[MS_Range:0], $time);
-// synopsys translate_on
-          end
-        end
-      PCI_MASTER_FLUSHING:
-        begin
-          if (request_fifo_data_available_meta == 1'b0)
-            PCI_Master_State[MS_Range:0] <= PCI_MASTER_FLUSHING;  // NOTE: WORKING
-          else if (Request_FIFO_CONTAINS_DATA_MORE == 1'b1)
-            PCI_Master_State[MS_Range:0] <= PCI_MASTER_FLUSHING;  // NOTE: WORKING
-          else if (Request_FIFO_CONTAINS_DATA_LAST == 1'b1)
-            PCI_Master_State[MS_Range:0] <= PCI_MASTER_IDLE;  // NOTE: WORKING
-          else
-            PCI_Master_State[MS_Range:0] <= PCI_MASTER_IDLE;  // NOTE: WORKING
-        end
-      default:
-        begin
-          PCI_Master_State[MS_Range:0] <= {(MS_Range+1){1'bX}};  // error
-// synopsys translate_off
-          $display ("*** %m PCI Master State Machine Unknown %x at time %t",
-                           PCI_Master_State[MS_Range:0], $time);
-// synopsys translate_on
-        end
-      endcase
+      PCI_Master_State[MS_Range:0] <= Master_Next_State (
+        PCI_Master_State[MS_Range:0],
+        external_pci_bus_available,
+        Request_FIFO_CONTAINS_ADDRESS,
+        Master_Doing_Config_Reference,
+        Master_Abort_Detected,
+        Request_FIFO_CONTAINS_DATA_MORE,
+        Request_FIFO_CONTAINS_DATA_LAST,
+        pci_trdy_in_critical,
+        pci_stop_in_critical,
+        Fast_Back_to_Back_Possible,
+        request_fifo_data_available_meta );
     end
   end
 
@@ -1608,7 +1645,7 @@ module pci_blue_master (
               | (PCI_Master_State[MS_Range:0] == PCI_MASTER_ADDR2)            // Byte Enables
               | 1'b0;  // NOTE: WORKING need fast back-to-back term
 
-  wire   [1:0] PCI_Next_FRAME_Code =
+  wire   [2:0] PCI_Next_FRAME_Code =
                 (    (PCI_Master_State[MS_Range:0] == PCI_MASTER_IDLE)
                                                  ? FRAME_0 : FRAME_0)
               | (    (PCI_Master_State[MS_Range:0] == PCI_MASTER_PARK)
@@ -1652,8 +1689,7 @@ module pci_blue_master (
               | (    (PCI_Master_State[MS_Range:0] == PCI_MASTER_FLUSHING)
                                                  ? FRAME_0 : FRAME_0);
 pci_critical_next_frame pci_critical_next_frame (
-  .PCI_Next_FRAME_Force_1     (PCI_Next_FRAME_Force_1),
-  .PCI_Next_FRAME_Code        (PCI_Next_FRAME_Code[1:0]),
+  .PCI_Next_FRAME_Code        (PCI_Next_FRAME_Code[2:0]),
   .pci_trdy_in_critical       (pci_trdy_in_critical),
   .pci_stop_in_critical       (pci_stop_in_critical),
   .pci_frame_out_next         (pci_frame_out_next)
