@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_vendor_lib.v,v 1.7 2001-07-03 09:21:40 bbeaver Exp $
+// $Id: pci_vendor_lib.v,v 1.8 2001-07-05 08:00:10 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -276,29 +276,29 @@ module pci_critical_next_frame (
 
 // See pci_blue_master.v for encoding
   wire    Output_If_Idle =
-                    (PCI_Next_FRAME_Code[2:0] == 3'b100) ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b101) ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b110) ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b111) ? 1'b1
-                 : 1'b0)));
+                    (PCI_Next_FRAME_Code[2:0] == 3'b000) ? 1'b0
+                 : ((PCI_Next_FRAME_Code[2:0] == 3'b001) ? 1'b1
+                 : ((PCI_Next_FRAME_Code[2:0] == 3'b010) ? 1'b1
+                 : ((PCI_Next_FRAME_Code[2:0] == 3'b011) ? 1'b1
+                 : 1'b1)));
   wire    Output_If_Disconnect_Retry_Abort =
-                    (PCI_Next_FRAME_Code[2:0] == 3'b100) ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b101) ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b110) ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b111) ? 1'b0
-                 : 1'b0)));
+                    (PCI_Next_FRAME_Code[2:0] == 3'b000) ? 1'b0
+                 : ((PCI_Next_FRAME_Code[2:0] == 3'b001) ? 1'b0
+                 : ((PCI_Next_FRAME_Code[2:0] == 3'b010) ? 1'b0
+                 : ((PCI_Next_FRAME_Code[2:0] == 3'b011) ? 1'b0
+                 : 1'b1)));
   wire    Output_If_Data_More =
-                    (PCI_Next_FRAME_Code[2:0] == 3'b100) ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b101) ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b110) ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b111) ? 1'b0
-                 : 1'b0)));
+                    (PCI_Next_FRAME_Code[2:0] == 3'b000) ? 1'b0
+                 : ((PCI_Next_FRAME_Code[2:0] == 3'b001) ? 1'b1
+                 : ((PCI_Next_FRAME_Code[2:0] == 3'b010) ? 1'b1
+                 : ((PCI_Next_FRAME_Code[2:0] == 3'b011) ? 1'b0
+                 : 1'b1)));
   wire    Output_If_Data_Last =
-                    (PCI_Next_FRAME_Code[2:0] == 3'b100) ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b101) ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b110) ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b111) ? 1'b0
-                 : 1'b0)));
+                    (PCI_Next_FRAME_Code[2:0] == 3'b000) ? 1'b0
+                 : ((PCI_Next_FRAME_Code[2:0] == 3'b001) ? 1'b1
+                 : ((PCI_Next_FRAME_Code[2:0] == 3'b010) ? 1'b0
+                 : ((PCI_Next_FRAME_Code[2:0] == 3'b011) ? 1'b0
+                 : 1'b1)));
 
 // Implement as 4-1 MUX, using pci_trdy_in_comb and pci_stop_in_comb as
 // the VERY LATE selection wires.  The cases are:
@@ -331,29 +331,29 @@ module pci_critical_next_irdy (
 
 // See pci_blue_master.v for encoding
   wire    Output_If_Idle =
-                    (PCI_Next_IRDY_Code[2:0] == 3'b100) ? 1'b1
-                 : ((PCI_Next_IRDY_Code[2:0] == 3'b101) ? 1'b0
-                 : ((PCI_Next_IRDY_Code[2:0] == 3'b110) ? 1'b1
-                 : ((PCI_Next_IRDY_Code[2:0] == 3'b111) ? 1'b1
-                 : 1'b0)));
+                    (PCI_Next_IRDY_Code[2:0] == 3'b000) ? 1'b0
+                 : ((PCI_Next_IRDY_Code[2:0] == 3'b001) ? 1'b0
+                 : ((PCI_Next_IRDY_Code[2:0] == 3'b010) ? 1'b1
+                 : ((PCI_Next_IRDY_Code[2:0] == 3'b011) ? 1'b1
+                 : 1'b1)));
   wire    Output_If_Disconnect_Retry_Abort =
-                    (PCI_Next_IRDY_Code[2:0] == 3'b100) ? 1'b1
-                 : ((PCI_Next_IRDY_Code[2:0] == 3'b101) ? 1'b1
-                 : ((PCI_Next_IRDY_Code[2:0] == 3'b110) ? 1'b0
-                 : ((PCI_Next_IRDY_Code[2:0] == 3'b111) ? 1'b0
-                 : 1'b0)));
+                    (PCI_Next_IRDY_Code[2:0] == 3'b000) ? 1'b0
+                 : ((PCI_Next_IRDY_Code[2:0] == 3'b001) ? 1'b1
+                 : ((PCI_Next_IRDY_Code[2:0] == 3'b010) ? 1'b0
+                 : ((PCI_Next_IRDY_Code[2:0] == 3'b011) ? 1'b0
+                 : 1'b1)));
   wire    Output_If_Data_More =
-                    (PCI_Next_IRDY_Code[2:0] == 3'b100) ? 1'b1
-                 : ((PCI_Next_IRDY_Code[2:0] == 3'b101) ? 1'b0
-                 : ((PCI_Next_IRDY_Code[2:0] == 3'b110) ? 1'b0
-                 : ((PCI_Next_IRDY_Code[2:0] == 3'b111) ? 1'b0
-                 : 1'b0)));
+                    (PCI_Next_IRDY_Code[2:0] == 3'b000) ? 1'b0
+                 : ((PCI_Next_IRDY_Code[2:0] == 3'b001) ? 1'b0
+                 : ((PCI_Next_IRDY_Code[2:0] == 3'b010) ? 1'b0
+                 : ((PCI_Next_IRDY_Code[2:0] == 3'b011) ? 1'b0
+                 : 1'b1)));
   wire    Output_If_Data_Last =
-                    (PCI_Next_IRDY_Code[2:0] == 3'b100) ? 1'b1
-                 : ((PCI_Next_IRDY_Code[2:0] == 3'b101) ? 1'b0
-                 : ((PCI_Next_IRDY_Code[2:0] == 3'b110) ? 1'b1
-                 : ((PCI_Next_IRDY_Code[2:0] == 3'b111) ? 1'b0
-                 : 1'b0)));
+                    (PCI_Next_IRDY_Code[2:0] == 3'b000) ? 1'b0
+                 : ((PCI_Next_IRDY_Code[2:0] == 3'b001) ? 1'b0
+                 : ((PCI_Next_IRDY_Code[2:0] == 3'b010) ? 1'b1
+                 : ((PCI_Next_IRDY_Code[2:0] == 3'b011) ? 1'b0
+                 : 1'b1)));
 
 // Implement as 4-1 MUX, using pci_trdy_in_comb and pci_stop_in_comb as
 // the VERY LATE selection wires.  The cases are:
@@ -387,23 +387,23 @@ module pci_critical_next_devsel (
 // See pci_blue_target.v for encoding
 // NOTE: not done yet
   wire    Output_If_Idle =
-                    (PCI_Next_DEVSEL_Code[2:0] == 3'b100) ? 1'b1
-                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b101) ? 1'b0
-                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b110) ? 1'b1
-                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b111) ? 1'b1
-                 : 1'b0)));
+                    (PCI_Next_DEVSEL_Code[2:0] == 3'b000) ? 1'b0
+                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b001) ? 1'b0
+                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b010) ? 1'b1
+                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b011) ? 1'b1
+                 : 1'b1)));
   wire    Output_If_Data_More =
-                    (PCI_Next_DEVSEL_Code[2:0] == 3'b100) ? 1'b1
-                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b101) ? 1'b0
-                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b110) ? 1'b0
-                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b111) ? 1'b0
-                 : 1'b0)));
+                    (PCI_Next_DEVSEL_Code[2:0] == 3'b000) ? 1'b0
+                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b001) ? 1'b0
+                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b010) ? 1'b0
+                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b011) ? 1'b0
+                 : 1'b1)));
   wire    Output_If_Data_Last =
-                    (PCI_Next_DEVSEL_Code[2:0] == 3'b100) ? 1'b1
-                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b101) ? 1'b0
-                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b110) ? 1'b1
-                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b111) ? 1'b0
-                 : 1'b0)));
+                    (PCI_Next_DEVSEL_Code[2:0] == 3'b000) ? 1'b0
+                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b001) ? 1'b0
+                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b010) ? 1'b1
+                 : ((PCI_Next_DEVSEL_Code[2:0] == 3'b011) ? 1'b0
+                 : 1'b1)));
 
 // Implement as 4-1 MUX, using pci_frame_in_comb and pci_irdy_in_comb as
 // the VERY LATE selection wires.  The cases are:
@@ -434,23 +434,23 @@ module pci_critical_next_trdy (
 // See pci_blue_target.v for encoding
 // NOTE: not done yet
   wire    Output_If_Idle =
-                    (PCI_Next_TRDY_Code[2:0] == 3'b100) ? 1'b1
-                 : ((PCI_Next_TRDY_Code[2:0] == 3'b101) ? 1'b0
-                 : ((PCI_Next_TRDY_Code[2:0] == 3'b110) ? 1'b1
-                 : ((PCI_Next_TRDY_Code[2:0] == 3'b111) ? 1'b1
-                 : 1'b0)));
+                    (PCI_Next_TRDY_Code[2:0] == 3'b000) ? 1'b0
+                 : ((PCI_Next_TRDY_Code[2:0] == 3'b001) ? 1'b0
+                 : ((PCI_Next_TRDY_Code[2:0] == 3'b010) ? 1'b1
+                 : ((PCI_Next_TRDY_Code[2:0] == 3'b011) ? 1'b1
+                 : 1'b1)));
   wire    Output_If_Data_More =
-                    (PCI_Next_TRDY_Code[2:0] == 3'b100) ? 1'b1
-                 : ((PCI_Next_TRDY_Code[2:0] == 3'b101) ? 1'b0
-                 : ((PCI_Next_TRDY_Code[2:0] == 3'b110) ? 1'b0
-                 : ((PCI_Next_TRDY_Code[2:0] == 3'b111) ? 1'b0
-                 : 1'b0)));
+                    (PCI_Next_TRDY_Code[2:0] == 3'b000) ? 1'b0
+                 : ((PCI_Next_TRDY_Code[2:0] == 3'b001) ? 1'b0
+                 : ((PCI_Next_TRDY_Code[2:0] == 3'b010) ? 1'b0
+                 : ((PCI_Next_TRDY_Code[2:0] == 3'b011) ? 1'b0
+                 : 1'b1)));
   wire    Output_If_Data_Last =
-                    (PCI_Next_TRDY_Code[2:0] == 3'b100) ? 1'b1
-                 : ((PCI_Next_TRDY_Code[2:0] == 3'b101) ? 1'b0
-                 : ((PCI_Next_TRDY_Code[2:0] == 3'b110) ? 1'b1
-                 : ((PCI_Next_TRDY_Code[2:0] == 3'b111) ? 1'b0
-                 : 1'b0)));
+                    (PCI_Next_TRDY_Code[2:0] == 3'b000) ? 1'b0
+                 : ((PCI_Next_TRDY_Code[2:0] == 3'b001) ? 1'b0
+                 : ((PCI_Next_TRDY_Code[2:0] == 3'b010) ? 1'b1
+                 : ((PCI_Next_TRDY_Code[2:0] == 3'b011) ? 1'b0
+                 : 1'b1)));
 
 // Implement as 4-1 MUX, using pci_frame_in_comb and pci_irdy_in_comb as
 // the VERY LATE selection wires.  The cases are:
@@ -481,23 +481,23 @@ module pci_critical_next_stop (
 // See pci_blue_target.v for encoding
 // NOTE: not done yet
   wire    Output_If_Idle =
-                    (PCI_Next_STOP_Code[2:0] == 3'b100) ? 1'b1
-                 : ((PCI_Next_STOP_Code[2:0] == 3'b101) ? 1'b0
-                 : ((PCI_Next_STOP_Code[2:0] == 3'b110) ? 1'b1
-                 : ((PCI_Next_STOP_Code[2:0] == 3'b111) ? 1'b1
-                 : 1'b0)));
+                    (PCI_Next_STOP_Code[2:0] == 3'b000) ? 1'b0
+                 : ((PCI_Next_STOP_Code[2:0] == 3'b001) ? 1'b0
+                 : ((PCI_Next_STOP_Code[2:0] == 3'b010) ? 1'b1
+                 : ((PCI_Next_STOP_Code[2:0] == 3'b011) ? 1'b1
+                 : 1'b1)));
   wire    Output_If_Data_More =
-                    (PCI_Next_STOP_Code[2:0] == 3'b100) ? 1'b1
-                 : ((PCI_Next_STOP_Code[2:0] == 3'b101) ? 1'b0
-                 : ((PCI_Next_STOP_Code[2:0] == 3'b110) ? 1'b0
-                 : ((PCI_Next_STOP_Code[2:0] == 3'b111) ? 1'b0
-                 : 1'b0)));
+                    (PCI_Next_STOP_Code[2:0] == 3'b000) ? 1'b0
+                 : ((PCI_Next_STOP_Code[2:0] == 3'b001) ? 1'b0
+                 : ((PCI_Next_STOP_Code[2:0] == 3'b010) ? 1'b0
+                 : ((PCI_Next_STOP_Code[2:0] == 3'b011) ? 1'b0
+                 : 1'b1)));
   wire    Output_If_Data_Last =
-                    (PCI_Next_STOP_Code[2:0] == 3'b100) ? 1'b1
-                 : ((PCI_Next_STOP_Code[2:0] == 3'b101) ? 1'b0
-                 : ((PCI_Next_STOP_Code[2:0] == 3'b110) ? 1'b1
-                 : ((PCI_Next_STOP_Code[2:0] == 3'b111) ? 1'b0
-                 : 1'b0)));
+                    (PCI_Next_STOP_Code[2:0] == 3'b000) ? 1'b0
+                 : ((PCI_Next_STOP_Code[2:0] == 3'b001) ? 1'b0
+                 : ((PCI_Next_STOP_Code[2:0] == 3'b010) ? 1'b1
+                 : ((PCI_Next_STOP_Code[2:0] == 3'b011) ? 1'b0
+                 : 1'b1)));
 
 // Implement as 4-1 MUX, using pci_frame_in_comb and pci_irdy_in_comb as
 // the VERY LATE selection wires.  The cases are:

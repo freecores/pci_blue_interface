@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_master.v,v 1.6 2001-07-05 02:42:55 bbeaver Exp $
+// $Id: test_pci_master.v,v 1.7 2001-07-05 08:00:09 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -67,7 +67,6 @@
 `timescale 1ns/1ps
 
 module pci_test_master (
-  pci_clk,
   host_reset_comb,
   pci_host_request_submit,
   pci_request_fifo_error,
@@ -79,6 +78,7 @@ module pci_test_master (
   master_to_target_status_unload,
   pci_req_out_next, pci_req_out_oe_comb,
   pci_gnt_in_comb,
+  pci_clk,
   pci_master_ad_out_next,  pci_master_ad_out_oe_comb,
   pci_ad_in_prev,
   pci_cbe_l_out_next, pci_cbe_out_oe_comb,
@@ -92,9 +92,8 @@ module pci_test_master (
   pci_retry_data,  // TEMPORARY
   pci_target_full,  // TEMPORARY
   pci_bus_full,  // TEMPORARY
-  pci_status_data,  // TEMPORARY
-  two_words_avail,  // TEMPORARY
   one_word_avail,  // TEMPORARY
+  two_words_avail,  // TEMPORARY
   addr_aval,  // TEMPORARY
   working,  // TEMPORARY
   pci_devsel_in_comb, pci_devsel_in_prev,
@@ -108,7 +107,6 @@ module pci_test_master (
   master_caused_parity_error,
   master_asked_to_retry
 );
-  output  pci_clk;
   output  host_reset_comb;
   output  pci_host_request_submit;
   output  pci_request_fifo_error;
@@ -121,6 +119,7 @@ module pci_test_master (
   output  pci_req_out_next;
   output  pci_req_out_oe_comb;
   output  pci_gnt_in_comb;
+  output  pci_clk;
   output [`PCI_BUS_DATA_RANGE] pci_ad_in_prev;
   output [`PCI_BUS_DATA_RANGE] pci_master_ad_out_next;
   output  pci_master_ad_out_oe_comb;
@@ -136,9 +135,8 @@ module pci_test_master (
   output [31:0] pci_retry_data;  // TEMPORARY
   output  pci_target_full;  // TEMPORARY
   output  pci_bus_full;  // TEMPORARY
-  output [31:0] pci_status_data;  // TEMPORARY
-  output  two_words_avail;  // TEMPORARY
   output  one_word_avail;  // TEMPORARY
+  output  two_words_avail;  // TEMPORARY
   output  addr_aval;  // TEMPORARY
   output  working;  // TEMPORARY
   output  pci_devsel_in_comb, pci_devsel_in_prev;
@@ -159,11 +157,10 @@ module pci_test_master (
   assign  pci_retry_data[31:0]  = pci_blue_master.Master_Retry_Data[31:0];               // TEMPORARY
   assign  pci_target_full       = pci_blue_master.master_to_target_status_full;          // TEMPORARY
   assign  pci_bus_full          = pci_blue_master.master_request_full;                    // TEMPORARY
-  assign  pci_status_data[31:0] = pci_blue_master.pci_request_fifo_data_current[`PCI_FIFO_DATA_RANGE] ;  // TEMPORARY
   assign  two_words_avail       = pci_blue_master.request_fifo_two_words_available_meta;  // TEMPORARY
   assign  one_word_avail        = pci_blue_master.request_fifo_data_available_meta;      // TEMPORARY
   assign  addr_aval             = pci_blue_master.Request_FIFO_CONTAINS_ADDRESS;         // TEMPORARY
-  assign  working               = pci_blue_master.master_to_target_status_unload;        // TEMPORARY
+  assign  working               = pci_blue_master.Master_Abort_Detected;        // TEMPORARY
 
 // PCI signals
   wire    pci_req_out_next, pci_req_out_oe_comb;
