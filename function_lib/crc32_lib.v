@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: crc32_lib.v,v 1.9 2001-08-24 13:13:36 bbeaver Exp $
+// $Id: crc32_lib.v,v 1.10 2001-08-25 05:09:56 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -678,7 +678,77 @@ module crc_32_64_private (
   input  [`NUMBER_OF_BITS_IN_CRC - 1 : 0] present_crc;
   input  [63:0] data_in_64;
   output [`NUMBER_OF_BITS_IN_CRC - 1 : 0] next_crc;
+/*
+{
+                      ^X5          ^X8^X9      ^X11                  ^X15                                          ^X23^X24^X25      ^X27^X28^X29^X30^X31      ^X33            ^X36                                    ^X43^X44      ^X46^X47      ^X49            ^X52^X53^X54            ^X57      ^X59^X60      ^X62      ,
+                 ^X4          ^X7^X8     ^X10                  ^X14                                          ^X22^X23^X24      ^X26^X27^X28^X29^X30      ^X32            ^X35                                    ^X42^X43      ^X45^X46      ^X48            ^X51^X52^X53            ^X56      ^X58^X59      ^X61      ^X63,
+            ^X3          ^X6^X7     ^X9                  ^X13                                          ^X21^X22^X23      ^X25^X26^X27^X28^X29      ^X31            ^X34                                    ^X41^X42      ^X44^X45      ^X47            ^X50^X51^X52            ^X55      ^X57^X58      ^X60      ^X62^X63,
+       ^X2          ^X5^X6     ^X8                 ^X12                                          ^X20^X21^X22      ^X24^X25^X26^X27^X28      ^X30            ^X33                                    ^X40^X41      ^X43^X44      ^X46            ^X49^X50^X51            ^X54      ^X56^X57      ^X59      ^X61^X62^X63,
+  ^X1          ^X4^X5     ^X7                ^X11                                          ^X19^X20^X21      ^X23^X24^X25^X26^X27      ^X29            ^X32                                    ^X39^X40      ^X42^X43      ^X45            ^X48^X49^X50            ^X53      ^X55^X56      ^X58      ^X60^X61^X62^X63,
+X0          ^X3^X4     ^X6               ^X10                                          ^X18^X19^X20      ^X22^X23^X24^X25^X26      ^X28            ^X31                                    ^X38^X39      ^X41^X42      ^X44            ^X47^X48^X49            ^X52      ^X54^X55      ^X57      ^X59^X60^X61^X62      ,
+       ^X2^X3                    ^X8           ^X11                  ^X15      ^X17^X18^X19      ^X21^X22                              ^X28^X29      ^X31      ^X33            ^X36^X37^X38      ^X40^X41            ^X44                  ^X48^X49      ^X51^X52                  ^X56^X57^X58            ^X61^X62      ,
+  ^X1^X2                    ^X7          ^X10                  ^X14      ^X16^X17^X18      ^X20^X21                              ^X27^X28      ^X30      ^X32            ^X35^X36^X37      ^X39^X40            ^X43                  ^X47^X48      ^X50^X51                  ^X55^X56^X57            ^X60^X61      ^X63,
+X0^X1                    ^X6          ^X9                  ^X13      ^X15^X16^X17      ^X19^X20                              ^X26^X27      ^X29      ^X31            ^X34^X35^X36      ^X38^X39            ^X42                  ^X46^X47      ^X49^X50                  ^X54^X55^X56            ^X59^X60      ^X62      ,
+X0                                        ^X9      ^X11^X12      ^X14      ^X16      ^X18^X19                  ^X23^X24      ^X26^X27      ^X29      ^X31            ^X34^X35^X36^X37^X38            ^X41      ^X43^X44^X45      ^X47^X48                  ^X52            ^X55      ^X57^X58      ^X60^X61^X62      ,
+                      ^X5               ^X9^X10            ^X13                  ^X17^X18                  ^X22      ^X24      ^X26^X27      ^X29      ^X31            ^X34^X35      ^X37            ^X40      ^X42                                    ^X49      ^X51^X52^X53            ^X56                        ^X61^X62      ,
+                 ^X4               ^X8^X9            ^X12                  ^X16^X17                  ^X21      ^X23      ^X25^X26      ^X28      ^X30            ^X33^X34      ^X36            ^X39      ^X41                                    ^X48      ^X50^X51^X52            ^X55                        ^X60^X61            ,
+            ^X3               ^X7^X8           ^X11                  ^X15^X16                  ^X20      ^X22      ^X24^X25      ^X27      ^X29            ^X32^X33      ^X35            ^X38      ^X40                                    ^X47      ^X49^X50^X51            ^X54                        ^X59^X60                  ,
+       ^X2               ^X6^X7          ^X10                  ^X14^X15                  ^X19      ^X21      ^X23^X24      ^X26      ^X28            ^X31^X32      ^X34            ^X37      ^X39                                    ^X46      ^X48^X49^X50            ^X53                        ^X58^X59                        ,
+  ^X1               ^X5^X6          ^X9                  ^X13^X14                  ^X18      ^X20      ^X22^X23      ^X25      ^X27            ^X30^X31      ^X33            ^X36      ^X38                                    ^X45      ^X47^X48^X49            ^X52                        ^X57^X58                              ,
+X0               ^X4^X5          ^X8                 ^X12^X13                  ^X17      ^X19      ^X21^X22      ^X24      ^X26            ^X29^X30      ^X32            ^X35      ^X37                                    ^X44      ^X46^X47^X48            ^X51                        ^X56^X57                                    ,
+            ^X3^X4^X5     ^X7^X8^X9            ^X12            ^X15^X16      ^X18      ^X20^X21            ^X24            ^X27            ^X30            ^X33^X34                                                      ^X44^X45                  ^X49^X50      ^X52^X53^X54^X55^X56^X57      ^X59^X60      ^X62      ,
+       ^X2^X3^X4     ^X6^X7^X8           ^X11            ^X14^X15      ^X17      ^X19^X20            ^X23            ^X26            ^X29            ^X32^X33                                                      ^X43^X44                  ^X48^X49      ^X51^X52^X53^X54^X55^X56      ^X58^X59      ^X61      ^X63,
+  ^X1^X2^X3     ^X5^X6^X7          ^X10            ^X13^X14      ^X16      ^X18^X19            ^X22            ^X25            ^X28            ^X31^X32                                                      ^X42^X43                  ^X47^X48      ^X50^X51^X52^X53^X54^X55      ^X57^X58      ^X60      ^X62      ,
+X0^X1^X2     ^X4^X5^X6          ^X9            ^X12^X13      ^X15      ^X17^X18            ^X21            ^X24            ^X27            ^X30^X31                                                      ^X41^X42                  ^X46^X47      ^X49^X50^X51^X52^X53^X54      ^X56^X57      ^X59      ^X61      ^X63,
+X0^X1     ^X3^X4                    ^X9            ^X12      ^X14^X15^X16^X17            ^X20                  ^X24^X25^X26^X27^X28            ^X31      ^X33            ^X36                  ^X40^X41      ^X43^X44^X45      ^X47^X48      ^X50^X51            ^X54^X55^X56^X57^X58^X59                        ,
+X0     ^X2^X3     ^X5               ^X9                  ^X13^X14      ^X16            ^X19                                    ^X26      ^X28^X29      ^X31^X32^X33      ^X35^X36            ^X39^X40      ^X42                                          ^X50      ^X52            ^X55^X56      ^X58^X59^X60      ^X62^X63,
+  ^X1^X2     ^X4^X5               ^X9      ^X11^X12^X13                        ^X18                        ^X23^X24                        ^X29            ^X32^X33^X34^X35^X36      ^X38^X39      ^X41      ^X43^X44      ^X46^X47                  ^X51^X52^X53      ^X55            ^X58      ^X60^X61            ,
+X0^X1     ^X3^X4               ^X8     ^X10^X11^X12                        ^X17                        ^X22^X23                        ^X28            ^X31^X32^X33^X34^X35      ^X37^X38      ^X40      ^X42^X43      ^X45^X46                  ^X50^X51^X52      ^X54            ^X57      ^X59^X60            ^X63,
+X0     ^X2^X3     ^X5     ^X7^X8     ^X10                        ^X15^X16                        ^X21^X22^X23^X24^X25            ^X28^X29            ^X32      ^X34            ^X37      ^X39      ^X41^X42^X43      ^X45^X46^X47            ^X50^X51^X52      ^X54      ^X56^X57^X58      ^X60                  ,
+  ^X1^X2     ^X4^X5^X6^X7^X8           ^X11            ^X14                              ^X20^X21^X22            ^X25                  ^X29^X30                                          ^X38      ^X40^X41^X42^X43      ^X45      ^X47            ^X50^X51^X52      ^X54^X55^X56                  ^X60      ^X62      ,
+X0^X1     ^X3^X4^X5^X6^X7          ^X10            ^X13                              ^X19^X20^X21            ^X24                  ^X28^X29                                          ^X37      ^X39^X40^X41^X42      ^X44      ^X46            ^X49^X50^X51      ^X53^X54^X55                  ^X59      ^X61      ^X63,
+X0     ^X2^X3^X4     ^X6     ^X8           ^X11^X12            ^X15            ^X18^X19^X20                  ^X24^X25                  ^X29^X30^X31      ^X33                        ^X38^X39^X40^X41            ^X44^X45^X46^X47^X48      ^X50                                    ^X57^X58^X59                  ^X63,
+  ^X1^X2^X3               ^X7^X8^X9^X10                  ^X14^X15      ^X17^X18^X19                              ^X25      ^X27                  ^X31^X32^X33            ^X36^X37^X38^X39^X40                        ^X45                                    ^X52^X53^X54      ^X56      ^X58^X59^X60                  ,
+X0^X1^X2               ^X6^X7^X8^X9                  ^X13^X14      ^X16^X17^X18                              ^X24      ^X26                  ^X30^X31^X32            ^X35^X36^X37^X38^X39                        ^X44                                    ^X51^X52^X53      ^X55      ^X57^X58^X59                        ,
+X0^X1                    ^X6^X7     ^X9      ^X11^X12^X13            ^X16^X17                                    ^X24            ^X27^X28                        ^X33^X34^X35      ^X37^X38                              ^X44      ^X46^X47      ^X49^X50^X51      ^X53            ^X56      ^X58^X59^X60      ^X62^X63,
+X0                         ^X6          ^X9^X10      ^X12                  ^X16                                          ^X24^X25^X26      ^X28^X29^X30^X31^X32      ^X34            ^X37                                    ^X44^X45      ^X47^X48      ^X50            ^X53^X54^X55            ^X58      ^X60^X61      ^X63
+}
 
+{
+   ^ C1             ^ C4                                     ^ C11 ^ C12       ^ C14 ^ C15       ^ C17             ^ C20 ^ C21 ^ C22             ^ C25       ^ C27 ^ C28       ^ C30                                                                                                                                                                                                      ,
+C0            ^ C3                                     ^ C10 ^ C11       ^ C13 ^ C14       ^ C16             ^ C19 ^ C20 ^ C21             ^ C24       ^ C26 ^ C27       ^ C29       ^ C31                                                                                                                                                                                                ,
+         ^ C2                                     ^ C9 ^ C10       ^ C12 ^ C13       ^ C15             ^ C18 ^ C19 ^ C20             ^ C23       ^ C25 ^ C26       ^ C28       ^ C30 ^ C31                                                                                                                                                                                                ,
+   ^ C1                                     ^ C8 ^ C9       ^ C11 ^ C12       ^ C14             ^ C17 ^ C18 ^ C19             ^ C22       ^ C24 ^ C25       ^ C27       ^ C29 ^ C30 ^ C31                                                                                                                                                                                                ,
+C0                                    ^ C7 ^ C8       ^ C10 ^ C11       ^ C13             ^ C16 ^ C17 ^ C18             ^ C21       ^ C23 ^ C24       ^ C26       ^ C28 ^ C29 ^ C30 ^ C31                                                                                                                                                                                                ,
+                                 ^ C6 ^ C7       ^ C9 ^ C10       ^ C12             ^ C15 ^ C16 ^ C17             ^ C20       ^ C22 ^ C23       ^ C25       ^ C27 ^ C28 ^ C29 ^ C30                                                                                                                                                                                                      ,
+   ^ C1           ^ C4 ^ C5 ^ C6       ^ C8 ^ C9             ^ C12                   ^ C16 ^ C17       ^ C19 ^ C20                   ^ C24 ^ C25 ^ C26             ^ C29 ^ C30                                                                                                                                                                                                      ,
+C0           ^ C3 ^ C4 ^ C5       ^ C7 ^ C8             ^ C11                   ^ C15 ^ C16       ^ C18 ^ C19                   ^ C23 ^ C24 ^ C25             ^ C28 ^ C29       ^ C31                                                                                                                                                                                                ,
+        ^ C2 ^ C3 ^ C4       ^ C6 ^ C7             ^ C10                   ^ C14 ^ C15       ^ C17 ^ C18                   ^ C22 ^ C23 ^ C24             ^ C27 ^ C28       ^ C30                                                                                                                                                                                                      ,
+        ^ C2 ^ C3 ^ C4 ^ C5 ^ C6             ^ C9       ^ C11 ^ C12 ^ C13       ^ C15 ^ C16                   ^ C20             ^ C23       ^ C25 ^ C26       ^ C28 ^ C29 ^ C30                                                                                                                                                                                                      ,
+        ^ C2 ^ C3       ^ C5             ^ C8       ^ C10                                     ^ C17       ^ C19 ^ C20 ^ C21             ^ C24                         ^ C29 ^ C30                                                                                                                                                                                                      ,
+   ^ C1 ^ C2       ^ C4             ^ C7       ^ C9                                     ^ C16       ^ C18 ^ C19 ^ C20             ^ C23                         ^ C28 ^ C29                                                                                                                                                                                                            ,
+C0 ^ C1       ^ C3             ^ C6       ^ C8                                     ^ C15       ^ C17 ^ C18 ^ C19             ^ C22                         ^ C27 ^ C28                                                                                                                                                                                                                  ,
+C0      ^ C2             ^ C5       ^ C7                                     ^ C14       ^ C16 ^ C17 ^ C18             ^ C21                         ^ C26 ^ C27                                                                                                                                                                                                                        ,
+   ^ C1             ^ C4       ^ C6                                     ^ C13       ^ C15 ^ C16 ^ C17             ^ C20                         ^ C25 ^ C26                                                                                                                                                                                                                              ,
+C0            ^ C3       ^ C5                                     ^ C12       ^ C14 ^ C15 ^ C16             ^ C19                         ^ C24 ^ C25                                                                                                                                                                                                                                    ,
+   ^ C1 ^ C2                                                       ^ C12 ^ C13                   ^ C17 ^ C18       ^ C20 ^ C21 ^ C22 ^ C23 ^ C24 ^ C25       ^ C27 ^ C28       ^ C30                                                                                                                                                                                                      ,
+C0 ^ C1                                                       ^ C11 ^ C12                   ^ C16 ^ C17       ^ C19 ^ C20 ^ C21 ^ C22 ^ C23 ^ C24       ^ C26 ^ C27       ^ C29       ^ C31                                                                                                                                                                                                ,
+C0                                                       ^ C10 ^ C11                   ^ C15 ^ C16       ^ C18 ^ C19 ^ C20 ^ C21 ^ C22 ^ C23       ^ C25 ^ C26       ^ C28       ^ C30                                                                                                                                                                                                      ,
+                                                    ^ C9 ^ C10                   ^ C14 ^ C15       ^ C17 ^ C18 ^ C19 ^ C20 ^ C21 ^ C22       ^ C24 ^ C25       ^ C27       ^ C29       ^ C31                                                                                                                                                                                                ,
+   ^ C1             ^ C4                   ^ C8 ^ C9       ^ C11 ^ C12 ^ C13       ^ C15 ^ C16       ^ C18 ^ C19             ^ C22 ^ C23 ^ C24 ^ C25 ^ C26 ^ C27                                                                                                                                                                                                                        ,
+C0 ^ C1       ^ C3 ^ C4             ^ C7 ^ C8       ^ C10                                           ^ C18       ^ C20             ^ C23 ^ C24       ^ C26 ^ C27 ^ C28       ^ C30 ^ C31                                                                                                                                                                                                ,
+C0 ^ C1 ^ C2 ^ C3 ^ C4       ^ C6 ^ C7       ^ C9       ^ C11 ^ C12       ^ C14 ^ C15                   ^ C19 ^ C20 ^ C21       ^ C23             ^ C26       ^ C28 ^ C29                                                                                                                                                                                                            ,
+C0 ^ C1 ^ C2 ^ C3       ^ C5 ^ C6       ^ C8       ^ C10 ^ C11       ^ C13 ^ C14                   ^ C18 ^ C19 ^ C20       ^ C22             ^ C25       ^ C27 ^ C28             ^ C31                                                                                                                                                                                                ,
+C0      ^ C2             ^ C5       ^ C7       ^ C9 ^ C10 ^ C11       ^ C13 ^ C14 ^ C15             ^ C18 ^ C19 ^ C20       ^ C22       ^ C24 ^ C25 ^ C26       ^ C28                                                                                                                                                                                                                  ,
+                                  ^ C6       ^ C8 ^ C9 ^ C10 ^ C11       ^ C13       ^ C15             ^ C18 ^ C19 ^ C20       ^ C22 ^ C23 ^ C24                   ^ C28       ^ C30                                                                                                                                                                                                      ,
+                           ^ C5       ^ C7 ^ C8 ^ C9 ^ C10       ^ C12       ^ C14             ^ C17 ^ C18 ^ C19       ^ C21 ^ C22 ^ C23                   ^ C27       ^ C29       ^ C31                                                                                                                                                                                                ,
+    ^ C1                         ^ C6 ^ C7 ^ C8 ^ C9             ^ C12 ^ C13 ^ C14 ^ C15 ^ C16       ^ C18                                     ^ C25 ^ C26 ^ C27                   ^ C31                                                                                                                                                                                                ,
+C0 ^ C1             ^ C4 ^ C5 ^ C6 ^ C7 ^ C8                         ^ C13                                     ^ C20 ^ C21 ^ C22       ^ C24       ^ C26 ^ C27 ^ C28                                                                                                                                                                                                                  ,
+C0             ^ C3 ^ C4 ^ C5 ^ C6 ^ C7                         ^ C12                                     ^ C19 ^ C20 ^ C21       ^ C23       ^ C25 ^ C26 ^ C27                                                                                                                                                                                                                        ,
+    ^ C1 ^ C2 ^ C3       ^ C5 ^ C6                               ^ C12       ^ C14 ^ C15       ^ C17 ^ C18 ^ C19       ^ C21             ^ C24       ^ C26 ^ C27 ^ C28       ^ C30 ^ C31                                                                                                                                                                                                ,
+C0       ^ C2             ^ C5                                     ^ C12 ^ C13       ^ C15 ^ C16       ^ C18             ^ C21 ^ C22 ^ C23             ^ C26       ^ C28 ^ C29       ^ C31                                                                                                                                                                                                
+}
+ */
 // Once the logic is doing more than 32 bits per clock, A NEW TRICK IS USED:
 // The formulas for each output term are seen to have a large number of
 //   terms depending on input data, and a smaller number of terms dependent
@@ -710,7 +780,7 @@ endmodule
 
 module print_out_formulas ();
 
-  parameter NUM_BITS_TO_DO_IN_PARALLEL = 8'h3F;
+  parameter NUM_BITS_TO_DO_IN_PARALLEL = 8'h40;
 
   reg    [`NUMBER_OF_BITS_IN_CRC - 1 : 0] running_state;
   reg    [63:0] input_vector;
@@ -748,7 +818,10 @@ module print_out_formulas ();
 // Insert ^ X
 
 // Count out formulas in the opposite order, write out valid formulas.
-    $display ("Each term called out means the formula depends on a term data_in[N] ^ State[N].");
+    $display ("When the amount of data applied to the CRC is less than the length of the CRC itself,");
+    $display ("  the Most Significant CRC_LEN - CRC_WIDTH terms are of the form data_in[N] ^ State[N].");
+    $display ("The next CRC_WIDTH terms are NOT dependent on the CRC values, except in so much as");
+    $display ("  they depend on CSR bits because of X = D ^ C terms.");
     $display ("State Variables depend on input bit number (bigger is earlier) :");
 // try to read out formulas by sweeping a 1-bit through the corner_turner array.
     $display ("{");
@@ -941,26 +1014,41 @@ module print_out_formulas ();
 
     if (NUM_BITS_TO_DO_IN_PARALLEL <= `NUMBER_OF_BITS_IN_CRC)
     begin
-      $display ("All terms beyond the width of the input data are each dependent on State");
-      $display ("  bits the shift distance towards the LSB of the polynomial.  For instance,");
-      $display ("  if the shift distance is 16, State Bit 16 depends on old state bit 0.");
+      $display ("Since the number of data bits applied is <= number of CRC bits, each");
+      $display ("  X term in these formulas corresponds to X = Data_In ^ State");
     end
     else
     begin
-      $display ("The number of bits being applied to the CRC is greater than the number");
-      $display ("  of bits in the CRC.");
+      $display ("The number of bits being applied to the CRC is greater than the number of");
+      $display ("  bits in the CRC.  Each X term in these formulas corersponds to a Data_In bit.");
       $display ("If the shift distance was small, the original CRC bits would be XOR'd with");
-      $display ("  the new data.  Since the shift distance per clock is large, the dependence");
-      $display ("  on the original CRC bits has to be calculated separately.");
-      $display ("Each term has a data dependency as calculated by this program, given a");
-      $display ("  number of bits to apply to the CRC.");
-      $display ("Each term ALSO has a dependence on the initial value of the CRC.");
-      $display ("To calculate this CRC dependency, calculate the dependency on a bit");
-      $display ("  shifted the MAXIMUM distance.  The MSB of this dependency is the term");
-      $display ("  which describes the dependency on the MSB of the CRC.");
-      $display ("Calculate the dependency shifted by MAXIMUM - 1 distance.  The MSB of");
-      $display ("  this second formula is the dependence on the MSB - 1 of the CRC");
-      $display ("Iterate over all CSR bits.  Sorry!");
+      $display ("  the new data.  In this case, the shift distance per clock is large, so the");
+      $display ("  dependence on the original CRC bits has to be handled carefully.");
+      $display ("Here is the plan: Calculate the contribution due to the incoming data based");
+      $display ("  on the formulas produced for a particular shift distance.");
+      $display ("Separately, calculate the data dependence due to the present CRC.");
+      $display ("This is accomplished by using the HIGH numbered terms discovered when tracking");
+      $display ("  data dependencies.  For instance, if the shift distance is");
+      $display ("  64 and the CRC is 32 bits wide, the top 32 X terms of each of the formulas");
+      $display ("  is re-interpreted as C (state) terms.");
+      $display ("The terms depending on X63 : X32 are re-interpred to be terms depending on");
+      $display ("  CSR bits 31 : 0 correspondingly");
+      $display ("{");
+      for (i = `NUMBER_OF_BITS_IN_CRC - 1; i >= 0; i = i - 1)
+      begin  // Bits which depend on shifted state bits directly
+        $write ("%d : ", i);
+        for (j = `NUMBER_OF_BITS_IN_CRC;
+             j < NUM_BITS_TO_DO_IN_PARALLEL +`NUMBER_OF_BITS_IN_CRC;
+             j = j + 1)
+        begin
+          if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL-j-1)*`NUMBER_OF_BITS_IN_CRC + i]
+                                                                            != 1'b0)
+            $write (" ^ C%0d", j[5:0] - `NUMBER_OF_BITS_IN_CRC);
+          else if (j >= 10) $write ("      "); else $write ("     ");
+        end
+        if (i != 0) $write (",\n"); else $write ("\n");
+      end
+      $display ("}");
     end
   end
 endmodule
