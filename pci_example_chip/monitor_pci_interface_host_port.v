@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: monitor_pci_interface_host_port.v,v 1.5 2001-06-08 08:40:41 bbeaver Exp $
+// $Id: monitor_pci_interface_host_port.v,v 1.6 2001-06-20 11:25:40 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -217,11 +217,11 @@ module monitor_pci_interface_host_port (
         `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST:
           $display ("Reading that Data 'h%h and Mask %h Last is complete from Host Response FIFO, at time %t",
                      pci_host_response_data[31:0], pci_host_response_cbe[3:0], $time);
-        `PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR:
-          $display ("Reading that Data 'h%h and Mask %h PERR is complete from Host Response FIFO, at time %t",
+        `PCI_HOST_RESPONSE_R_DATA_W_SENT_FLUSH:
+          $display ("Reading that Data 'h%h and Mask %h PERR is being FLUSHED from Host Response FIFO, at time %t",
                      pci_host_response_data[31:0], pci_host_response_cbe[3:0], $time);
-        `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR:
-          $display ("Reading that Data 'h%h and Mask %h Last PERR is complete from Host Response FIFO, at time %t",
+        `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_FLUSH:
+          $display ("Reading that Data 'h%h and Mask %h Last PERR is being FLUSHED from Host Response FIFO, at time %t",
                      pci_host_response_data[31:0], pci_host_response_cbe[3:0], $time);
         `PCI_HOST_RESPONSE_EXTERNAL_SPARE:
           $display ("Reading that External Master queued a Spare 'h%h, %h, from Host Response FIFO, at time %t",

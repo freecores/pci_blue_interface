@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_target.v,v 1.9 2001-06-14 10:08:17 bbeaver Exp $
+// $Id: pci_blue_target.v,v 1.10 2001-06-20 11:25:33 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -131,36 +131,33 @@ module pci_blue_target (
 //   PCI References initiated by an external PCI Master.
 // This FIFO also sends status info back from the master about PCI
 //   References this interface acts as the PCI Master for.
-  pci_iface_response_type,
-  pci_iface_response_cbe,
-  pci_iface_response_data,
-  pci_iface_response_room_available_meta,
-  pci_iface_response_data_load,
-  pci_iface_response_error,
+  pci_response_fifo_type,
+  pci_response_fifo_cbe,
+  pci_response_fifo_data,
+  pci_response_fifo_room_available_meta,
+  pci_response_fifo_data_load,
+  pci_response_fifo_error,
 // Host Interface Delayed Read Data FIFO used to pass the results of a
 //   Delayed Read on to the external PCI Master which started it.
-  pci_iface_delayed_read_type,
-  pci_iface_delayed_read_data,
-  pci_iface_delayed_read_data_available_meta,
-  pci_iface_delayed_read_data_unload,
-  pci_iface_delayed_read_error,
+  pci_delayed_read_fifo_type,
+  pci_delayed_read_fifo_data,
+  pci_delayed_read_fifo_data_available_meta,
+  pci_delayed_read_fifo_data_unload,
+  pci_delayed_read_fifo_error,
 // Signals from the Master to the Target to insert Status Info into the Response FIFO.
-  pci_master_to_target_request_type,
-  pci_master_to_target_request_cbe,
-  pci_master_to_target_request_data,
-  pci_master_to_target_request_room_available_meta,
-  pci_master_to_target_request_data_load,
-  pci_master_to_target_request_error,
-// Signals from the Master to the Target to let the Delayed Read logic implement
-//   the ordering rules.
-  pci_master_executing_read,
-  pci_master_seeing_write_fence,
+  master_to_target_status_type,
+  master_to_target_status_cbe,
+  master_to_target_status_data,
+  master_to_target_status_available,
+  master_to_target_status_unload,
 // Signals from the Master to the Target to set bits in the Status Register
   master_got_parity_error,
   master_caused_serr,
   master_caused_master_abort,
   master_got_target_abort,
   master_caused_parity_error,
+// Signals used to document Master Behavior
+  master_asked_to_retry,
 // Signals from the Config Regs to the Master to control it.
   master_enable,
   master_fast_b2b_en,
@@ -201,36 +198,33 @@ module pci_blue_target (
 //   PCI References initiated by an external PCI Master.
 // This FIFO also sends status info back from the master about PCI
 //   References this interface acts as the PCI Master for.
-  output [3:0] pci_iface_response_type;
-  output [3:0] pci_iface_response_cbe;
-  output [31:0] pci_iface_response_data;
-  input   pci_iface_response_room_available_meta;
-  output  pci_iface_response_data_load;
-  input   pci_iface_response_error;
+  output [3:0] pci_response_fifo_type;
+  output [3:0] pci_response_fifo_cbe;
+  output [31:0] pci_response_fifo_data;
+  input   pci_response_fifo_room_available_meta;
+  output  pci_response_fifo_data_load;
+  input   pci_response_fifo_error;
 // Host Interface Delayed Read Data FIFO used to pass the results of a
 //   Delayed Read on to the external PCI Master which started it.
-  input  [2:0] pci_iface_delayed_read_type;
-  input  [31:0] pci_iface_delayed_read_data;
-  input   pci_iface_delayed_read_data_available_meta;
-  output  pci_iface_delayed_read_data_unload;
-  input   pci_iface_delayed_read_error;
+  input  [2:0] pci_delayed_read_fifo_type;
+  input  [31:0] pci_delayed_read_fifo_data;
+  input   pci_delayed_read_fifo_data_available_meta;
+  output  pci_delayed_read_fifo_data_unload;
+  input   pci_delayed_read_fifo_error;
 // Signals from the Master to the Target to insert Status Info into the Response FIFO.
-  input  [2:0] pci_master_to_target_request_type;
-  input  [3:0] pci_master_to_target_request_cbe;
-  input  [31:0] pci_master_to_target_request_data;
-  output  pci_master_to_target_request_room_available_meta;
-  input   pci_master_to_target_request_data_load;
-  output  pci_master_to_target_request_error;
-// Signals from the Master to the Target to let the Delayed Read logic implement
-//   the ordering rules.
-  input   pci_master_executing_read;
-  input   pci_master_seeing_write_fence;
+  input  [2:0] master_to_target_status_type;
+  input  [3:0] master_to_target_status_cbe;
+  input  [31:0] master_to_target_status_data;
+  input   master_to_target_status_available;
+  output  master_to_target_status_unload;
 // Signals from the Master to the Target to set bits in the Status Register
   input   master_got_parity_error;
   input   master_caused_serr;
   input   master_caused_master_abort;
   input   master_got_target_abort;
   input   master_caused_parity_error;
+// Signals used to document Master Behavior
+  input   master_asked_to_retry;
 // Signals from the Config Regs to the Master to control it.
   output  master_enable;
   output  master_fast_b2b_en;
@@ -251,7 +245,8 @@ module pci_blue_target (
 
 // Signals from the Config Registers to enable features in the Master and Target
   wire    target_memory_enable;
-  wire    either_perr_enable, either_serr_enable;
+  wire    target_perr_enable, either_perr_enable;
+  wire    target_serr_enable, either_serr_enable;
   wire   [`PCI_BASE_ADDR0_MATCH_RANGE] base_register_0;
 `ifdef PCI_BASE_ADDR1_MATCH_ENABLE
   wire   [`PCI_BASE_ADDR1_MATCH_RANGE] base_register_1;
@@ -263,12 +258,14 @@ module pci_blue_target (
   wire    target_got_parity_error, either_got_parity_error;
 
 // drive shared signal to master; combine shared signals to Config Regs
+  assign  target_perr_enable = either_perr_enable;
+  assign  target_serr_enable = either_serr_enable;
   assign  master_perr_enable = either_perr_enable;
   assign  master_serr_enable = either_serr_enable;
   assign  either_caused_serr = master_caused_serr | target_caused_serr;
   assign  either_got_parity_error = master_got_parity_error | target_got_parity_error;
 
-/*
+/* NOTE: Planning on removing comments
 // Responses the PCI Controller sends over the Host Response Bus to indicate that
 //   progress has been made on transfers initiated over the Request Bus by the Host.
 // First, the Response which indicates that nothing should be put in the FIFO.
@@ -284,6 +281,7 @@ module pci_blue_target (
 // Bit 28: Target Abort received
 // Bit 27: Caused Target Abort
 // Bit 24: Caused PERR
+// Bit 19: Flush Read/Write data due to Master Abort or Target Abort
 // Bit 18: Discarded a Delayed Read due to timeout
 // Bit 17: Target Retry or Disconnect (document that a Master Retry is requested)
 // Bit 16: Got Illegal sequence of commands over Host Request Bus.
@@ -301,9 +299,12 @@ module pci_blue_target (
 // Data Bit  [16] indicates that a Config Write has been done.
 // Data Bit  [17] indicates that a Config Read has been done.
 // This Response will be issued with either Data Bits 16 or 17 set to 1'b1.
-// `define PCI_HOST_RESPONSE_READ_WRITE_CONFIG_REGISTER     (4'h3)
+// `define PCI_HOST_RESPONSE_READ_WRITE_CONFIG_REGISTER  (4'h3)
 // Sixth, Responses indicating that Write Data was delivered, Read Data is available,
 //   End Of Burst, and that a Parity Error occurred the previous data cycle.
+// NOTE:  If a Master or Target Abort happens, the contents of the Request
+//   FIFO will be flushed until the DATA_LAST is removed.  The Response FIFO
+//   will have a FLUSH entry for each data item flushed by the Master.
 `define PCI_HOST_RESPONSE_R_DATA_W_SENT                  (4'h4)
 `define PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST             (4'h5)
 `define PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR             (4'h6)
@@ -363,9 +364,11 @@ module pci_blue_target (
 //   the requestor to wait at least 2 clocks, then request again.
 //
 // In the simplest case, the Requestor immediately retries and the
-//   transfer completes.
+//   transfer completes.  The Response FIFO will ensure that all writes
+//   previously issued by External PCI devices will complete before the
+//   read completes, which is required by the ordering rules.
 //
-// Several more complicated things can happen.
+// Unfortunately, several complicated things can happen instead.
 //
 // First, this device's Master might have some Writes queued.  All of these
 //   writes must complete before the Read completes.  This is achieved
@@ -401,13 +404,30 @@ module pci_blue_target (
 //   after a string of Writes.  This is achieved by marking the Byte Enables
 //   for the 2nd and subsequent Read cycles in the FIFO as Delayed Read Enables.
 //
+// There seems to be one unfortunate case which I do not know how to deal with.
+//   Assume that this device's Master issued a Read, which was Retried by a
+//   remote device.  Then THAT device issues a Read to this target, and the
+//   Read is also retried.  Assume further that both the Remote device and this
+//   Device cannot complete the Delayed Read until they execute one or more Writes.
+// Neither device can issue writes, because they have Reads pending!  It seems
+//   that maybe this device cannot issue a Read after it has started a Delayed Read
+//   transaction to a remote device.  Also, in general if a Read is outstanding,
+//   this device cannot require that it be able to do Writes before an external
+//   read is allowed to complete.  It also seems generally a good idea to NOT
+//   issue more writes after a Read is queued.  This interface should only use
+//   the time to flush writes which have already been issued.  Writes should NOT
+//   be required after a Read is accepted, but before the Read completes, unless
+//   this device has no Reads outstanding.  This needs more thought.
+//
 // There needs to be a State Machine which reflects the handshakes between
 //   the Target and the Master for the Write Fence, and between the Target
 //   and the DRAM interface to handle flushing of the Delayed Read FIFO.
 // This State Machine sits above the PCI Target State Machine described in
 //   the PCI Local Bus Spec Revision 2.2
 
-
+// Classify the content of the Response FIFO, taking into account the Target
+// Enable bit and the Delayed Read FIFO empty Bit, as well as the Master
+// FIFO activity.
   wire   Delayed_Read_FIFO_Empty = 1'b0;  // NOTE: WORKING
   wire   Delayed_Read_FIFO_CONTAINS_ABORT = 1'b0;
   wire   Delayed_Read_FIFO_CONTAINS_DATA_MORE = 1'b0;
@@ -419,7 +439,7 @@ module pci_blue_target (
 //       number of Base Registers, is set in the file pci_blue_options.vh
 
 // NOTE: WORKING need to take into account type, special, config refs
-  wire    PCI_Base_Address_0_Hit =
+  wire    PCI_Base_Address_Hit =
 `ifdef PCI_BASE_ADDR1_MATCH_ENABLE
                           (pci_ad_in_prev[`PCI_BASE_ADDR1_MATCH_RANGE]
                                 == base_register_1[`PCI_BASE_ADDR1_MATCH_RANGE])
@@ -571,7 +591,7 @@ module pci_blue_target (
 //       if the Prefetch FIFO is 16 entries of 64 bits each.
 // See the PCI Local Bus Spec Revision 2.2 section 3.2.5 for details.
 
-  wire    Delayed_Read_Address_Collision =
+  wire    Delayed_Read_Write_Collision =
                 (pci_ad_in_prev[31:7] ==  Target_Delayed_Read_Address[31:7])
               | (pci_ad_in_prev[31:7] == (Target_Delayed_Read_Address[31:7]
                                           + 25'h0000001) );
@@ -831,7 +851,7 @@ module pci_blue_target (
   assign  pci_target_perr_out_oe_comb = 1'b0;
   assign  pci_target_serr_out_oe_comb = 1'b0;
 
-  assign  pci_iface_delayed_read_data_unload = 1'b0;
+  assign  pci_delayed_read_fifo_data_unload = 1'b0;
 
   assign  pci_config_write_data[31:0] = 32'h00000000;
   assign  pci_config_address[7:2] = 6'h00;
@@ -840,7 +860,7 @@ module pci_blue_target (
 
   assign  pci_target_ad_out_oe_comb = 1'b0;  // NOTE: WORKING
   assign  pci_d_t_s_out_oe_comb = 1'b0;
-  assign  pci_iface_response_data_load = 1'b0;
+  assign  pci_response_fifo_data_load = 1'b0;
 
 pci_critical_next_devsel pci_critical_next_devsel (
   .PCI_Next_DEVSEL_Code       (PCI_Next_DEVSEL_Code[2:0]),

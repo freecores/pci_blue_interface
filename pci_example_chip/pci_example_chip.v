@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_example_chip.v,v 1.5 2001-06-08 08:40:41 bbeaver Exp $
+// $Id: pci_example_chip.v,v 1.6 2001-06-20 11:25:40 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -173,7 +173,8 @@ module pci_example_chip (
   wire    pci_frame_in_prev, pci_irdy_in_prev;
   wire    pci_devsel_in_prev, pci_trdy_in_prev, pci_stop_in_prev;
   wire    pci_perr_in_prev, pci_serr_in_prev;
-  wire    pci_irdy_in_comb, pci_trdy_in_comb;  // critical high-speed wires
+  wire    pci_frame_in_comb, pci_irdy_in_comb;  // critical high-speed wires
+  wire    pci_trdy_in_comb, pci_stop_in_comb;  // critical high-speed wires
 
 // wires to drive the external PCI bus
   wire   [31:0] pci_ad_out_next;
@@ -273,6 +274,7 @@ pci_target_pads pci_target_pads (
   .pci_par_out_next           (pci_par_out_next),
   .pci_par_out_oe_comb        (pci_par_out_oe_comb),
   .pci_frame_in_prev          (pci_frame_in_prev),
+  .pci_frame_in_comb          (pci_frame_in_comb),
   .pci_frame_out_next         (pci_frame_out_next),
   .pci_frame_out_oe_comb      (pci_frame_out_oe_comb),
   .pci_irdy_in_prev           (pci_irdy_in_prev),
@@ -286,6 +288,7 @@ pci_target_pads pci_target_pads (
   .pci_trdy_in_comb           (pci_trdy_in_comb),
   .pci_trdy_out_next          (pci_trdy_out_next),
   .pci_stop_in_prev           (pci_stop_in_prev),
+  .pci_stop_in_comb           (pci_stop_in_comb),
   .pci_stop_out_next          (pci_stop_out_next),
   .pci_perr_in_prev           (pci_perr_in_prev),
   .pci_perr_out_next          (pci_perr_out_next),
@@ -588,6 +591,7 @@ pci_blue_interface pci_blue_interface (
   .pci_par_out_next           (pci_par_out_next_a),
   .pci_par_out_oe_comb        (pci_par_out_oe_comb_a),
   .pci_frame_in_prev          (pci_frame_in_prev),
+  .pci_frame_in_comb          (pci_frame_in_comb),
   .pci_frame_out_next         (pci_frame_out_next_a),
   .pci_frame_out_oe_comb      (pci_frame_out_oe_comb_a),
   .pci_irdy_in_prev           (pci_irdy_in_prev),
@@ -601,6 +605,7 @@ pci_blue_interface pci_blue_interface (
   .pci_trdy_in_comb           (pci_trdy_in_comb),
   .pci_trdy_out_next          (pci_trdy_out_next_a),
   .pci_stop_in_prev           (pci_stop_in_prev),
+  .pci_stop_in_comb           (pci_stop_in_comb),
   .pci_stop_out_next          (pci_stop_out_next_a),
   .pci_perr_in_prev           (pci_perr_in_prev),
   .pci_perr_out_next          (pci_perr_out_next_a),

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_constants.vh,v 1.6 2001-06-08 08:40:37 bbeaver Exp $
+// $Id: pci_blue_constants.vh,v 1.7 2001-06-20 11:25:16 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -155,7 +155,7 @@
 // Data Bit  [16] indicates that a Config Write should be done.
 // Data Bit  [17] indicates that a Config Read should be done.
 // This Request must be issued with either Data Bits 16 or 17 set to 1'b1.
-// `define PCI_HOST_REQUEST_READ_WRITE_CONFIG_REGISTER      (3'h3)
+// `define PCI_HOST_REQUEST_READ_WRITE_CONFIG_REGISTER   (3'h3)
 // Fifth, Requests saying Write Data, Read or Write Byte Masks, and End Burst.
 `define PCI_HOST_REQUEST_W_DATA_RW_MASK                  (3'h4)
 `define PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST             (3'h5)
@@ -202,10 +202,13 @@
 // `define PCI_HOST_RESPONSE_READ_WRITE_CONFIG_REGISTER     (4'h3)
 // Sixth, Responses indicating that Write Data was delivered, Read Data is available,
 //   End Of Burst, and that a Parity Error occurred the previous data cycle.
+// NOTE:  If a Master or Target Abort happens, the contents of the Request
+//   FIFO will be flushed until the DATA_LAST is removed.  The Response FIFO
+//   will have a FLUSH entry for each data item flushed by the Master.
 `define PCI_HOST_RESPONSE_R_DATA_W_SENT                  (4'h4)
 `define PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST             (4'h5)
-`define PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR             (4'h6)
-`define PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR        (4'h7)
+`define PCI_HOST_RESPONSE_R_DATA_W_SENT_FLUSH            (4'h6)
+`define PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_FLUSH       (4'h7)
 
 
 // Responses the PCI Controller sends over the Host Response Bus to indicate

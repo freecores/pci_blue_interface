@@ -13,15 +13,15 @@
     <File IsIndirectlyAdded="0">pci_example_chip\pci_clk_reset_pads.v</File>
     <File IsIndirectlyAdded="0">pci_example_chip\pci_target_pads.v</File>
     <File IsIndirectlyAdded="0">pci_vendor_lib\pci_vendor_lib.v</File>
-    <File IsIndirectlyAdded="0">Readme</File>
     <File IsIndirectlyAdded="0">pci_example_chip\pci_example_host_controller.v</File>
     <File IsIndirectlyAdded="0">pci_test_system\pci_test_commander.v</File>
-    <File IsIndirectlyAdded="0">reminders.v</File>
     <File IsIndirectlyAdded="0">pci_bus_monitor\pci_bus_monitor.v</File>
     <File IsIndirectlyAdded="0">pci_behaviorial_device\pci_behaviorial_device.v</File>
     <File IsIndirectlyAdded="0">pci_behaviorial_device\pci_behaviorial_master.v</File>
     <File IsIndirectlyAdded="0">pci_behaviorial_device\pci_behaviorial_target.v</File>
     <File IsIndirectlyAdded="0">pci_example_chip\monitor_pci_interface_host_port.v</File>
+    <File IsIndirectlyAdded="0">Readme</File>
+    <File IsIndirectlyAdded="0">reminders.v</File>
     <File IsIndirectlyAdded="1">pci_blue_include\pci_blue_options.vh</File>
     <File IsIndirectlyAdded="1">pci_blue_include\pci_blue_constants.vh</File>
     <File IsIndirectlyAdded="1">untitled0Tim.v</File>

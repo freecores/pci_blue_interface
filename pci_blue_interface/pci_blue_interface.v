@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_interface.v,v 1.9 2001-06-14 10:08:09 bbeaver Exp $
+// $Id: pci_blue_interface.v,v 1.10 2001-06-20 11:25:19 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -157,7 +157,8 @@ module pci_blue_interface (
   input   pci_master_addr_valid, pci_master_data_valid;
   input   pci_master_requests_serr, pci_master_requests_perr;
   input   pci_master_requests_last;
-  output  pci_master_data_consumed;  // Host knows Data (and Address) used when data_valid and data_consumed
+  output  pci_master_data_consumed;  // Host knows Data (and Address)
+                                     // used when data_valid and data_consumed
   output  pci_master_ref_error;
 // PCI Interface uses these wires to request local memory activity.   
   output [31:0] pci_target_ref_address;
@@ -705,7 +706,7 @@ $display ("Got Last Read Data");  // NOTE WORKING
                 & (   (pci_host_response_type[3:0] ==
                                  `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST)
                     | (pci_host_response_type[3:0] ==
-                                 `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR)
+                                 `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_FLUSH)
                     | (   (pci_host_response_type[3:0] ==
                                  `PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE)
                         & pci_host_response_data[17]) ) )  // Config Read done
@@ -860,9 +861,9 @@ $display ("Got Last Read Data");  // NOTE WORKING
                             `PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT)
                 & pci_host_response_data[31])
            | (pci_host_response_type[3:0] ==
-                            `PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR)
+                            `PCI_HOST_RESPONSE_R_DATA_W_SENT_FLUSH)
            | (pci_host_response_type[3:0] ==
-                            `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR)
+                            `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_FLUSH)
            | (pci_host_response_type[3:0] ==
                             `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_PERR)
            | (pci_host_response_type[3:0] ==
@@ -916,9 +917,9 @@ $display ("Got Last Read Data");  // NOTE WORKING
                  | ((pci_host_response_type[3:0] ==
                                    `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST))
                  | ((pci_host_response_type[3:0] ==
-                                   `PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR))
+                                   `PCI_HOST_RESPONSE_R_DATA_W_SENT_FLUSH))
                  | ((pci_host_response_type[3:0] ==
-                                   `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR))
+                                   `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_FLUSH))
                  | ((pci_host_response_type[3:0] ==
                                    `PCI_HOST_RESPONSE_EXTERNAL_SPARE))
                  | ((pci_host_response_type[3:0] ==
@@ -1094,21 +1095,22 @@ monitor_pci_interface_host_port monitor_pci_interface_host_port (
 `endif  // VERBOSE_TEST_DEVICE
 
 // Wires connecting the Host FIFOs to the PCI Interface
-  wire   [2:0] pci_iface_request_type;
-  wire   [3:0] pci_iface_request_cbe;
-  wire   [31:0] pci_iface_request_data;
-  wire    pci_iface_request_data_available_meta;
-  wire    pci_iface_request_two_words_available_meta;
-  wire    pci_iface_request_data_unload, pci_iface_request_error;
-  wire   [3:0] pci_iface_response_type;
-  wire   [3:0] pci_iface_response_cbe;
-  wire   [31:0] pci_iface_response_data;
-  wire    pci_iface_response_room_available_meta;
-  wire    pci_iface_response_data_load, pci_iface_response_error;
-  wire   [2:0] pci_iface_delayed_read_type;
-  wire   [31:0] pci_iface_delayed_read_data;
-  wire    pci_iface_delayed_read_data_available_meta;
-  wire    pci_iface_delayed_read_data_unload, pci_iface_delayed_read_error;
+  wire   [2:0] pci_request_fifo_type;
+  wire   [3:0] pci_request_fifo_cbe;
+  wire   [31:0] pci_request_fifo_data;
+  wire    pci_request_fifo_data_available_meta;
+  wire    pci_request_fifo_two_words_available_meta;
+  wire    pci_request_fifo_data_unload;
+  wire    pci_request_fifo_error;
+  wire   [3:0] pci_response_fifo_type;
+  wire   [3:0] pci_response_fifo_cbe;
+  wire   [31:0] pci_response_fifo_data;
+  wire    pci_response_fifo_room_available_meta;
+  wire    pci_response_fifo_data_load, pci_response_fifo_error;
+  wire   [2:0] pci_delayed_read_fifo_type;
+  wire   [31:0] pci_delayed_read_fifo_data;
+  wire    pci_delayed_read_fifo_data_available_meta;
+  wire    pci_delayed_read_fifo_data_unload, pci_delayed_read_fifo_error;
  
 // Instantiate the Host_Request_FIFO, from the Host to the PCI Interface
 pci_fifo_storage_request pci_fifo_storage_request (
@@ -1125,13 +1127,13 @@ pci_fifo_storage_request pci_fifo_storage_request (
   .write_error                (pci_host_request_error),
   .read_clk                   (pci_clk),
   .read_sync_clk              (pci_sync_clk),
-  .read_remove                (pci_iface_request_data_unload),
-  .read_data_available_meta   (pci_iface_request_data_available_meta),  // NOTE Needs extra settling time to avoid metastability
-  .read_two_words_available_meta (pci_iface_request_two_words_available_meta),  // NOTE Needs extra settling time to avoid metastability
-  .read_data                  ({pci_iface_request_type[2:0],
-                                pci_iface_request_cbe[3:0],
-                                pci_iface_request_data[31:0]}),
-  .read_error                 (pci_iface_request_error)
+  .read_remove                (pci_request_fifo_data_unload),
+  .read_data_available_meta   (pci_request_fifo_data_available_meta),  // NOTE Needs extra settling time to avoid metastability
+  .read_two_words_available_meta (pci_request_fifo_two_words_available_meta),  // NOTE Needs extra settling time to avoid metastability
+  .read_data                  ({pci_request_fifo_type[2:0],
+                                pci_request_fifo_cbe[3:0],
+                                pci_request_fifo_data[31:0]}),
+  .read_error                 (pci_request_fifo_error)
 );
 
 // Instantiate the Host_Response_FIFO, from the PCI Interface to the Host
@@ -1141,12 +1143,12 @@ pci_fifo_storage_response pci_fifo_storage_response (
 // NOTE WORKING need to take into consideration `DOUBLE_SYNC_PCI_HOST_SYNCHRONIZERS
   .write_clk                  (pci_clk),
   .write_sync_clk             (pci_sync_clk),
-  .write_submit               (pci_iface_response_data_load),
-  .write_room_available_meta  (pci_iface_response_room_available_meta),  // NOTE Needs extra settling time to avoid metastability
-  .write_data                 ({pci_iface_response_type[3:0],
-                                pci_iface_response_cbe[3:0],
-                                pci_iface_response_data[31:0]}),
-  .write_error                (pci_iface_response_error),
+  .write_submit               (pci_response_fifo_data_load),
+  .write_room_available_meta  (pci_response_fifo_room_available_meta),  // NOTE Needs extra settling time to avoid metastability
+  .write_data                 ({pci_response_fifo_type[3:0],
+                                pci_response_fifo_cbe[3:0],
+                                pci_response_fifo_data[31:0]}),
+  .write_error                (pci_response_fifo_error),
   .read_clk                   (host_clk),
   .read_sync_clk              (host_sync_clk),
   .read_remove                (pci_host_response_unload),
@@ -1171,11 +1173,11 @@ pci_fifo_storage_delayed_read pci_fifo_storage_delayed_read (
   .write_error                (pci_host_delayed_read_data_error),
   .read_clk                   (pci_clk),
   .read_sync_clk              (pci_sync_clk),
-  .read_remove                (pci_iface_delayed_read_data_unload),
-  .read_data_available_meta   (pci_iface_delayed_read_data_available_meta),  // NOTE Needs extra settling time to avoid metastability
-  .read_data                  ({pci_iface_delayed_read_type[2:0],
-                                pci_iface_delayed_read_data[31:0]}), 
-  .read_error                 (pci_iface_delayed_read_error)
+  .read_remove                (pci_delayed_read_fifo_data_unload),
+  .read_data_available_meta   (pci_delayed_read_fifo_data_available_meta),  // NOTE Needs extra settling time to avoid metastability
+  .read_data                  ({pci_delayed_read_fifo_type[2:0],
+                                pci_delayed_read_fifo_data[31:0]}), 
+  .read_error                 (pci_delayed_read_fifo_error)
 );
 
 // Target signals to be combined with Master signals on the way to the PCI IO Pads.
@@ -1186,22 +1188,18 @@ pci_fifo_storage_delayed_read pci_fifo_storage_delayed_read (
   wire    pci_target_serr_out_oe_comb;
 
 // Signals from the Master to the Target to insert Status Info into the Response FIFO.
-  wire   [2:0] pci_master_to_target_request_type;
-  wire   [3:0] pci_master_to_target_request_cbe;
-  wire   [31:0] pci_master_to_target_request_data;
-  wire    pci_master_to_target_request_room_available_meta;
-  wire    pci_master_to_target_request_data_load;
-  wire    pci_master_to_target_request_error;
-
-// Signals from the Master to the Target to let the Delayed Read logic implement
-//   the ordering rules.
-  wire    pci_master_executing_read;
-  wire    pci_master_seeing_write_fence;
+  wire   [2:0] master_to_target_status_type;
+  wire   [3:0] master_to_target_status_cbe;
+  wire   [31:0] master_to_target_status_data;
+  wire    master_to_target_status_available, master_to_target_status_unload;
 
 // Signals from the Master to the Target to set bits in the Status Register.
   wire    master_got_parity_error, master_caused_serr;
   wire    master_caused_master_abort, master_got_target_abort;
   wire    master_caused_parity_error;
+// Signals used to document Master Behavior
+  wire    master_asked_to_retry;
+// Signals from the Config Regs to the Master to control it.
   wire    master_enable, master_fast_b2b_en;
   wire    master_perr_enable, master_serr_enable;
   wire   [7:0] master_latency_value;
@@ -1228,45 +1226,41 @@ pci_blue_target pci_blue_target (
   .pci_trdy_out_next          (pci_trdy_out_next),
   .pci_stop_out_next          (pci_stop_out_next),
   .pci_perr_in_prev           (pci_perr_in_prev),
-  .pci_target_perr_out_next    (pci_target_perr_out_next),
+  .pci_target_perr_out_next   (pci_target_perr_out_next),
   .pci_target_perr_out_oe_comb (pci_target_perr_out_oe_comb),
-  .pci_serr_in_prev            (pci_serr_in_prev),
+  .pci_serr_in_prev           (pci_serr_in_prev),
   .pci_target_serr_out_oe_comb (pci_target_serr_out_oe_comb),
 // Host Interface Response FIFO used to ask the Host Interface to service
 //   PCI References initiated by an external PCI Master.
 // This FIFO also sends status info back from the master about PCI
 //   References this interface acts as the PCI Master for.
-  .pci_iface_response_type    (pci_iface_response_type[3:0]),
-  .pci_iface_response_cbe     (pci_iface_response_cbe[3:0]),
-  .pci_iface_response_data    (pci_iface_response_data[31:0]),
-  .pci_iface_response_room_available_meta (pci_iface_response_room_available_meta),
-  .pci_iface_response_data_load (pci_iface_response_data_load),
-  .pci_iface_response_error   (pci_iface_response_error),
+  .pci_response_fifo_type     (pci_response_fifo_type[3:0]),
+  .pci_response_fifo_cbe      (pci_response_fifo_cbe[3:0]),
+  .pci_response_fifo_data     (pci_response_fifo_data[31:0]),
+  .pci_response_fifo_room_available_meta (pci_response_fifo_room_available_meta),
+  .pci_response_fifo_data_load (pci_response_fifo_data_load),
+  .pci_response_fifo_error    (pci_response_fifo_error),
 // Host Interface Delayed Read Data FIFO used to pass the results of a
 //   Delayed Read on to the external PCI Master which started it.
-  .pci_iface_delayed_read_type (pci_iface_delayed_read_type[2:0]),
-  .pci_iface_delayed_read_data (pci_iface_delayed_read_data[31:0]),
-  .pci_iface_delayed_read_data_available_meta (pci_iface_delayed_read_data_available_meta),
-  .pci_iface_delayed_read_data_unload (pci_iface_delayed_read_data_unload),
-  .pci_iface_delayed_read_error (pci_iface_delayed_read_error),
+  .pci_delayed_read_fifo_type (pci_delayed_read_fifo_type[2:0]),
+  .pci_delayed_read_fifo_data (pci_delayed_read_fifo_data[31:0]),
+  .pci_delayed_read_fifo_data_available_meta (pci_delayed_read_fifo_data_available_meta),
+  .pci_delayed_read_fifo_data_unload (pci_delayed_read_fifo_data_unload),
+  .pci_delayed_read_fifo_error (pci_delayed_read_fifo_error),
 // Signals from the Master to the Target to insert Status Info into the Response FIFO.
-  .pci_master_to_target_request_type (pci_master_to_target_request_type[2:0]),
-  .pci_master_to_target_request_cbe  (pci_master_to_target_request_cbe[3:0]),
-  .pci_master_to_target_request_data (pci_master_to_target_request_data[31:0]),
-  .pci_master_to_target_request_room_available_meta
-                                (pci_master_to_target_request_room_available_meta),
-  .pci_master_to_target_request_data_load (pci_master_to_target_request_data_load),
-  .pci_master_to_target_request_error (pci_master_to_target_request_error),
-// Signals from the Master to the Target to let the Delayed Read logic implement
-//   the ordering rules.
-  .pci_master_executing_read  (pci_master_executing_read),
-  .pci_master_seeing_write_fence (pci_master_seeing_write_fence),
+  .master_to_target_status_type (master_to_target_status_type[2:0]),
+  .master_to_target_status_cbe  (master_to_target_status_cbe[3:0]),
+  .master_to_target_status_data (master_to_target_status_data[31:0]),
+  .master_to_target_status_available (master_to_target_status_available),
+  .master_to_target_status_unload (master_to_target_status_unload),
 // Signals from the Master to the Target to set bits in the Status Register
   .master_got_parity_error    (master_got_parity_error),
   .master_caused_serr         (master_caused_serr),
   .master_caused_master_abort (master_caused_master_abort),
   .master_got_target_abort    (master_got_target_abort),
   .master_caused_parity_error (master_caused_parity_error),
+// Signals used to document Master Behavior
+  .master_asked_to_retry      (master_asked_to_retry),
 // Signals from the Config Regs to the Master to control it.
   .master_enable              (master_enable),
   .master_fast_b2b_en         (master_fast_b2b_en),
@@ -1314,37 +1308,33 @@ pci_blue_master pci_blue_master (
   .pci_stop_in_prev           (pci_stop_in_prev),
   .pci_stop_in_comb           (pci_stop_in_comb),
   .pci_perr_in_prev           (pci_perr_in_prev),
-  .pci_master_perr_out_next    (pci_master_perr_out_next),
+  .pci_master_perr_out_next   (pci_master_perr_out_next),
   .pci_master_perr_out_oe_comb (pci_master_perr_out_oe_comb),
-  .pci_serr_in_prev            (pci_serr_in_prev),
+  .pci_serr_in_prev           (pci_serr_in_prev),
   .pci_master_serr_out_oe_comb (pci_master_serr_out_oe_comb),
 // Host Interface Request FIFO used to ask the PCI Interface to initiate
 //   PCI References to an external PCI Target.
-  .pci_iface_request_type     (pci_iface_request_type[2:0]),
-  .pci_iface_request_cbe      (pci_iface_request_cbe[3:0]),
-  .pci_iface_request_data     (pci_iface_request_data[31:0]),
-  .pci_iface_request_data_available_meta (pci_iface_request_data_available_meta),
-  .pci_iface_request_two_words_available_meta (pci_iface_request_two_words_available_meta),
-  .pci_iface_request_data_unload (pci_iface_request_data_unload),
-  .pci_iface_request_error    (pci_iface_request_error),
+  .pci_request_fifo_type      (pci_request_fifo_type[2:0]),
+  .pci_request_fifo_cbe       (pci_request_fifo_cbe[3:0]),
+  .pci_request_fifo_data      (pci_request_fifo_data[31:0]),
+  .pci_request_fifo_data_available_meta (pci_request_fifo_data_available_meta),
+  .pci_request_fifo_two_words_available_meta (pci_request_fifo_two_words_available_meta),
+  .pci_request_fifo_data_unload (pci_request_fifo_data_unload),
+  .pci_request_fifo_error     (pci_request_fifo_error),
 // Signals from the Master to the Target to insert Status Info into the Response FIFO.
-  .pci_master_to_target_request_type (pci_master_to_target_request_type[2:0]),
-  .pci_master_to_target_request_cbe  (pci_master_to_target_request_cbe[3:0]),
-  .pci_master_to_target_request_data (pci_master_to_target_request_data[31:0]),
-  .pci_master_to_target_request_room_available_meta
-                                (pci_master_to_target_request_room_available_meta),
-  .pci_master_to_target_request_data_load (pci_master_to_target_request_data_load),
-  .pci_master_to_target_request_error (pci_master_to_target_request_error),
-// Signals from the Master to the Target to let the Delayed Read logic implement
-//   the ordering rules.
-  .pci_master_executing_read  (pci_master_executing_read),
-  .pci_master_seeing_write_fence (pci_master_seeing_write_fence),
+  .master_to_target_status_type (master_to_target_status_type[2:0]),
+  .master_to_target_status_cbe  (master_to_target_status_cbe[3:0]),
+  .master_to_target_status_data (master_to_target_status_data[31:0]),
+  .master_to_target_status_available (master_to_target_status_available),
+  .master_to_target_status_unload (master_to_target_status_unload),
 // Signals from the Master to the Target to set bits in the Status Register
   .master_got_parity_error    (master_got_parity_error),
   .master_caused_serr         (master_caused_serr),
   .master_caused_master_abort (master_caused_master_abort),
   .master_got_target_abort    (master_got_target_abort),
   .master_caused_parity_error (master_caused_parity_error),
+// Signals used to document Master Behavior
+  .master_asked_to_retry      (master_asked_to_retry),
 // Signals from the Config Regs to the Master to control it.
   .master_enable              (master_enable),
   .master_fast_b2b_en         (master_fast_b2b_en),

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_options.vh,v 1.7 2001-06-14 10:08:03 bbeaver Exp $
+// $Id: pci_blue_options.vh,v 1.8 2001-06-20 11:25:16 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //

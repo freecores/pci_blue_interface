@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_fifos.v,v 1.6 2001-06-11 08:14:48 bbeaver Exp $
+// $Id: pci_blue_fifos.v,v 1.7 2001-06-20 11:25:11 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //

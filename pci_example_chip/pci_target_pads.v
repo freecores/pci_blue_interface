@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_target_pads.v,v 1.5 2001-06-08 08:40:41 bbeaver Exp $
+// $Id: pci_target_pads.v,v 1.6 2001-06-20 11:25:43 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -95,13 +95,15 @@ module pci_target_pads (
                       pci_cbe_l_out_next,  pci_cbe_out_en_next,
                       pci_cbe_out_oe_comb,
   pci_par_in_prev,    pci_par_out_next,    pci_par_out_oe_comb,
-  pci_frame_in_prev,  pci_frame_out_next,  pci_frame_out_oe_comb,
+  pci_frame_in_prev,  pci_frame_in_comb,
+                      pci_frame_out_next,  pci_frame_out_oe_comb,
   pci_irdy_in_prev,   pci_irdy_in_comb,
                       pci_irdy_out_next,   pci_irdy_out_oe_comb,
   pci_devsel_in_prev, pci_devsel_out_next, pci_d_t_s_out_oe_comb,
   pci_trdy_in_prev,   pci_trdy_in_comb,
                       pci_trdy_out_next,
-  pci_stop_in_prev,   pci_stop_out_next,
+  pci_stop_in_prev,   pci_stop_in_comb,
+                      pci_stop_out_next,
   pci_perr_in_prev,   pci_perr_out_next,   pci_perr_out_oe_comb,
   pci_serr_in_prev,                        pci_serr_out_oe_comb,
 `ifdef PCI_EXTERNAL_IDSEL
@@ -135,7 +137,7 @@ module pci_target_pads (
   input   pci_cbe_out_oe_comb;
   output  pci_par_in_prev;
   input   pci_par_out_next, pci_par_out_oe_comb;
-  output  pci_frame_in_prev;
+  output  pci_frame_in_prev, pci_frame_in_comb;
   input   pci_frame_out_next, pci_frame_out_oe_comb;
   output  pci_irdy_in_prev, pci_irdy_in_comb;
   input   pci_irdy_out_next, pci_irdy_out_oe_comb;
@@ -143,7 +145,7 @@ module pci_target_pads (
   input   pci_devsel_out_next, pci_d_t_s_out_oe_comb;
   output  pci_trdy_in_prev, pci_trdy_in_comb;
   input   pci_trdy_out_next;
-  output  pci_stop_in_prev;
+  output  pci_stop_in_prev, pci_stop_in_comb;
   input   pci_stop_out_next;
   output  pci_perr_in_prev;
   input   pci_perr_out_next, pci_perr_out_oe_comb;
@@ -155,17 +157,22 @@ module pci_target_pads (
   input   pci_clk;
 
 // Capture wires, then invert to make all internal signals asserted HIGH.
-  wire    pci_frame_l_in_prev, pci_irdy_l_in_prev, pci_irdy_l_in_comb;
-  wire    pci_devsel_l_in_prev, pci_trdy_l_in_prev, pci_trdy_l_in_comb;
-  wire    pci_stop_l_in_prev, pci_perr_l_in_prev, pci_serr_l_in_prev;
+  wire    pci_frame_l_in_prev, pci_frame_l_in_comb;
+  wire    pci_irdy_l_in_prev, pci_irdy_l_in_comb;
+  wire    pci_devsel_l_in_prev;
+  wire    pci_trdy_l_in_prev, pci_trdy_l_in_comb;
+  wire    pci_stop_l_in_prev, pci_stop_l_in_comb;
+  wire    pci_perr_l_in_prev, pci_serr_l_in_prev;
 
   assign  pci_frame_in_prev = ~pci_frame_l_in_prev;
+  assign  pci_frame_in_comb = ~pci_frame_l_in_comb;
   assign  pci_irdy_in_prev = ~pci_irdy_l_in_prev;
   assign  pci_irdy_in_comb = ~pci_irdy_l_in_comb;
   assign  pci_devsel_in_prev = ~pci_devsel_l_in_prev;
   assign  pci_trdy_in_prev = ~pci_trdy_l_in_prev;
   assign  pci_trdy_in_comb = ~pci_trdy_l_in_comb;
   assign  pci_stop_in_prev = ~pci_stop_l_in_prev;
+  assign  pci_stop_in_comb = ~pci_stop_l_in_comb;
   assign  pci_perr_in_prev = ~pci_perr_l_in_prev;
   assign  pci_serr_in_prev = ~pci_serr_l_in_prev;
 
@@ -183,8 +190,8 @@ module pci_target_pads (
 
 // Make no-connect wires to connect to unused pad combinational outputs
   wire   [31:0] discard_data_in;
-  wire    discard_par_in, discard_idsel_in, discard_frame_l_in;
-  wire    discard_devsel_l_in, discard_stop_l_in;
+  wire    discard_par_in, discard_idsel_in;
+  wire    discard_devsel_l_in;
   wire    discard_serr_l_in, discard_perr_l_in;
 
 // This pad order follows the suggested pinout given in the PCI Revision 2.2
@@ -318,7 +325,7 @@ pci_registered_io_pad perr (
 );
 pci_registered_io_pad stop (
   .pci_clk           (pci_clk),
-  .pci_ad_in_comb    (discard_stop_l_in),   .pci_ad_in_prev     (pci_stop_l_in_prev),
+  .pci_ad_in_comb    (pci_stop_l_in_comb),  .pci_ad_in_prev     (pci_stop_l_in_prev),
   .pci_ad_out_next   (pci_stop_l_out_next), .pci_ad_out_en_next (1'b1),
   .pci_ad_out_oe_comb (pci_d_t_s_out_oe_comb), .pci_ad_ext      (pci_ext_stop_l)
 );
@@ -342,7 +349,7 @@ pci_registered_io_pad irdy (
 );
 pci_registered_io_pad frame (
   .pci_clk           (pci_clk),
-  .pci_ad_in_comb    (discard_frame_l_in),  .pci_ad_in_prev     (pci_frame_l_in_prev),
+  .pci_ad_in_comb    (pci_frame_l_in_comb), .pci_ad_in_prev     (pci_frame_l_in_prev),
   .pci_ad_out_next   (pci_frame_l_out_next), .pci_ad_out_en_next (1'b1),
   .pci_ad_out_oe_comb (pci_frame_out_oe_comb), .pci_ad_ext      (pci_ext_frame_l)
 );
