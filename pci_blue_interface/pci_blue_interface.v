@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_interface.v,v 1.11 2001-06-21 10:05:56 bbeaver Exp $
+// $Id: pci_blue_interface.v,v 1.12 2001-06-25 08:49:45 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -93,7 +93,7 @@
 //        with the bottom 2 bits of the address not both 0.  If an IO reference
 //        is done with at least 1 bit non-zero, the transfer must be a single
 //        word transfer.  See the PCI Local Bus Specification Revision 2.2,
-//        section 3.2.2.1
+//        section 3.2.2.1 for details.
 //
 // NOTE:  The writer of the FIFO must only insert valid sequences of Request
 //        entries.  Valid sequences are of the form Address->Data->Data_Last.
@@ -137,6 +137,8 @@ module pci_blue_interface (
   host_reset_to_PCI_interface,
   host_clk, host_sync_clk,
 // Wires used by the PCI State Machine and PCI Bus Combiner to drive the PCI bus
+  pci_req_out_next,   pci_req_out_oe_comb,
+  pci_gnt_in_prev,    pci_gnt_in_comb,
   pci_ad_in_prev,     pci_ad_out_next,     pci_ad_out_en_next,
                       pci_ad_out_oe_comb,
   pci_cbe_l_in_prev,  pci_cbe_l_in_comb,
@@ -199,6 +201,10 @@ module pci_blue_interface (
   input   host_clk;
   input   host_sync_clk;  // used only by Synchronizers, and in Synthesis Constraints
 // Wires used by the PCI State Machine and PCI Bus Combiner to drive the PCI bus
+  output  pci_req_out_next;
+  output  pci_req_out_oe_comb;
+  input   pci_gnt_in_prev;
+  input   pci_gnt_in_comb;
   input  [31:0] pci_ad_in_prev;
   output [31:0] pci_ad_out_next;
   output  pci_ad_out_en_next;
@@ -314,7 +320,7 @@ pci_synchronizer_flop sync_error_flop (
 //   the PCI Ordering Rules.
 // The Host_Target_State_Machine is also constantly sending info about the status
 //   of Host-initiated PCI Activity back to the Host_Master_State_Machine.
-// See the PCI Local Bus Spec Revision 2.2 section 3.3.3.3.
+// See the PCI Local Bus Spec Revision 2.2 section 3.3.3.3 for details.
 
 // The Host_Master_State_Machine either directly executes the read or write if
 //   it is to the local Memory, or it makes a request to the PCI Interface.
@@ -604,7 +610,7 @@ $display ("Got Last Read Data");  // NOTE WORKING
 // The Host_Target_State_Machine can ask the Host_Master_State_Machine to stick
 //   a write fence into the Host Request FIFO in order to correctly implement
 //   the PCI Ordering Rules for Delayed Reads.  See the PCI Local Bus Spec
-//   Revision 2.2 section 3.3.3.3.
+//   Revision 2.2 section 3.3.3.3 for details.
 // This State Machine is responsible for restarting the Memory Read in the case
 //   of a Delayed Read which is interrupted by a delayed write to the read region.
 //
@@ -1312,8 +1318,9 @@ pci_blue_target pci_blue_target (
 // Instantiate the Master Interface
 pci_blue_master pci_blue_master (
 // Signals driven to control the external PCI interface
-  .master_req_out             (master_req_out),
-  .master_gnt_now             (master_gnt_now),
+  .pci_req_out_next           (pci_req_out_next),
+  .pci_req_out_oe_comb        (pci_req_out_oe_comb),
+  .pci_gnt_in_comb            (pci_gnt_in_comb),
   .pci_ad_in_prev             (pci_ad_in_prev[31:0]),
   .pci_master_ad_out_next     (pci_master_ad_out_next[31:0]),
   .pci_master_ad_en_next      (pci_master_ad_en_next),
@@ -1412,7 +1419,7 @@ pci_critical_data_latch_enable pci_critical_data_latch_enable (
 // NOTE: If target responding to a read, need to include the CURRENT
 //       CBE signals, driven by Master.
 // NOTE: very timing critical.  3 nSec setup on CBE signals.
-// See the PCI Local Bus Spec Revision 2.2 section 3.7.1
+// See the PCI Local Bus Spec Revision 2.2 section 3.7.1 for details.
   wire    outgoing_data_parity = (^ pci_ad_out_next[31:0]);
   wire    outgoing_cbe_parity = (^ pci_cbe_l_out_next[3:0]);
 
@@ -1429,7 +1436,7 @@ pci_critical_data_latch_enable pci_critical_data_latch_enable (
 // PERR must be asserted, then deasserted, then set to high-Z
 // SERR is open-collector.  It is asserted, then assumed invalid
 // until it is seen deasserted for 2 clocks.
-// See the PCI Local Bus Spec Revision 2.2 section 3.7.4.2
+// See the PCI Local Bus Spec Revision 2.2 section 3.7.4.2 for details.
   assign  pci_perr_out_next    = pci_master_perr_out_next
                                | pci_target_perr_out_next;
   assign  pci_perr_out_oe_comb = pci_master_perr_out_oe_comb

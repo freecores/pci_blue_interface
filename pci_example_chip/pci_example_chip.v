@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_example_chip.v,v 1.6 2001-06-20 11:25:40 bbeaver Exp $
+// $Id: pci_example_chip.v,v 1.7 2001-06-25 08:50:04 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -245,6 +245,24 @@ pci_clk_reset_pads pci_clk_reset_pads (
   .pci_reset_raw              (pci_reset_raw)
 );
 
+`ifdef PCI_EXTERNAL_MASTER
+
+  wire    pci_req_out_next, pci_req_out_oe_comb;
+  wire    pci_gnt_in_prev, pci_gnt_in_comb;
+
+pci_master_pads pci_master_pads (
+// external PCI bus signals
+  .pci_ext_req_l              (pci_ext_req_l),
+  .pci_ext_gnt_l              (pci_ext_gnt_l),
+// internal signals
+  .pci_req_out_next           (pci_req_out_next),
+  .pci_req_out_oe_comb        (pci_req_out_oe_comb),
+  .pci_gnt_in_prev            (pci_gnt_in_prev),
+  .pci_gnt_in_comb            (pci_gnt_in_comb),
+  .pci_clk                    (pci_clk)
+);
+`endif  // PCI_EXTERNAL_MASTER
+
 // Connect to the external PCI pads
 pci_target_pads pci_target_pads (
   .pci_ext_ad                 (pci_ext_ad[31:0]),
@@ -485,10 +503,10 @@ pci_null_interface pci_null_interface (
 );
 
 `else // SUPPORT_MULTIPLE_ONCHIP_INTERFACES
-  assign  pci_ad_out_next       = pci_ad_out_next_a[31:0];
+  assign  pci_ad_out_next[31:0] = pci_ad_out_next_a[31:0];
   assign  pci_ad_out_en_next    = pci_ad_out_en_next_a;
   assign  pci_ad_out_oe_comb    = pci_ad_out_oe_comb_a;
-  assign  pci_cbe_l_out_next    = pci_cbe_l_out_next_a[3:0];
+  assign  pci_cbe_l_out_next[3:0] = pci_cbe_l_out_next_a[3:0];
   assign  pci_cbe_out_en_next   = pci_cbe_out_en_next_a;
   assign  pci_cbe_out_oe_comb   = pci_cbe_out_oe_comb_a;
   assign  pci_par_out_next      = pci_par_out_next_a;
@@ -577,6 +595,10 @@ pci_blue_interface pci_blue_interface (
   .host_clk                   (host_clk),
   .host_sync_clk              (host_clk),
 // Wires used by the PCI State Machine and PCI Bus Combiner to drive the PCI bus
+  .pci_req_out_next           (pci_req_out_next),
+  .pci_req_out_oe_comb        (pci_req_out_oe_comb),
+  .pci_gnt_in_prev            (pci_gnt_in_prev),
+  .pci_gnt_in_comb            (pci_gnt_in_comb),
   .pci_ad_in_prev             (pci_ad_in_prev[31:0]),
   .pci_ad_out_next            (pci_ad_out_next_a[31:0]),
   .pci_ad_out_en_next         (pci_ad_out_en_next_a),

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_target_pads.v,v 1.6 2001-06-20 11:25:43 bbeaver Exp $
+// $Id: pci_target_pads.v,v 1.7 2001-06-25 08:50:04 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -314,7 +314,7 @@ pci_registered_io_pad par (
 pci_registered_io_pad serr (
   .pci_clk           (pci_clk),
   .pci_ad_in_comb    (discard_serr_l_in),   .pci_ad_in_prev     (pci_serr_l_in_prev),
-  .pci_ad_out_next   (1'b0),                .pci_ad_out_en_next (1'b1),
+  .pci_ad_out_next   (1'b0),                .pci_ad_out_en_next (1'b0),
   .pci_ad_out_oe_comb (pci_serr_out_oe_comb), .pci_ad_ext       (pci_ext_serr_l)
 );
 pci_registered_io_pad perr (

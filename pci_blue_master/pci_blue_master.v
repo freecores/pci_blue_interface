@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_master.v,v 1.11 2001-06-21 10:06:01 bbeaver Exp $
+// $Id: pci_blue_master.v,v 1.12 2001-06-25 08:49:51 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -99,7 +99,7 @@
 //        with the bottom 2 bits of the address not both 0.  If an IO reference
 //        is done with at least 1 bit non-zero, the transfer must be a single
 //        word transfer.  See the PCI Local Bus Specification Revision 2.2,
-//        section 3.2.2.1
+//        section 3.2.2.1 for details.
 //
 // NOTE:  This Master State Machine is an implementation of the Master State
 //        Machine described in the PCI Local Bus Specification Revision 2.2,
@@ -124,7 +124,8 @@
 
 module pci_blue_master (
 // Signals driven to control the external PCI interface
-  master_req_out,      master_gnt_now,
+  pci_req_out_next,    pci_req_out_oe_comb,
+  pci_gnt_in_prev,     pci_gnt_in_comb,
   pci_ad_in_prev,
   pci_master_ad_out_next,
   pci_master_ad_en_next, pci_master_ad_out_oe_comb,
@@ -182,8 +183,10 @@ module pci_blue_master (
 );
 
 // Signals driven to control the external PCI interface
-  output  master_req_out;
-  input   master_gnt_now;
+  output  pci_req_out_next;
+  output  pci_req_out_oe_comb;
+  input   pci_gnt_in_prev;
+  input   pci_gnt_in_comb;
   input  [31:0] pci_ad_in_prev;
   output [31:0] pci_master_ad_out_next;
   output  pci_master_ad_en_next;
@@ -474,9 +477,12 @@ module pci_blue_master (
 //    otherwise send data immediately into Status FIFO.
 // NOTE: In the case of Master Abort, this FIFO needs to be flushed till Data_Last
 // NOTE: Other logic will mix in the various timeouts which can happen.
-  wire    Master_Retry_Address_Available;  // forward reference.  Only when waiting for bus
+  wire    Master_Retry_Address_Available, Master_Address_Being_Stepped;  // forward reference
+
   wire    Request_FIFO_CONTAINS_ADDRESS =
-                  master_to_target_status_room_available  // target ready for status
+                  master_enable  // only start (or retried a reference) if enabled
+               & ~Master_Address_Being_Stepped
+               &  master_to_target_status_room_available  // target ready for status
                &  pci_request_fifo_data_available_meta  // at least 1 word
                & (    Master_Retry_Address_Available  // retry address phase
                    | (   (   (pci_request_fifo_type[2:0] ==  // new address
@@ -508,6 +514,7 @@ module pci_blue_master (
                       `PCI_HOST_REQUEST_INSERT_WRITE_FENCE)  // also Reg Refs
                    | (pci_request_fifo_type[2:0] ==
                       `PCI_HOST_REQUEST_SPARE));
+
   wire    Request_FIFO_Empty = ~(   Request_FIFO_CONTAINS_ADDRESS
                                   | Request_FIFO_CONTAINS_DATA_MORE
                                   | Request_FIFO_CONTAINS_DATA_LAST
@@ -558,9 +565,9 @@ module pci_blue_master (
       begin
         Master_Retry_Address[31:2] <= Master_Retry_Address[31:2];
       end
-// NOTE: If a Target Abort is received during a Memory Write and Invalidate,
+// NOTE: If a Target Disconnect is received during a Memory Write and Invalidate,
 // NOTE:   the reference should be retried as a normal Memory Write.
-// See the PCI Local Bus Spec Revision 2.2 section 3.3.3.2.1 for details
+//         See the PCI Local Bus Spec Revision 2.2 section 3.3.3.2.1 for details.
       if ((Master_Got_Retry == 1'b1)
            & (Master_Retry_Command[3:0] ==
                  `PCI_COMMAND_MEMORY_WRITE_INVALIDATE))
@@ -576,7 +583,7 @@ module pci_blue_master (
 
 // Master Aborts are detected when the Master asserts FRAME, and does
 // not see DEVSEL in a timely manner.  See the PCI Local Bus Spec
-// Revision 2.2 section 3.3.3.1.
+// Revision 2.2 section 3.3.3.1 for details.
   reg    [2:0] Master_Abort_Counter;
   reg     Master_Got_Devsel, Master_Abort_Detected;
   wire    Master_Start_Master_Abort_Counter;
@@ -620,8 +627,8 @@ module pci_blue_master (
   end
 
 // The Master Latency Counter is needed to force the Master off the bus
-// in a timely fashion if it is in the middle of a burst when it's Grant
-// is removed.  See the PCI Local Bus Spec Revision 2.2 section 3.5.4
+// in a timely fashion if it is in the middle of a burst when it's Grant is
+// removed.  See the PCI Local Bus Spec Revision 2.2 section 3.5.4 for details.
   reg    [7:0] Master_Bus_Latency_Timer;
   wire    Master_Clear_Bus_Latency_Timer;
   reg     Master_Bus_Latency_Time_Exceeded;
@@ -641,6 +648,8 @@ module pci_blue_master (
                                     | Master_Bus_Latency_Time_Exceeded;  // hold
     end
   end
+
+// NOTE: TODO: Make Flush State Machine.  Flush for Master, Target Abort, DMA off
 
 // The Master State Machine as described in Appendix B.
 // No Lock State Machine is implemented.
@@ -825,8 +834,6 @@ module pci_blue_master (
 //   input pads.  Therefore, all the fast stuff is in the gates below
 //   this case statement.
 
-// NOTE: WORKING implement Address Stepping on Config Refs somehow
-
   always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
   begin
     if (pci_reset_comb == 1'b1)
@@ -838,13 +845,24 @@ module pci_blue_master (
       case (PCI_Master_State[8:0])
       PCI_MASTER_IDLE:
         begin
-// NOTE WORKING need to hop to MASTER_DR_BUS from IDLE somehow?
-          if (Request_FIFO_Empty == 1'b1)
+
+// NOTE:  The Master is not allowed to drive FRAME unless GNT is asserted.
+// NOTE:  GNT_L is VERY LATE.  (However, it is not as late as the signals
+// NOTE:  TRDY_L and STOP_L.)    Make sure that this logic places the GNT
+// NOTE:  dependency on the fast branch.  See the PCI Local Bus Spec
+// NOTE:  Revision 2.2 section 3.4.1 and 7.6.4.2 for details.
+
+          if (pci_gnt_in_comb == 1'b0)
+          begin
+            PCI_Master_State[8:0] <= PCI_MASTER_IDLE;
+          end
+          else if (Request_FIFO_CONTAINS_ADDRESS == 1'b0)
           begin
             PCI_Master_State[8:0] <= PCI_MASTER_IDLE;
           end
           else if (Request_FIFO_CONTAINS_ADDRESS == 1'b1)
           begin
+// NOTE: WORKING implement Address Stepping on Config Refs somehow
             PCI_Master_State[8:0] <= PCI_MASTER_ADDR;
           end
           else // Request_FIFO_CONTAINS_DATA_????.  Bug
@@ -1152,6 +1170,7 @@ module pci_blue_master (
   assign  pci_master_serr_out_oe_comb = 1'b0;  // NOTE WORKING
 
   assign  Master_Select_Stored_Address = 1'b0;  // NOTE WORKING
+  assign  Master_Address_Being_Stepped = 1'b0;  // NOTE WORKING
   assign  Master_Grab_Address = 1'b0;  // NOTE WORKING
   assign  Master_Inc_Address = 1'b0;  // NOTE WORKING
   assign  Master_Got_Retry = 1'b0;  // NOTE WORKING
@@ -1164,7 +1183,8 @@ module pci_blue_master (
   assign  master_got_target_abort = 1'b0;  // NOTE WORKING
   assign  master_caused_parity_error = 1'b0;  // NOTE WORKING
   assign  master_asked_to_retry = 1'b0;  // NOTE WORKING
-  assign  master_req_out = 1'b0;  // NOTE WORKING
+  assign  pci_req_out_next = 1'b0;  // NOTE WORKING
+  assign  pci_req_out_oe_comb = 1'b0;  // NOTE WORKING
   assign  pci_master_ad_en_next = 1'b0;  // NOTE WORKING
   assign  pci_cbe_out_en_next = 1'b0;  // NOTE WORKING
   assign  pci_master_par_out_next = 1'b0;  // NOTE WORKING

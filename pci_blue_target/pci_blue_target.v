@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_target.v,v 1.11 2001-06-21 10:06:05 bbeaver Exp $
+// $Id: pci_blue_target.v,v 1.12 2001-06-25 08:49:56 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -95,13 +95,13 @@
 //
 // NOTE:  This Target State Machine must be careful if an Address Parity
 //        error is detected.  See the PCI Local Bus Specification Revision
-//        2.2, section 3.7.3.
+//        2.2, section 3.7.3 for details.
 //
 // NOTE:  This Target State Machine must look at the bottom 2 bits of the
 //        address for all references (except IO references).  If the
 //        bottom 2 bits are not both 0, the transfer should be terminated
 //        with data after the first data phase.  See the PCI Local Bus
-//        Specification Revision 2.2, section 3.2.2.2.
+//        Specification Revision 2.2, section 3.2.2.2 for details.
 //
 // NOTE:  This Target State Machine is aware that a write might occur while
 //        a Delayed Read is begin done, and the write might hit on top of
@@ -334,6 +334,7 @@ module pci_blue_target (
 //   FIFO.  The Host Controller can indicate End Of Burst or Target Abort there too.
 // The Host Controller must continue to service Write Requests while the Delayed Read
 //   is being acted on.   See the PCI Local Bus Spec Revision 2.2 section 3.3.3.3.4
+//   for details.
 // If Bus Writes are done while the Delayed Read Data is being fetched, the PCI
 //   Bus Interface will watch to see if any writes overlap the Read address region.
 //   If a Write overlaps the Read address region, the PCI Interface will ask that the
