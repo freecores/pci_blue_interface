@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_bus_monitor.v,v 1.2 2001-02-23 13:18:37 bbeaver Exp $
+// $Id: pci_bus_monitor.v,v 1.3 2001-02-24 11:30:47 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -252,7 +252,7 @@ task Watch_For_X_On_OE_Sigs;
   input  [2:0] signal_source;
   input  [5:0] oe_signals;
   begin
-    if ((^oe_signals) === 1'bX)
+    if ((^oe_signals[5:0]) === 1'bX)
     begin
       if (signal_source[2:0] == `Test_Master_Real)
       begin
