@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: grey_to_binary.v,v 1.3 2001-08-20 06:27:56 bbeaver Exp $
+// $Id: grey_to_binary.v,v 1.4 2001-08-22 09:04:25 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -129,8 +129,18 @@ module bin_to_grey_code (
 // synopsys translate_off
   initial
   begin
-    if (NUM_BITS < 2) $display ("*** %m bin_to_grey_code Number of bits %d < 2", NUM_BITS);
-    if (NUM_BITS > 16) $display ("*** %m bin_to_grey_code Number of bits %d > 16", NUM_BITS);
+    if (NUM_BITS < 2)
+    begin
+      $display ("*** Exiting because %m bin_to_grey_code Number of bits %d < 2",
+                   NUM_BITS);
+      $finish;
+    end
+    if (NUM_BITS > 16)
+    begin
+      $display ("*** Exiting because %m bin_to_grey_code Number of bits %d > 16",
+                   NUM_BITS);
+      $finish;
+    end
   end
 endmodule
 
@@ -206,8 +216,18 @@ module grey_code_to_bin (
 // synopsys translate_off
   initial
   begin
-    if (NUM_BITS < 2) $display ("*** %m grey_code_to_bin Number of bits %d < 2", NUM_BITS);
-    if (NUM_BITS > 16) $display ("*** %m grey_code_to_bin Number of bits %d > 16", NUM_BITS);
+    if (NUM_BITS < 2)
+    begin
+      $display ("*** Exiting because %m grey_code_to_bin Number of bits %d < 2",
+                   NUM_BITS);
+      $finish;
+    end
+    if (NUM_BITS > 16)
+    begin
+      $display ("*** Exiting because %m grey_code_to_bin Number of bits %d > 16",
+                   NUM_BITS);
+      $finish;
+    end
   end
 endmodule
 

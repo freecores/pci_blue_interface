@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: crc32_lib.v,v 1.4 2001-08-21 11:08:00 bbeaver Exp $
+// $Id: crc32_lib.v,v 1.5 2001-08-22 09:04:25 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -145,76 +145,48 @@ module crc_32_8_private (
   input  [7:0] data_in_8;
   output [`NUMBER_OF_BITS_IN_CRC - 1 : 0] next_crc;
 
-/* State Variables depend on input bit number (bigger is earlier) :
-          0 :  0                      6    
-          1 :  0  1                  6  7
-          2 :  0  1  2              6  7
-          3 :      1  2  3              7
-          4 :  0      2  3  4      6    
-          5 :  0  1      3  4  5  6  7
-          6 :      1  2      4  5  6  7
-          7 :  0      2  3      5      7
-          8 :  0  1      3  4            
-          9 :      1  2      4  5        
-         10 :  0      2  3      5        
-         11 :  0  1      3  4            
-         12 :  0  1  2      4  5  6    
-         13 :      1  2  3      5  6  7
-         14 :          2  3  4      6  7
-         15 :              3  4  5      7
-         16 :  0              4  5        
-         17 :      1              5  6    
-         18 :          2              6  7
-         19 :              3              7
-         20 :                  4            
-         21 :                      5        
-         22 :  0                            
-         23 :  0  1                  6    
-         24 :      1  2                  7
-         25 :          2  3                
-         26 :  0          3  4      6    
-         27 :      1          4  5      7
-         28 :          2          5  6    
-         29 :              3          6  7
-         30 :                  4          7
-         31 :                      5        
-*/
   wire   [7:0] X = data_in_8[7:0] ^ present_crc[31:24];
-  wire   [`NUMBER_OF_BITS_IN_CRC - 1 : 0] C = present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0];
+  wire    X7, X6, X5, X4, X3, X2, X1, X0;
+  assign  {X7, X6, X5, X4, X3, X2, X1, X0} = X[7:0];
+  wire    C23, C22, C21, C20, C19, C18, C17, C16;
+  wire    C15, C14, C13, C12, C11, C10, C9, C8, C7, C6, C5, C4, C3, C2, C1, C0;
+  assign  {C23, C22, C21, C20, C19, C18, C17, C16, C15, C14, C13, C12,
+           C11, C10, C9,  C8,  C7,  C6,  C5,  C4,  C3,  C2,  C1,  C0} =
+                                present_crc[`NUMBER_OF_BITS_IN_CRC - 8 - 1 : 0];
   assign  next_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] =
-          { C[23]                                    ^ X[5],
-            C[22]                             ^ X[4]               ^ X[7],
-            C[21]                      ^ X[3]               ^ X[6] ^ X[7],
-            C[20]               ^ X[2]               ^ X[5] ^ X[6],
-            C[19]        ^ X[1]               ^ X[4] ^ X[5]        ^ X[7],
-            C[18] ^ X[0]               ^ X[3] ^ X[4]        ^ X[6],
-            C[17]               ^ X[2] ^ X[3],
-            C[16]        ^ X[1] ^ X[2]                             ^ X[7],
-            C[15] ^ X[0] ^ X[1]                             ^ X[6],
-            C[14] ^ X[0],
-            C[13]                                    ^ X[5],
-            C[12]                             ^ X[4],
-            C[11]                      ^ X[3]                      ^ X[7],
-            C[10]               ^ X[2]                      ^ X[6] ^ X[7],
-            C[9]         ^ X[1]                      ^ X[5] ^ X[6],
-            C[8]  ^ X[0]                      ^ X[4] ^ X[5],
-            C[7]                       ^ X[3] ^ X[4] ^ X[5]        ^ X[7],
-            C[6]                ^ X[2] ^ X[3] ^ X[4]        ^ X[6] ^ X[7],
-            C[5]         ^ X[1] ^ X[2] ^ X[3]        ^ X[5] ^ X[6] ^ X[7],
-            C[4]  ^ X[0] ^ X[1] ^ X[2]        ^ X[4] ^ X[5] ^ X[6],
-            C[3]  ^ X[0] ^ X[1]        ^ X[3] ^ X[4],
-            C[2]  ^ X[0]        ^ X[2] ^ X[3]        ^ X[5],
-            C[1]         ^ X[1] ^ X[2]        ^ X[4] ^ X[5],
-            C[0]  ^ X[0] ^ X[1]        ^ X[3] ^ X[4],
-                    X[0]        ^ X[2] ^ X[3]        ^ X[5]        ^ X[7],
-                           X[1] ^ X[2]        ^ X[4] ^ X[5] ^ X[6] ^ X[7],
-                    X[0] ^ X[1]        ^ X[3] ^ X[4] ^ X[5] ^ X[6] ^ X[7],
-                    X[0]        ^ X[2] ^ X[3] ^ X[4]        ^ X[6],
-                           X[1] ^ X[2] ^ X[3]                      ^ X[7],
-                    X[0] ^ X[1] ^ X[2]                      ^ X[6] ^ X[7],
-                    X[0] ^ X[1]                             ^ X[6] ^ X[7],
-                    X[0]                                    ^ X[6]
-           };
+    { C23                          ^ X5          ,
+      C22                     ^ X4           ^ X7,
+      C21                ^ X3           ^ X6 ^ X7,
+      C20           ^ X2           ^ X5 ^ X6     ,
+      C19      ^ X1           ^ X4 ^ X5      ^ X7,
+      C18 ^ X0           ^ X3 ^ X4      ^ X6     ,
+      C17           ^ X2 ^ X3                    ,
+      C16      ^ X1 ^ X2                     ^ X7,
+      C15 ^ X0 ^ X1                     ^ X6     ,
+      C14 ^ X0                                   ,
+      C13                           ^ X5         ,
+      C12                     ^ X4               ,
+      C11                ^ X3                ^ X7,
+      C10           ^ X2                ^ X6 ^ X7,
+      C9       ^ X1                ^ X5 ^ X6     ,
+      C8  ^ X0                ^ X4 ^ X5          ,
+      C7                 ^ X3 ^ X4 ^ X5      ^ X7,
+      C6            ^ X2 ^ X3 ^ X4      ^ X6 ^ X7,
+      C5       ^ X1 ^ X2 ^ X3      ^ X5 ^ X6 ^ X7,
+      C4  ^ X0 ^ X1 ^ X2      ^ X4 ^ X5 ^ X6     ,
+      C3  ^ X0 ^ X1      ^ X3 ^ X4               ,
+      C2  ^ X0      ^ X2 ^ X3      ^ X5          ,
+      C1       ^ X1 ^ X2      ^ X4 ^ X5          ,
+      C0  ^ X0 ^ X1      ^ X3 ^ X4               ,
+            X0      ^ X2 ^ X3      ^ X5      ^ X7,
+                 X1 ^ X2      ^ X4 ^ X5 ^ X6 ^ X7,
+            X0 ^ X1      ^ X3 ^ X4 ^ X5 ^ X6 ^ X7,
+            X0      ^ X2 ^ X3 ^ X4      ^ X6     ,
+                 X1 ^ X2 ^ X3                ^ X7,
+            X0 ^ X1 ^ X2                ^ X6 ^ X7,
+            X0 ^ X1                     ^ X6 ^ X7,
+            X0                          ^ X6
+     };
 endmodule
 
 module crc_32_16_private (
@@ -228,38 +200,74 @@ module crc_32_16_private (
   output [`NUMBER_OF_BITS_IN_CRC - 1 : 0] next_crc;
 
 /* State Variables depend on input bit number (bigger is earlier) :
-          0 :  0                      6          9 10     12            
-          1 :  0  1                  6  7      9     11 12 13        
-          2 :  0  1  2              6  7  8  9             13 14    
-          3 :      1  2  3              7  8  9 10             14 15
-          4 :  0      2  3  4      6      8         11 12         15
-          5 :  0  1      3  4  5  6  7         10         13        
-          6 :      1  2      4  5  6  7  8         11         14    
-          7 :  0      2  3      5      7  8     10                 15
-          8 :  0  1      3  4              8     10 11 12            
-          9 :      1  2      4  5              9     11 12 13        
-         10 :  0      2  3      5              9             13 14    
-         11 :  0  1      3  4                  9         12     14 15
-         12 :  0  1  2      4  5  6          9         12 13     15
-         13 :      1  2  3      5  6  7         10         13 14    
-         14 :          2  3  4      6  7  8         11         14 15
-         15 :              3  4  5      7  8  9         12         15
-         16 :  0              4  5          8             12 13        
-         17 :      1              5  6          9             13 14    
-         18 :          2              6  7         10             14 15
-         19 :              3              7  8         11             15
-         20 :                  4              8  9         12            
-         21 :                      5              9 10         13        
-         22 :  0                                  9     11 12     14    
-         23 :  0  1                  6          9             13     15
-         24 :      1  2                  7         10             14    
-         25 :          2  3                  8         11             15
-         26 :  0          3  4      6             10                    
-         27 :      1          4  5      7             11                
-         28 :          2          5  6      8             12            
-         29 :              3          6  7      9             13        
-         30 :                  4          7  8     10             14    
-         31 :                      5          8  9     11             15
+{
+31 : C15                           ^ X5           ^ X8 ^ X9       ^ X11                   ^ X15,
+30 : C14                      ^ X4           ^ X7 ^ X8      ^ X10                   ^ X14      ,
+29 : C13                 ^ X3           ^ X6 ^ X7      ^ X9                   ^ X13            ,
+28 : C12            ^ X2           ^ X5 ^ X6      ^ X8                  ^ X12                  ,
+27 : C11       ^ X1           ^ X4 ^ X5      ^ X7                 ^ X11                        ,
+26 : C10  ^ X0           ^ X3 ^ X4      ^ X6                ^ X10                              ,
+25 : C9             ^ X2 ^ X3                     ^ X8            ^ X11                   ^ X15,
+24 : C8        ^ X1 ^ X2                     ^ X7           ^ X10                   ^ X14      ,
+23 : C7   ^ X0 ^ X1                     ^ X6           ^ X9                   ^ X13       ^ X15,
+22 : C6   ^ X0                                         ^ X9       ^ X11 ^ X12       ^ X14      ,
+21 : C5                            ^ X5                ^ X9 ^ X10             ^ X13            ,
+20 : C4                       ^ X4                ^ X8 ^ X9             ^ X12                  ,
+19 : C3                  ^ X3                ^ X7 ^ X8            ^ X11                   ^ X15,
+18 : C2             ^ X2                ^ X6 ^ X7           ^ X10                   ^ X14 ^ X15,
+17 : C1        ^ X1                ^ X5 ^ X6           ^ X9                   ^ X13 ^ X14      ,
+16 : C0   ^ X0                ^ X4 ^ X5           ^ X8                  ^ X12 ^ X13            ,
+15 :  0                  ^ X3 ^ X4 ^ X5      ^ X7 ^ X8 ^ X9             ^ X12             ^ X15,
+14 :  0             ^ X2 ^ X3 ^ X4      ^ X6 ^ X7 ^ X8            ^ X11             ^ X14 ^ X15,
+13 :  0        ^ X1 ^ X2 ^ X3      ^ X5 ^ X6 ^ X7           ^ X10             ^ X13 ^ X14      ,
+12 :  0   ^ X0 ^ X1 ^ X2      ^ X4 ^ X5 ^ X6           ^ X9             ^ X12 ^ X13       ^ X15,
+11 :  0   ^ X0 ^ X1      ^ X3 ^ X4                     ^ X9             ^ X12       ^ X14 ^ X15,
+10 :  0   ^ X0      ^ X2 ^ X3      ^ X5                ^ X9                   ^ X13 ^ X14      ,
+ 9 :  0        ^ X1 ^ X2      ^ X4 ^ X5                ^ X9       ^ X11 ^ X12 ^ X13            ,
+ 8 :  0   ^ X0 ^ X1      ^ X3 ^ X4                ^ X8      ^ X10 ^ X11 ^ X12                  ,
+ 7 :  0   ^ X0      ^ X2 ^ X3      ^ X5      ^ X7 ^ X8      ^ X10                         ^ X15,
+ 6 :  0        ^ X1 ^ X2      ^ X4 ^ X5 ^ X6 ^ X7 ^ X8            ^ X11             ^ X14      ,
+ 5 :  0   ^ X0 ^ X1      ^ X3 ^ X4 ^ X5 ^ X6 ^ X7           ^ X10             ^ X13            ,
+ 4 :  0   ^ X0      ^ X2 ^ X3 ^ X4      ^ X6      ^ X8            ^ X11 ^ X12             ^ X15,
+ 3 :  0        ^ X1 ^ X2 ^ X3                ^ X7 ^ X8 ^ X9 ^ X10                   ^ X14 ^ X15,
+ 2 :  0   ^ X0 ^ X1 ^ X2                ^ X6 ^ X7 ^ X8 ^ X9                   ^ X13 ^ X14      ,
+ 1 :  0   ^ X0 ^ X1                     ^ X6 ^ X7      ^ X9       ^ X11 ^ X12 ^ X13            ,
+ 0 :  0   ^ X0                          ^ X6           ^ X9 ^ X10       ^ X12                  
+}
+{
+31 : C15                           ^ X5           ^ X8       ^ X9                   ^ X11 ^ X15,
+30 : C14                      ^ X4           ^ X7 ^ X8                  ^ X10 ^ X14            ,
+29 : C13                 ^ X3           ^ X6 ^ X7            ^ X9 ^ X13                        ,
+28 : C12            ^ X2           ^ X5 ^ X6      ^ X8 ^ X12                                   ,
+27 : C11       ^ X1           ^ X4 ^ X5      ^ X7                                   ^ X11      ,
+26 : C10  ^ X0           ^ X3 ^ X4      ^ X6                            ^ X10                  ,
+25 : C9             ^ X2 ^ X3                     ^ X8                              ^ X11 ^ X15,
+24 : C8        ^ X1 ^ X2                     ^ X7                       ^ X10 ^ X14            ,
+23 : C7   ^ X0 ^ X1                     ^ X6                 ^ X9 ^ X13                   ^ X15,
+22 : C6   ^ X0                                         ^ X12 ^ X9             ^ X14 ^ X11      ,
+21 : C5                            ^ X5                      ^ X9 ^ X13 ^ X10                  ,
+20 : C4                       ^ X4                ^ X8 ^ X12 ^ X9                              ,
+19 : C3                  ^ X3                ^ X7 ^ X8                              ^ X11 ^ X15,
+18 : C2             ^ X2                ^ X6 ^ X7                       ^ X10 ^ X14       ^ X15,
+17 : C1        ^ X1                ^ X5 ^ X6                 ^ X9 ^ X13       ^ X14            ,
+16 : C0   ^ X0                ^ X4 ^ X5           ^ X8 ^ X12      ^ X13                        ,
+15 :  0                  ^ X3 ^ X4 ^ X5      ^ X7 ^ X8 ^ X12 ^ X9                         ^ X15,
+14 :  0             ^ X2 ^ X3 ^ X4      ^ X6 ^ X7 ^ X8                        ^ X14 ^ X11 ^ X15,
+13 :  0        ^ X1 ^ X2 ^ X3      ^ X5 ^ X6 ^ X7                 ^ X13 ^ X10 ^ X14            ,
+12 :  0   ^ X0 ^ X1 ^ X2      ^ X4 ^ X5 ^ X6           ^ X12 ^ X9 ^ X13                   ^ X15,
+11 :  0   ^ X0 ^ X1      ^ X3 ^ X4                     ^ X12 ^ X9             ^ X14       ^ X15,
+10 :  0   ^ X0      ^ X2 ^ X3      ^ X5                      ^ X9 ^ X13       ^ X14            ,
+ 9 :  0        ^ X1 ^ X2      ^ X4 ^ X5                ^ X12 ^ X9 ^ X13             ^ X11      ,
+ 8 :  0   ^ X0 ^ X1      ^ X3 ^ X4                ^ X8 ^ X12            ^ X10       ^ X11      ,
+ 7 :  0   ^ X0      ^ X2 ^ X3      ^ X5      ^ X7 ^ X8                  ^ X10             ^ X15,
+ 6 :  0        ^ X1 ^ X2      ^ X4 ^ X5 ^ X6 ^ X7 ^ X8                        ^ X14 ^ X11      ,
+ 5 :  0   ^ X0 ^ X1      ^ X3 ^ X4 ^ X5 ^ X6 ^ X7                 ^ X13 ^ X10                  ,
+ 4 :  0   ^ X0      ^ X2 ^ X3 ^ X4      ^ X6      ^ X8 ^ X12                        ^ X11 ^ X15,
+ 3 :  0        ^ X1 ^ X2 ^ X3                ^ X7 ^ X8       ^ X9       ^ X10 ^ X14       ^ X15,
+ 2 :  0   ^ X0 ^ X1 ^ X2                ^ X6 ^ X7 ^ X8       ^ X9 ^ X13       ^ X14            ,
+ 1 :  0   ^ X0 ^ X1                     ^ X6 ^ X7      ^ X12 ^ X9 ^ X13             ^ X11      ,
+ 0 :  0   ^ X0                          ^ X6           ^ X12 ^ X9       ^ X10                  
+}
 */
 endmodule
 
@@ -274,38 +282,40 @@ module crc_32_32_private (
   output [`NUMBER_OF_BITS_IN_CRC - 1 : 0] next_crc;
 
 /* State Variables depend on input bit number (bigger is earlier) :
- 0 :  0                      6          9 10     12             16                             24 25 26     28 29 30 31
- 1 :  0  1                  6  7      9     11 12 13         16 17                         24         27 28            
- 2 :  0  1  2              6  7  8  9             13 14     16 17 18                     24     26             30 31
- 3 :      1  2  3              7  8  9 10             14 15     17 18 19                     25     27             31
- 4 :  0      2  3  4      6      8         11 12         15         18 19 20             24 25             29 30 31
- 5 :  0  1      3  4  5  6  7         10         13                     19 20 21         24             28 29        
- 6 :      1  2      4  5  6  7  8         11         14                     20 21 22         25             29 30    
- 7 :  0      2  3      5      7  8     10                 15 16                 21 22 23 24 25         28 29        
- 8 :  0  1      3  4              8     10 11 12                 17                 22 23                 28         31
- 9 :      1  2      4  5              9     11 12 13                 18                 23 24                 29        
-10 :  0      2  3      5              9             13 14     16         19                         26     28 29     31
-11 :  0  1      3  4                  9         12     14 15 16 17         20             24 25 26 27 28         31
-12 :  0  1  2      4  5  6          9         12 13     15     17 18         21         24         27         30 31
-13 :      1  2  3      5  6  7         10         13 14     16     18 19         22         25         28         31
-14 :          2  3  4      6  7  8         11         14 15     17     19 20         23         26         29        
-15 :              3  4  5      7  8  9         12         15 16     18     20 21         24         27         30    
-16 :  0              4  5          8             12 13             17     19     21 22     24     26         29 30    
-17 :      1              5  6          9             13 14             18     20     22 23     25     27         30 31
-18 :          2              6  7         10             14 15             19     21     23 24     26     28         31
-19 :              3              7  8         11             15 16             20     22     24 25     27     29        
-20 :                  4              8  9         12             16 17             21     23     25 26     28     30    
-21 :                      5              9 10         13             17 18             22     24     26 27     29     31
-22 :  0                                  9     11 12     14     16     18 19             23 24     26 27     29     31
-23 :  0  1                  6          9             13     15 16 17     19 20                     26 27     29     31
-24 :      1  2                  7         10             14     16 17 18     20 21                     27 28     30    
-25 :          2  3                  8         11             15     17 18 19     21 22                     28 29     31
-26 :  0          3  4      6             10                             18 19 20     22 23 24 25 26     28         31
-27 :      1          4  5      7             11                             19 20 21     23 24 25 26 27     29        
-28 :          2          5  6      8             12                             20 21 22     24 25 26 27 28     30    
-29 :              3          6  7      9             13                             21 22 23     25 26 27 28 29     31
-30 :                  4          7  8     10             14                             22 23 24     26 27 28 29 30    
-31 :                      5          8  9     11             15                             23 24 25     27 28 29 30 31
+{
+31 :   0                           ^ X5           ^ X8 ^ X9       ^ X11                   ^ X15                                           ^ X23 ^ X24 ^ X25       ^ X27 ^ X28 ^ X29 ^ X30 ^ X31,
+30 :   0                      ^ X4           ^ X7 ^ X8      ^ X10                   ^ X14                                           ^ X22 ^ X23 ^ X24       ^ X26 ^ X27 ^ X28 ^ X29 ^ X30      ,
+29 :   0                 ^ X3           ^ X6 ^ X7      ^ X9                   ^ X13                                           ^ X21 ^ X22 ^ X23       ^ X25 ^ X26 ^ X27 ^ X28 ^ X29       ^ X31,
+28 :   0            ^ X2           ^ X5 ^ X6      ^ X8                  ^ X12                                           ^ X20 ^ X21 ^ X22       ^ X24 ^ X25 ^ X26 ^ X27 ^ X28       ^ X30      ,
+27 :   0       ^ X1           ^ X4 ^ X5      ^ X7                 ^ X11                                           ^ X19 ^ X20 ^ X21       ^ X23 ^ X24 ^ X25 ^ X26 ^ X27       ^ X29            ,
+26 :   0  ^ X0           ^ X3 ^ X4      ^ X6                ^ X10                                           ^ X18 ^ X19 ^ X20       ^ X22 ^ X23 ^ X24 ^ X25 ^ X26       ^ X28             ^ X31,
+25 :   0            ^ X2 ^ X3                     ^ X8            ^ X11                   ^ X15       ^ X17 ^ X18 ^ X19       ^ X21 ^ X22                               ^ X28 ^ X29       ^ X31,
+24 :   0       ^ X1 ^ X2                     ^ X7           ^ X10                   ^ X14       ^ X16 ^ X17 ^ X18       ^ X20 ^ X21                               ^ X27 ^ X28       ^ X30      ,
+23 :   0  ^ X0 ^ X1                     ^ X6           ^ X9                   ^ X13       ^ X15 ^ X16 ^ X17       ^ X19 ^ X20                               ^ X26 ^ X27       ^ X29       ^ X31,
+22 :   0  ^ X0                                         ^ X9       ^ X11 ^ X12       ^ X14       ^ X16       ^ X18 ^ X19                   ^ X23 ^ X24       ^ X26 ^ X27       ^ X29       ^ X31,
+21 :   0                           ^ X5                ^ X9 ^ X10             ^ X13                   ^ X17 ^ X18                   ^ X22       ^ X24       ^ X26 ^ X27       ^ X29       ^ X31,
+20 :   0                      ^ X4                ^ X8 ^ X9             ^ X12                   ^ X16 ^ X17                   ^ X21       ^ X23       ^ X25 ^ X26       ^ X28       ^ X30      ,
+19 :   0                 ^ X3                ^ X7 ^ X8            ^ X11                   ^ X15 ^ X16                   ^ X20       ^ X22       ^ X24 ^ X25       ^ X27       ^ X29            ,
+18 :   0            ^ X2                ^ X6 ^ X7           ^ X10                   ^ X14 ^ X15                   ^ X19       ^ X21       ^ X23 ^ X24       ^ X26       ^ X28             ^ X31,
+17 :   0       ^ X1                ^ X5 ^ X6           ^ X9                   ^ X13 ^ X14                   ^ X18       ^ X20       ^ X22 ^ X23       ^ X25       ^ X27             ^ X30 ^ X31,
+16 :   0  ^ X0                ^ X4 ^ X5           ^ X8                  ^ X12 ^ X13                   ^ X17       ^ X19       ^ X21 ^ X22       ^ X24       ^ X26             ^ X29 ^ X30      ,
+15 :   0                 ^ X3 ^ X4 ^ X5      ^ X7 ^ X8 ^ X9             ^ X12             ^ X15 ^ X16       ^ X18       ^ X20 ^ X21             ^ X24             ^ X27             ^ X30      ,
+14 :   0            ^ X2 ^ X3 ^ X4      ^ X6 ^ X7 ^ X8            ^ X11             ^ X14 ^ X15       ^ X17       ^ X19 ^ X20             ^ X23             ^ X26             ^ X29            ,
+13 :   0       ^ X1 ^ X2 ^ X3      ^ X5 ^ X6 ^ X7           ^ X10             ^ X13 ^ X14       ^ X16       ^ X18 ^ X19             ^ X22             ^ X25             ^ X28             ^ X31,
+12 :   0  ^ X0 ^ X1 ^ X2      ^ X4 ^ X5 ^ X6           ^ X9             ^ X12 ^ X13       ^ X15       ^ X17 ^ X18             ^ X21             ^ X24             ^ X27             ^ X30 ^ X31,
+11 :   0  ^ X0 ^ X1      ^ X3 ^ X4                     ^ X9             ^ X12       ^ X14 ^ X15 ^ X16 ^ X17             ^ X20                   ^ X24 ^ X25 ^ X26 ^ X27 ^ X28             ^ X31,
+10 :   0  ^ X0      ^ X2 ^ X3      ^ X5                ^ X9                   ^ X13 ^ X14       ^ X16             ^ X19                                     ^ X26       ^ X28 ^ X29       ^ X31,
+ 9 :   0       ^ X1 ^ X2      ^ X4 ^ X5                ^ X9       ^ X11 ^ X12 ^ X13                         ^ X18                         ^ X23 ^ X24                         ^ X29            ,
+ 8 :   0  ^ X0 ^ X1      ^ X3 ^ X4                ^ X8      ^ X10 ^ X11 ^ X12                         ^ X17                         ^ X22 ^ X23                         ^ X28             ^ X31,
+ 7 :   0  ^ X0      ^ X2 ^ X3      ^ X5      ^ X7 ^ X8      ^ X10                         ^ X15 ^ X16                         ^ X21 ^ X22 ^ X23 ^ X24 ^ X25             ^ X28 ^ X29            ,
+ 6 :   0       ^ X1 ^ X2      ^ X4 ^ X5 ^ X6 ^ X7 ^ X8            ^ X11             ^ X14                               ^ X20 ^ X21 ^ X22             ^ X25                   ^ X29 ^ X30      ,
+ 5 :   0  ^ X0 ^ X1      ^ X3 ^ X4 ^ X5 ^ X6 ^ X7           ^ X10             ^ X13                               ^ X19 ^ X20 ^ X21             ^ X24                   ^ X28 ^ X29            ,
+ 4 :   0  ^ X0      ^ X2 ^ X3 ^ X4      ^ X6      ^ X8            ^ X11 ^ X12             ^ X15             ^ X18 ^ X19 ^ X20                   ^ X24 ^ X25                   ^ X29 ^ X30 ^ X31,
+ 3 :   0       ^ X1 ^ X2 ^ X3                ^ X7 ^ X8 ^ X9 ^ X10                   ^ X14 ^ X15       ^ X17 ^ X18 ^ X19                               ^ X25       ^ X27                   ^ X31,
+ 2 :   0  ^ X0 ^ X1 ^ X2                ^ X6 ^ X7 ^ X8 ^ X9                   ^ X13 ^ X14       ^ X16 ^ X17 ^ X18                               ^ X24       ^ X26                   ^ X30 ^ X31,
+ 1 :   0  ^ X0 ^ X1                     ^ X6 ^ X7      ^ X9       ^ X11 ^ X12 ^ X13             ^ X16 ^ X17                                     ^ X24             ^ X27 ^ X28                  ,
+ 0 :   0  ^ X0                          ^ X6           ^ X9 ^ X10       ^ X12                   ^ X16                                           ^ X24 ^ X25 ^ X26       ^ X28 ^ X29 ^ X30 ^ X31
+}
 */
 endmodule
 
@@ -333,11 +343,11 @@ endmodule
 //   there is a 1'b1, that is a bit which is sensitive to the input
 //   or state bit in a parallel implementation N bits wide.
 
-// `define CALCULATE_FUNCTIONAL_DEPENDENCE_ON_INPUT_AND_STATE
+`define CALCULATE_FUNCTIONAL_DEPENDENCE_ON_INPUT_AND_STATE
 `ifdef CALCULATE_FUNCTIONAL_DEPENDENCE_ON_INPUT_AND_STATE
 module print_out_formulas ();
 
-  parameter NUM_BITS_TO_DO_IN_PARALLEL = 8'h08;
+  parameter NUM_BITS_TO_DO_IN_PARALLEL = 8'h10;
 
   reg    [`NUMBER_OF_BITS_IN_CRC - 1 : 0] running_state;
   reg    [31:0] input_vector;
@@ -369,23 +379,172 @@ module print_out_formulas ();
                                       running_state[`NUMBER_OF_BITS_IN_CRC - 1:0]};
     end
 
+// Plan: reverse the order bits are reported in
+// Add C23 terms to first 24 terms
+// Insert ^ X
+
 // NOTE: WORKING: count out formulas in the opposite order, write out valid formulas.
     $display ("Each term called out means the formula depends on a term data_in[N] ^ State[N].");
     $display ("State Variables depend on input bit number (bigger is earlier) :");
 // try to read out formulas by sweeping a 1-bit through the corner_turner array.
-    for (i = 0; i < `NUMBER_OF_BITS_IN_CRC; i = i + 1)  // each state bit depends on:
-    begin
-      $write ("%d :", i);
+    $display ("{");
+    for (i = `NUMBER_OF_BITS_IN_CRC - 1; i >= NUM_BITS_TO_DO_IN_PARALLEL; i = i - 1)
+    begin  // Bits which depend on shifted state bits directly
+      $write ("%d : C%0d ", i, i - NUM_BITS_TO_DO_IN_PARALLEL);
       for (j = 0; j < NUM_BITS_TO_DO_IN_PARALLEL; j = j + 1)
       begin
         if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL-j-1)*`NUMBER_OF_BITS_IN_CRC + i]
                                                                             != 1'b0)
-          $write (" %d", j[5:0]);
-        else
-          $write ("    ");
+          $write (" ^ X%0d", j[5:0]);
+        else if (j >= 10) $write ("      "); else $write ("     ");
       end
-      $write ("\n");
+      $write (",\n");
     end
+
+    for (i = NUM_BITS_TO_DO_IN_PARALLEL - 1; i >= 0; i = i - 1)
+    begin  // bits which only depend on shifted XOR'd bits
+      $write ("%d :  0 ", i);
+      for (j = 0; j < NUM_BITS_TO_DO_IN_PARALLEL; j = j + 1)
+      begin
+        if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL-j-1)*`NUMBER_OF_BITS_IN_CRC + i]
+                                                                            != 1'b0)
+          $write (" ^ X%0d", j[5:0]);
+        else if (j >= 10) $write ("      "); else $write ("     ");
+      end
+      if (i != 0) $write (",\n"); else $write ("\n");
+    end
+    $display ("}");
+
+// Write out bits in a different order, to make it easier to group terms.
+    if (NUM_BITS_TO_DO_IN_PARALLEL >= 16)
+    begin
+      $display ("{");
+      for (i = `NUMBER_OF_BITS_IN_CRC - 1; i >= NUM_BITS_TO_DO_IN_PARALLEL; i = i - 1)
+      begin  // Bits which depend on shifted state bits directly
+        $write ("%d : C%0d ", i, i - NUM_BITS_TO_DO_IN_PARALLEL);
+        for (j = 0; j <= 8; j = j + 1)
+        begin
+          if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL-j-1)*`NUMBER_OF_BITS_IN_CRC + i]
+                                                                              != 1'b0)
+            $write (" ^ X%0d", j[5:0]);
+          else if (j >= 10) $write ("      "); else $write ("     ");
+        end
+        j = 12;
+        begin
+          if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL-j-1)*`NUMBER_OF_BITS_IN_CRC + i]
+                                                                              != 1'b0)
+            $write (" ^ X%0d", j[5:0]);
+          else if (j >= 10) $write ("      "); else $write ("     ");
+        end
+        j = 9;
+        begin
+          if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL-j-1)*`NUMBER_OF_BITS_IN_CRC + i]
+                                                                              != 1'b0)
+            $write (" ^ X%0d", j[5:0]);
+          else if (j >= 10) $write ("      "); else $write ("     ");
+        end
+        j = 13;
+        begin
+          if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL-j-1)*`NUMBER_OF_BITS_IN_CRC + i]
+                                                                              != 1'b0)
+            $write (" ^ X%0d", j[5:0]);
+          else if (j >= 10) $write ("      "); else $write ("     ");
+        end
+        j = 10;
+        begin
+          if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL-j-1)*`NUMBER_OF_BITS_IN_CRC + i]
+                                                                              != 1'b0)
+            $write (" ^ X%0d", j[5:0]);
+          else if (j >= 10) $write ("      "); else $write ("     ");
+        end
+        j = 14;
+        begin
+          if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL-j-1)*`NUMBER_OF_BITS_IN_CRC + i]
+                                                                              != 1'b0)
+            $write (" ^ X%0d", j[5:0]);
+          else if (j >= 10) $write ("      "); else $write ("     ");
+        end
+        j = 11;
+        begin
+          if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL-j-1)*`NUMBER_OF_BITS_IN_CRC + i]
+                                                                              != 1'b0)
+            $write (" ^ X%0d", j[5:0]);
+          else if (j >= 10) $write ("      "); else $write ("     ");
+        end
+        j = 15;
+        begin
+          if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL-j-1)*`NUMBER_OF_BITS_IN_CRC + i]
+                                                                              != 1'b0)
+            $write (" ^ X%0d", j[5:0]);
+          else if (j >= 10) $write ("      "); else $write ("     ");
+        end
+        $write (",\n");
+      end
+    
+      for (i = NUM_BITS_TO_DO_IN_PARALLEL - 1; i >= 0; i = i - 1)
+      begin  // bits which only depend on shifted XOR'd bits
+        $write ("%d :  0 ", i);
+        for (j = 0; j <= 8; j = j + 1)
+        begin
+          if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL-j-1)*`NUMBER_OF_BITS_IN_CRC + i]
+                                                                              != 1'b0)
+            $write (" ^ X%0d", j[5:0]);
+          else if (j >= 10) $write ("      "); else $write ("     ");
+        end
+        j = 12;
+        begin
+          if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL-j-1)*`NUMBER_OF_BITS_IN_CRC + i]
+                                                                              != 1'b0)
+            $write (" ^ X%0d", j[5:0]);
+          else if (j >= 10) $write ("      "); else $write ("     ");
+        end
+        j = 9;
+        begin
+          if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL-j-1)*`NUMBER_OF_BITS_IN_CRC + i]
+                                                                              != 1'b0)
+            $write (" ^ X%0d", j[5:0]);
+          else if (j >= 10) $write ("      "); else $write ("     ");
+        end
+        j = 13;
+        begin
+          if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL-j-1)*`NUMBER_OF_BITS_IN_CRC + i]
+                                                                              != 1'b0)
+            $write (" ^ X%0d", j[5:0]);
+          else if (j >= 10) $write ("      "); else $write ("     ");
+        end
+        j = 10;
+        begin
+          if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL-j-1)*`NUMBER_OF_BITS_IN_CRC + i]
+                                                                              != 1'b0)
+            $write (" ^ X%0d", j[5:0]);
+          else if (j >= 10) $write ("      "); else $write ("     ");
+        end
+        j = 14;
+        begin
+          if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL-j-1)*`NUMBER_OF_BITS_IN_CRC + i]
+                                                                              != 1'b0)
+            $write (" ^ X%0d", j[5:0]);
+          else if (j >= 10) $write ("      "); else $write ("     ");
+        end
+        j = 11;
+        begin
+          if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL-j-1)*`NUMBER_OF_BITS_IN_CRC + i]
+                                                                              != 1'b0)
+            $write (" ^ X%0d", j[5:0]);
+          else if (j >= 10) $write ("      "); else $write ("     ");
+        end
+        j = 15;
+        begin
+          if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL-j-1)*`NUMBER_OF_BITS_IN_CRC + i]
+                                                                              != 1'b0)
+            $write (" ^ X%0d", j[5:0]);
+          else if (j >= 10) $write ("      "); else $write ("     ");
+        end
+        if (i != 0) $write (",\n"); else $write ("\n");
+      end
+      $display ("}");
+    end  // if width >= 16
+
     $display ("All terms beyond the width of the input data are each dependent on State");
     $display ("bits the shift distance towards the LSB of the polynomial.  For instance,");
     $display ("if the shift distance is 16, State Bit 16 has a term containing old state bit 0.");
