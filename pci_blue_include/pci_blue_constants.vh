@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_constants.vh,v 1.9 2001-07-03 09:20:58 bbeaver Exp $
+// $Id: pci_blue_constants.vh,v 1.10 2001-07-05 02:42:43 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -140,14 +140,10 @@
 //   Data-Address, Data_Last-Data, or Data_Last-Data_Last are all illegal.
 // First, the Request which indicates that nothing should be put in the FIFO.
 `define PCI_HOST_REQUEST_SPARE                           (3'h0)
-// Second, the Requests which start a Read or a Write.  Writes can be started
-//   before previous Writes complete, but only one Read can be issued at a time.
-`define PCI_HOST_REQUEST_ADDRESS_COMMAND                 (3'h1)
-`define PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR            (3'h2)
-// Third, a Request used during Delayed Reads to mark the Write Command FIFO empty.
+// Second, a Request used during Delayed Reads to mark the Write Command FIFO empty.
 // This Request must be issued with Data Bits 16 and 17 both set to 1'b0.
-`define PCI_HOST_REQUEST_INSERT_WRITE_FENCE              (3'h3)
-// Fourth, a Request used to read and write the local PCI Controller's Config Registers.
+`define PCI_HOST_REQUEST_INSERT_WRITE_FENCE              (3'h1)
+// Third, a Request used to read and write the local PCI Controller's Config Registers.
 // This Request shares it's tags with the WRITE_FENCE Command.  Config References
 //   can be identified by noticing that Bits 16 or 17 are non-zero.
 // Data Bits [7:0] are the Byte Address of the Config Register being accessed.
@@ -155,7 +151,11 @@
 // Data Bit  [16] indicates that a Config Write should be done.
 // Data Bit  [17] indicates that a Config Read should be done.
 // This Request must be issued with either Data Bits 16 or 17 set to 1'b1.
-// `define PCI_HOST_REQUEST_READ_WRITE_CONFIG_REGISTER   (3'h3)
+// `define PCI_HOST_REQUEST_READ_WRITE_CONFIG_REGISTER   (3'h1)
+// Fourth, the Requests which start a Read or a Write.  Writes can be started
+//   before previous Writes complete, but only one Read can be issued at a time.
+`define PCI_HOST_REQUEST_ADDRESS_COMMAND                 (3'h2)
+`define PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR            (3'h3)
 // Fifth, Requests saying Write Data, Read or Write Byte Masks, and End Burst.
 `define PCI_HOST_REQUEST_W_DATA_RW_MASK                  (3'h4)
 `define PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST             (3'h5)
@@ -171,9 +171,14 @@
 //   progress has been made on transfers initiated over the Request Bus by the Host.
 // First, the Response which indicates that nothing should be put in the FIFO.
 `define PCI_HOST_RESPONSE_SPARE                          (4'h0)
-// Second, a Response repeating the Host Request the PCI Bus is presently servicing.
-`define PCI_HOST_RESPONSE_EXECUTED_ADDRESS_COMMAND       (4'h1)
-// Third, a Response which gives commentary about what is happening on the PCI bus.
+// Second, a Response saying when the Write Fence has been disposed of.  After this
+//   is received, and the Delayed Read done, it is OK to queue more Write Requests.
+// This command will be returned in response to a Request issued with Data
+//   Bits 16 and 17 both set to 1'b0.
+`define PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE          (4'h1)
+// Third, a Response repeating the Host Request the PCI Bus is presently servicing.
+`define PCI_HOST_RESPONSE_EXECUTED_ADDRESS_COMMAND       (4'h2)
+// Fourth, a Response which gives commentary about what is happening on the PCI bus.
 // These bits follow the layout of the PCI Config Register Status Half-word.
 // When this Response is received, bits in the data field indicate the following:
 // Bit 31: PERR Detected (sent if a Parity Error occurred on the Last Data Phase)
@@ -186,12 +191,7 @@
 // Bit 18: Discarded a Delayed Read due to timeout
 // Bit 17: Target Retry or Disconnect (document that a Master Retry is requested)
 // Bit 16: Got Illegal sequence of commands over Host Request Bus.
-`define PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT     (4'h2)
-// Fourth, a Response saying when the Write Fence has been disposed of.  After this
-//   is received, and the Delayed Read done, it is OK to queue more Write Requests.
-// This command will be returned in response to a Request issued with Data
-//   Bits 16 and 17 both set to 1'b0.
-`define PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE          (4'h3)
+`define PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT     (4'h3)
 // Fifth, a Response used to read and write the local PCI Controller's Config Registers.
 // This Response shares it's tags with the WRITE_FENCE Command.  Config References
 //   can be identified by noticing that Bits 16 or 17 are non-zero.

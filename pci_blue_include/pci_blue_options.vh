@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_options.vh,v 1.9 2001-07-03 09:20:58 bbeaver Exp $
+// $Id: pci_blue_options.vh,v 1.10 2001-07-05 02:42:44 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -117,43 +117,47 @@
 
 // Derive Bus Definitions based on declared interface sizes
 `ifdef PCI_BUS_SIZE_64
-`define PCI_BUS_DATA_RANGE   63:0
-`define PCI_BUS_DATA_X       64'hXXXXXXXX_XXXXXXXX
-`define PCI_BUS_DATA_Z       64'hZZZZZZZZ_ZZZZZZZZ
-`define PCI_BUS_DATA_ZERO    64'h00000000_00000000
-`define PCI_BUS_CBE_RANGE     7:0
-`define PCI_BUS_CBE_X         8'hXX
-`define PCI_BUS_CBE_Z         8'hZZ
-`define PCI_BUS_DATA_ZERO     8'h00
+`define PCI_BUS_DATA_RANGE    63:0
+`define PCI_BUS_DATA_X        64'hXXXXXXXX_XXXXXXXX
+`define PCI_BUS_DATA_Z        64'hZZZZZZZZ_ZZZZZZZZ
+`define PCI_BUS_DATA_ZERO     64'h00000000_00000000
+`define PCI_BUS_CBE_RANGE      7:0
+`define PCI_BUS_CBE_X          8'hXX
+`define PCI_BUS_CBE_Z          8'hZZ
+`define PCI_BUS_DATA_ZERO      8'h00
+`define PCI_BUS_Address_Mask  64'hFFFFFFFF_FFFFFFF8
+`define PCI_BUS_Address_Step  64'h00000000_00000008
 `else  // PCI_BUS_SIZE_64
-`define PCI_BUS_DATA_RANGE   31:0
-`define PCI_BUS_DATA_X       32'hXXXXXXXX
-`define PCI_BUS_DATA_Z       32'hZZZZZZZZ
-`define PCI_BUS_DATA_ZERO    32'h00000000
-`define PCI_BUS_CBE_RANGE     3:0
-`define PCI_BUS_CBE_X         4'hX
-`define PCI_BUS_CBE_Z         4'hZ
-`define PCI_BUS_CBE_ZERO      4'h0
+`define PCI_BUS_DATA_RANGE    31:0
+`define PCI_BUS_DATA_X        32'hXXXXXXXX
+`define PCI_BUS_DATA_Z        32'hZZZZZZZZ
+`define PCI_BUS_DATA_ZERO     32'h00000000
+`define PCI_BUS_CBE_RANGE      3:0
+`define PCI_BUS_CBE_X          4'hX
+`define PCI_BUS_CBE_Z          4'hZ
+`define PCI_BUS_CBE_ZERO       4'h0
+`define PCI_BUS_Address_Mask  32'hFFFFFFFC
+`define PCI_BUS_Address_Step  32'h00000004
 `endif  // PCI_BUS_SIZE_64
 
 `ifdef PCI_FIFO_SIZE_64
-`define PCI_FIFO_DATA_RANGE  63:0
-`define PCI_FIFO_DATA_X      64'hXXXXXXXX_XXXXXXXX
-`define PCI_FIFO_DATA_Z      64'hZZZZZZZZ_ZZZZZZZZ
-`define PCI_FIFO_DATA_ZERO   64'h00000000_00000000
-`define PCI_FIFO_CBE_RANGE    7:0
-`define PCI_FIFO_CBE_X        8'hXX
-`define PCI_FIFO_CBE_Z        8'hZZ
-`define PCI_FIFO_DATA_ZERO    8'h00
+`define PCI_FIFO_DATA_RANGE   63:0
+`define PCI_FIFO_DATA_X       64'hXXXXXXXX_XXXXXXXX
+`define PCI_FIFO_DATA_Z       64'hZZZZZZZZ_ZZZZZZZZ
+`define PCI_FIFO_DATA_ZERO    64'h00000000_00000000
+`define PCI_FIFO_CBE_RANGE     7:0
+`define PCI_FIFO_CBE_X         8'hXX
+`define PCI_FIFO_CBE_Z         8'hZZ
+`define PCI_FIFO_DATA_ZERO     8'h00
 `else  // PCI_FIFO_SIZE_64
-`define PCI_FIFO_DATA_RANGE  31:0
-`define PCI_FIFO_DATA_X      32'hXXXXXXXX
-`define PCI_FIFO_DATA_Z      32'hZZZZZZZZ
-`define PCI_FIFO_DATA_ZERO   32'h00000000
-`define PCI_FIFO_CBE_RANGE    3:0
-`define PCI_FIFO_CBE_X        4'hX
-`define PCI_FIFO_CBE_Z        4'hZ
-`define PCI_FIFO_CBE_ZERO     4'h0
+`define PCI_FIFO_DATA_RANGE   31:0
+`define PCI_FIFO_DATA_X       32'hXXXXXXXX
+`define PCI_FIFO_DATA_Z       32'hZZZZZZZZ
+`define PCI_FIFO_DATA_ZERO    32'h00000000
+`define PCI_FIFO_CBE_RANGE     3:0
+`define PCI_FIFO_CBE_X         4'hX
+`define PCI_FIFO_CBE_Z         4'hZ
+`define PCI_FIFO_CBE_ZERO      4'h0
 `endif  // PCI_FIFO_SIZE_64
 
 // Define SIMULTANEOUS_MASTER_TARGET if a single interface needs
