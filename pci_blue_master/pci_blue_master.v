@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_master.v,v 1.43 2001-09-12 05:16:06 bbeaver Exp $
+// $Id: pci_blue_master.v,v 1.44 2001-09-13 09:58:06 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -2483,20 +2483,20 @@ function [MS_Range:0] Master_Next_State;
   input   FIFO_CONTAINS_DATA_LAST;
   input   Master_Abort;
   input   Timeout_Forces_Disconnect;
-  input   trdy_in;
-  input   stop_in;
+  input   trdy_in_critical;
+  input   stop_in_critical;
   input   Back_to_Back_Possible;
   input   gnt_in_critical;
 
   begin
 // synopsys translate_off
     if (   ( $time > 0)
-         & (   ((trdy_in ^ trdy_in) === 1'bX)
-             | ((stop_in ^ stop_in) === 1'bX)))
+         & (   ((trdy_in_critical ^ trdy_in_critical) === 1'bX)
+             | ((stop_in_critical ^ stop_in_critical) === 1'bX)))
     begin
       Master_Next_State[MS_Range:0] = MS_X;  // error
       $display ("*** %m PCI Master State Machine TRDY, STOP Unknown %x %x at time %t",
-                  trdy_in, stop_in, $time);
+                  trdy_in_critical, stop_in_critical, $time);
     end
     else
 // synopsys translate_on
@@ -2570,7 +2570,7 @@ function [MS_Range:0] Master_Next_State;
                   & (FIFO_CONTAINS_DATA_LAST == 1'b0)
                   & (Timeout_Forces_Disconnect == 1'b0))  // no Master data or bus removed
         begin
-          case ({trdy_in, stop_in})  // synopsys parallel_case
+          case ({trdy_in_critical, stop_in_critical})  // synopsys parallel_case
           TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_MORE_PENDING_10;       // 16
           TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN_01;          // 17, 58
           TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_MORE_PENDING_10;       // 18
@@ -2580,7 +2580,7 @@ function [MS_Range:0] Master_Next_State;
         end
         else if (Timeout_Forces_Disconnect == 1'b1)  // NOTE: shortcut; even if no data
         begin
-          case ({trdy_in, stop_in})  // synopsys parallel_case
+          case ({trdy_in_critical, stop_in_critical})  // synopsys parallel_case
           TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_AS_LAST_01;  // 20
           TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN_01;          // 21, 59
           TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_AS_LAST_01;  // 22
@@ -2592,7 +2592,7 @@ function [MS_Range:0] Master_Next_State;
                   & (   (FIFO_CONTAINS_DATA_MORE == 1'b1)
                       | (FIFO_CONTAINS_DATA_LAST == 1'b1)) )
         begin
-          case ({trdy_in, stop_in})  // synopsys parallel_case
+          case ({trdy_in_critical, stop_in_critical})  // synopsys parallel_case
           TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_11;          // 24
           TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN_01;          // 25, 60
           TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_11;          // 26
@@ -2621,7 +2621,7 @@ function [MS_Range:0] Master_Next_State;
                   & (FIFO_CONTAINS_DATA_LAST == 1'b0)  // no Master data ready
                   & (Timeout_Forces_Disconnect == 1'b0))  // no Master data or bus removed
         begin
-          case ({trdy_in, stop_in})  // synopsys parallel_case
+          case ({trdy_in_critical, stop_in_critical})  // synopsys parallel_case
           TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_11;     // 29
           TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN_01;     // 30, 61
           TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_MORE_PENDING_10;  // 31
@@ -2631,7 +2631,7 @@ function [MS_Range:0] Master_Next_State;
         end
         else if (FIFO_CONTAINS_DATA_LAST == 1'b1)
         begin
-          case ({trdy_in, stop_in})  // synopsys parallel_case
+          case ({trdy_in_critical, stop_in_critical})  // synopsys parallel_case
           TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_11;    // 33
           TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN_01;    // 34, 62
           TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_LAST_01;    // 35
@@ -2642,7 +2642,7 @@ function [MS_Range:0] Master_Next_State;
         else if (   (FIFO_CONTAINS_DATA_LAST == 1'b0)
                   & (Timeout_Forces_Disconnect == 1'b1) )  // NOTE: shortcut; even if no data
         begin
-          case ({trdy_in, stop_in})  // synopsys parallel_case
+          case ({trdy_in_critical, stop_in_critical})  // synopsys parallel_case
           TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_11;    // 37
           TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN_01;    // 38, 63
           TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_AS_LAST_01;  // 39 bug?
@@ -2654,7 +2654,7 @@ function [MS_Range:0] Master_Next_State;
                   & (Timeout_Forces_Disconnect == 1'b0)
                   & (FIFO_CONTAINS_DATA_TWO_MORE == 1'b1) )
         begin
-          case ({trdy_in, stop_in})  // synopsys parallel_case
+          case ({trdy_in_critical, stop_in_critical})  // synopsys parallel_case
           TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_11;    // 41
           TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN_01;    // 42, 64
           TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_11;    // 43
@@ -2709,7 +2709,7 @@ function [MS_Range:0] Master_Next_State;
                   | (gnt_in_critical == 1'b0)
                   | (Back_to_Back_Possible == 1'b0))  // go idle
         begin
-          case ({trdy_in, stop_in})  // synopsys parallel_case
+          case ({trdy_in_critical, stop_in_critical})  // synopsys parallel_case
           TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_LAST_01;  // 46
           TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_LAST_IDLE_00;  // 47, 65
           TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_IDLE_00;       // 48
@@ -2724,7 +2724,7 @@ function [MS_Range:0] Master_Next_State;
                   & (gnt_in_critical == 1'b1)
                   & (Back_to_Back_Possible == 1'b1))  // normal reference after write
         begin
-          case ({trdy_in, stop_in})  // synopsys parallel_case
+          case ({trdy_in_critical, stop_in_critical})  // synopsys parallel_case
           TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_LAST_01;  // 50
           TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_LAST_IDLE_00;  // 51, 66
           TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_ADDR_10;       // 52
@@ -2753,7 +2753,7 @@ function [MS_Range:0] Master_Next_State;
 //    Local Bus Spec Revision 2.2 section 3.4.3 for details.
     PCI_MASTER_DATA_MORE_AS_LAST_01:
       begin
-        case ({trdy_in, stop_in})  // synopsys parallel_case
+        case ({trdy_in_critical, stop_in_critical})  // synopsys parallel_case
         TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_AS_LAST_01;  // 54
         TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_LAST_IDLE_00;  // 55, 67
         TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_LAST_IDLE_00;  // 56
