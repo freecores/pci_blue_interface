@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_options.vh,v 1.2 2001-02-23 13:18:35 bbeaver Exp $
+// $Id: pci_blue_options.vh,v 1.3 2001-02-26 11:50:09 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -65,7 +65,7 @@
 `define PCI_DEFINE_FILE_ALREADY_INCLUDED
 
 // Include to cause the Monitor Device to report activity.
-// `define VERBOSE_MONITOR_DEVICE
+`define VERBOSE_MONITOR_DEVICE
 
 // define this to get the PCI model to do normal consistency checking
 // undefine this if simulation speed is more important than correctness.
@@ -79,7 +79,7 @@
 
 // define in addition to the above to cause the Test Device to
 // report detailed activity.
-// `define VERBOSE_TEST_DEVICE
+`define VERBOSE_TEST_DEVICE
 
 // Indicate whether the intended application is 33 MHz or 66 MHz.
 // If 33 MHz is desired, simply comment out the define line.

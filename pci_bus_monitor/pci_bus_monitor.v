@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_bus_monitor.v,v 1.3 2001-02-24 11:30:47 bbeaver Exp $
+// $Id: pci_bus_monitor.v,v 1.4 2001-02-26 11:50:12 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -875,9 +875,12 @@ endtask
 // Verify some of the state transitions observed on the bus. See the
 // PCI Local Bus Spec Revision 2.2 section 3.2.1, plus Appendix C.
 `ifdef VERBOSE_MONITOR_DEVICE
-  always @(posedge pci_ext_clk)
+  reg     prev_pci_ext_reset_l;
+  always @(pci_ext_reset_l)
   begin
-    if (($time > 0) && (pci_ext_reset_l !== 1'b0))
+    prev_pci_ext_reset_l <= pci_ext_reset_l;
+
+    if (($time > 0) && (pci_ext_reset_l !== prev_pci_ext_reset_l))
     begin
       if (pci_ext_reset_l == 1'b0)
       begin
@@ -890,7 +893,13 @@ endtask
         $display (" monitor - PCI External RESET_L deasserted HIGH at %t", $time);
       end
       `NO_ELSE;
+    end
+  end
 
+  always @(posedge pci_ext_clk)
+  begin
+    if (($time > 0) && (pci_ext_reset_l !== 1'b0))
+    begin
 // report a Master Abort, which is not an error
       if ((irdy_prev & ~irdy_now) & (~trdy_prev & ~stop_prev & master_abort))
       begin
@@ -916,52 +925,52 @@ endtask
     begin
 // command list taken from PCI Local Bus Spec Revision 2.2 section 3.1.1.
       case (cbe_l_prev[3:0])
-      `PCI_BUS_INTERRUPT_ACKNOWLEDGE:
+      `PCI_COMMAND_INTERRUPT_ACKNOWLEDGE:
         $display (" monitor - Interrupt Acknowledge started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[31:0], cbe_l_prev[3:0], $time);
-      `PCI_BUS_SPECIAL_CYCLE:
+      `PCI_COMMAND_SPECIAL_CYCLE:
         $display (" monitor - Special Cycle started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[31:0], cbe_l_prev[3:0], $time);
-      `PCI_BUS_IO_READ:
+      `PCI_COMMAND_IO_READ:
         $display (" monitor - IO Read started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[31:0], cbe_l_prev[3:0], $time);
-      `PCI_BUS_IO_WRITE:
+      `PCI_COMMAND_IO_WRITE:
         $display (" monitor - IO Write started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[31:0], cbe_l_prev[3:0], $time);
-      `PCI_BUS_RESERVED_4:
+      `PCI_COMMAND_RESERVED_4:
         $display (" monitor - Reserved started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[31:0], cbe_l_prev[3:0], $time);
-      `PCI_BUS_RESERVED_5:
+      `PCI_COMMAND_RESERVED_5:
         $display (" monitor - Reserved started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[31:0], cbe_l_prev[3:0], $time);
-      `PCI_BUS_MEMORY_READ:
+      `PCI_COMMAND_MEMORY_READ:
         $display (" monitor - Memory Read started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[31:0], cbe_l_prev[3:0], $time);
-      `PCI_BUS_MEMORY_WRITE:
+      `PCI_COMMAND_MEMORY_WRITE:
         $display (" monitor - Memory Write started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[31:0], cbe_l_prev[3:0], $time);
-      `PCI_BUS_RESERVED_8:
+      `PCI_COMMAND_RESERVED_8:
         $display (" monitor - Reserved started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[31:0], cbe_l_prev[3:0], $time);
-      `PCI_BUS_RESERVED_9:
+      `PCI_COMMAND_RESERVED_9:
         $display (" monitor - Reserved started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[31:0], cbe_l_prev[3:0], $time);
-      `PCI_BUS_CONFIG_READ:
+      `PCI_COMMAND_CONFIG_READ:
         $display (" monitor - Configuration Read started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[31:0], cbe_l_prev[3:0], $time);
-      `PCI_BUS_CONFIG_WRITE:
+      `PCI_COMMAND_CONFIG_WRITE:
         $display (" monitor - Configuration Write started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[31:0], cbe_l_prev[3:0], $time);
-      `PCI_BUS_MEMORY_READ_MULTIPLE:
+      `PCI_COMMAND_MEMORY_READ_MULTIPLE:
         $display (" monitor - Memory Read Multiple started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[31:0], cbe_l_prev[3:0], $time);
-      `PCI_BUS_DUAL_ADDRESS_CYCLE:
+      `PCI_COMMAND_DUAL_ADDRESS_CYCLE:
         $display (" monitor - Dual Address Cycle started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[31:0], cbe_l_prev[3:0], $time);
-      `PCI_BUS_MEMORY_READ_LINE:
+      `PCI_COMMAND_MEMORY_READ_LINE:
         $display (" monitor - Memory Read Line started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[31:0], cbe_l_prev[3:0], $time);
-      `PCI_BUS_MEMORY_WRITE_INVALIDATE:
+      `PCI_COMMAND_MEMORY_WRITE_INVALIDATE:
         $display (" monitor - Memory Write and Invalidate started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[31:0], cbe_l_prev[3:0], $time);
       default:

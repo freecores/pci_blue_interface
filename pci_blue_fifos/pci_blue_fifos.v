@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_fifos.v,v 1.2 2001-02-23 13:18:35 bbeaver Exp $
+// $Id: pci_blue_fifos.v,v 1.3 2001-02-26 11:50:08 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -124,8 +124,9 @@
 //                 Because the SRAM is read constantly, more power is used
 //                   than the minimum.  This could be used when the Read port
 //                   is on the low-clock-frequency side of the PCI interface.
-//                 This mode would be wasteful if Flops are used for FIFO Storage.
-//                   Care must still be taken to make sure that the Data Available
+//                 This mode would be wasteful of clock cycles if Flops are used
+//                   for FIFO Storage.
+//                 Care must still be taken to make sure that the Data Available
 //                   signal has plenty of time to settle.
 //        MODE 2:  Write Data written at the same time as the Write Flag.
 //                 Read Flags read, and when set causes start of Data read.
@@ -133,7 +134,10 @@
 //                   Because the SRAM is read only ocasionally, power is reduced.
 //                   This could be used when the Read port is on the
 //                   high-clock-frequency side of the PCI interface.
-//                 This mode would be fine if Flops are used for FIFO Storage,
+//                 This mode would be wasteful of clock cycles if Flops are used
+//                   for FIFO Storage.
+//                 Care must still be taken to make sure that the Data Available
+//                   signal has plenty of time to settle.
 //
 //===========================================================================
 

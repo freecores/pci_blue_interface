@@ -11,6 +11,7 @@
     <File>Readme</File>
     <File>pci_blue_include\pci_blue_constants.vh</File>
     <File>pci_blue_include\pci_blue_options.vh</File>
+    <File>pci_blue_interface\pci_blue_interface.v</File>
     <File>pci_example_chip\pci_example_host_controller.v</File>
     <File>pci_test_system\pci_test_commander.v</File>
     <File>reminders.v</File>
@@ -24,7 +25,6 @@
     <File>pci_behaviorial_device\pci_behaviorial_target.v</File>
     <File>pci_example_chip\monitor_pci_interface_host_port.v</File>
     <File>pci_blue_arbiter\pci_blue_arbiter.v</File>
-    <File>pci_blue_interface\pci_blue_interface.v</File>
     <File>pci_blue_fifos\pci_blue_fifos.v</File>
     <File>pci_blue_fifos\pci_blue_fifo_flags.v</File>
     <File>pci_blue_master\pci_blue_master.v</File>

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_interface.v,v 1.2 2001-02-23 13:18:35 bbeaver Exp $
+// $Id: pci_blue_interface.v,v 1.3 2001-02-26 11:50:09 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -54,7 +54,40 @@
 // This code was developed using VeriLogger Pro, by Synapticad.
 // Their support is greatly appreciated.
 //
-// NOTE:  not done yet
+// NOTE:  This interface is trying to be usable by different processor
+//        and DMA masters.
+//
+//        One standard which this interface is trying to be usable by
+//        is the Wishbone SOC bus.  This pci interface must function as
+//        a Wishbone Target (initiating Master references on the PCI bus)
+//        and as a Wishbone Master (acting in response to external PCI
+//        master activity.)
+//
+//        The wishbone bus is a simple non-pipelined bus with a central
+//        arbiter, masters, and slaves.  The on-chip bus will probably be
+//        implemented as a balanced or trees to select the active address
+//        and enables, and to convert individual data outputs into the single
+//        shared data in bus.
+//
+//        A Wishbone Master will communicate with these wires:
+//          CYC_O, a signal indicating that the bus is in use.  An arbitration signal.
+//          ADR_O[N:0], the address.  We require that ADR_O[1:0] === 2'b00
+//          SEL_O[3:0], byte strobes.  SEL_O[0] qualifies Data_X[7:0]
+//          WE_O, asserted during Write references
+//          Data_O[31:0], and this interface expects [7:0] to be byte 0
+//          Data_I[31:0], and this interface expects [7:0] to be byte 0
+//          STB_O, a strobe indicating that Address, SEL, WE, Write Data are valid
+//          ACK_I, an indication that write data is consumed or read data available
+//          RET_I, an indication that the Master should retry the reference.
+//          ERR_I, an indication that a bus error occurred
+//
+// NOTE:  The PCI bus has many asserted-LOW signals.  However, to make
+//        this interface simple, ALL SIGNALS ARE ASSERTED HIGH.  The
+//        conversion to their external levels are done in the Pads.
+//        One possible exception to this rule is the C_BE bus.
+//
+// NOTE TODO: Horrible.  Tasks can't depend on their Arguments being safe
+//        if there are several instances ofthe task running at once.
 //
 //===========================================================================
 
@@ -63,18 +96,24 @@
 `timescale 1ns/10ps
 
 module pci_blue_interface (
-// Wires used by the host controller to request action by the pci interface
-  pci_host_request_data, pci_host_request_cbe, pci_host_request_type,
-  pci_host_request_room_available_meta, pci_host_request_submit, pci_host_request_error,
-// Wires used by the pci interface to request action by the host controller
-  pci_host_response_data, pci_host_response_cbe, pci_host_response_type,
-  pci_host_response_data_available_meta, pci_host_response_unload, pci_host_response_error,
-// Wires used by the host controller to send delayed read data by the pci interface
-  pci_host_delayed_read_data, pci_host_delayed_read_type,
-  pci_host_delayed_read_room_available_meta, pci_host_delayed_read_data_submit,
-  pci_host_delayed_read_data_error,
+// Coordinate Write_Fence with CPU
+  pci_target_requests_write_fence, host_allows_write_fence,
+// Host uses these wires to request PCI activity.
+  pci_master_ref_address, pci_master_ref_command, pci_master_ref_config,
+  pci_master_byte_enables, pci_master_write_data, pci_master_read_data,
+  pci_master_idle, pci_master_ref_start,
+  pci_master_requests_serr, pci_master_requests_perr, pci_master_requests_last,
+  pci_master_data_transferred, pci_master_ref_error,
+// PCI Interface uses these wires to request local memory activity.   
+  pci_target_ref_address, pci_target_ref_command,
+  pci_target_byte_enables, pci_target_write_data, pci_target_read_data,
+  pci_target_idle, pci_target_ref_start,
+  pci_target_requests_abort, pci_target_requests_perr,
+  pci_target_requests_disconnect,
+  pci_target_write_data_consumed, pci_target_read_data_available,
+// PCI_Error_Report.
+  pci_interface_reports_errors, pci_config_reg_reports_errors,
 // Generic host interface wires
-  pci_config_reg_signals_some_error,
   pci_host_sees_pci_reset,
   host_reset_to_PCI_interface,
   host_clk, host_sync_clk,
@@ -97,31 +136,43 @@ module pci_blue_interface (
 `ifdef PCI_EXTERNAL_IDSEL
   pci_idsel_in_prev,
 `endif // PCI_EXTERNAL_IDSEL
+  test_device_id,
+  interface_error_event,
   pci_reset_comb,
   pci_clk, pci_sync_clk
 );
-// Wires used by the host controller to request action by the pci interface
-  input  [31:0] pci_host_request_data;
-  input  [3:0] pci_host_request_cbe;
-  input  [2:0] pci_host_request_type;
-  output  pci_host_request_room_available_meta;
-  input   pci_host_request_submit;
-  output  pci_host_request_error;
-// Wires used by the pci interface to request action by the host controller
-  output [31:0] pci_host_response_data;
-  output [3:0] pci_host_response_cbe;
-  output [3:0] pci_host_response_type;
-  output  pci_host_response_data_available_meta;
-  input   pci_host_response_unload;
-  output  pci_host_response_error;
-// Wires used by the host controller to send delayed read data by the pci interface
-  input  [31:0] pci_host_delayed_read_data;
-  input  [2:0] pci_host_delayed_read_type;
-  output  pci_host_delayed_read_room_available_meta;
-  input   pci_host_delayed_read_data_submit;
-  output  pci_host_delayed_read_data_error;
+// Coordinate Write_Fence with CPU
+  output  pci_target_requests_write_fence;
+  input   host_allows_write_fence;
+// Host uses these wires to request PCI activity.
+  input  [31:0] pci_master_ref_address;
+  input  [3:0] pci_master_ref_command;
+  input   pci_master_ref_config;
+  input  [3:0] pci_master_byte_enables;
+  input  [31:0] pci_master_write_data;
+  output [31:0] pci_master_read_data;
+  output  pci_master_idle;
+  input   pci_master_ref_start;
+  input   pci_master_requests_serr, pci_master_requests_perr;
+  input   pci_master_requests_last;
+  output  pci_master_data_transferred;
+  output  pci_master_ref_error;
+// PCI Interface uses these wires to request local memory activity.   
+  output [31:0] pci_target_ref_address;
+  output [3:0] pci_target_ref_command;
+  output [3:0] pci_target_byte_enables;
+  output [31:0] pci_target_write_data;
+  input  [31:0] pci_target_read_data;
+  input   pci_target_idle;
+  output  pci_target_ref_start;
+  input   pci_target_requests_abort, pci_target_requests_perr;
+  input   pci_target_requests_disconnect;
+  input   pci_target_write_data_consumed;
+  input   pci_target_read_data_available;
+// PCI_Error_Report.
+  output [9:0] pci_interface_reports_errors;
+  output  pci_config_reg_reports_errors;
 // Generic host interface wires
-  output  pci_config_reg_signals_some_error;
   output  pci_host_sees_pci_reset;
   input   host_reset_to_PCI_interface;
   input   host_clk;
@@ -154,9 +205,23 @@ module pci_blue_interface (
 `ifdef PCI_EXTERNAL_IDSEL
   input   pci_idsel_in_prev;
 `endif // PCI_EXTERNAL_IDSEL
+  input  [2:0] test_device_id;
+  output  interface_error_event;
   input   pci_reset_comb;
   input   pci_clk;
   input   pci_sync_clk;  // used only by Synchronizers, and in Synthesis Constraints
+
+// Make temporary Bip every time an error is detected
+  reg     interface_error_event;
+  initial interface_error_event <= 1'bZ;
+  reg     error_detected;
+  initial error_detected <= 1'b0;
+  always @(error_detected)
+  begin
+    interface_error_event <= 1'b0;
+    #2;
+    interface_error_event <= 1'bZ;
+  end
 
 // Double-synchronize the PCI Reset signal into the Host Clock Domain.  The PCI Reset
 //   signal must be visible for at least two complete Host interface clocks.
@@ -174,6 +239,7 @@ module pci_blue_interface (
     end
   end
 
+// First level synchronization of PCI Reset signal
 pci_synchronizer_flop sync_reset_flop (
   .data_in                    (pci_reset_comb),
   .clk_out                    (host_sync_clk),
@@ -181,12 +247,876 @@ pci_synchronizer_flop sync_reset_flop (
   .async_reset                (host_reset_to_PCI_interface)
 );
 
+// Synchronization of signal which says PCI Interface sees some sort of error
   wire    target_config_reg_signals_some_error;
 pci_synchronizer_flop sync_error_flop (
   .data_in                    (target_config_reg_signals_some_error),
   .clk_out                    (host_sync_clk),
   .sync_data_out              (pci_config_reg_signals_some_error),
   .async_reset                (host_reset_to_PCI_interface)
+);
+
+// Wires communicating between state machines here and FIFOs
+// Wires used by the host controller to request action by the pci interface
+  wire   [31:0] pci_host_request_data;
+  wire   [3:0] pci_host_request_cbe;
+  wire   [2:0] pci_host_request_type;
+  wire    pci_host_request_room_available_meta;
+  wire    pci_host_request_submit;
+  wire    pci_host_request_error;
+// Wires used by the pci interface to request action by the host controller
+  wire   [31:0] pci_host_response_data;
+  wire   [3:0] pci_host_response_cbe;
+  wire   [3:0] pci_host_response_type;
+  wire    pci_host_response_data_available_meta;
+  wire    pci_host_response_unload;
+  wire    pci_host_response_error;
+// Wires used by the host controller to send delayed read data by the pci interface
+  wire   [31:0] pci_host_delayed_read_data;
+  wire   [2:0] pci_host_delayed_read_type;
+  wire    pci_host_delayed_read_room_available_meta;
+  wire    pci_host_delayed_read_data_submit;
+  wire    pci_host_delayed_read_data_error;
+
+// There are three Host Controller State Machines.
+// The Host_Master_State_Machine is responsible for executing requests from the
+//   Host to the PCI Bus.
+// The Host_Target_State_Machine is responsible for executing requests from the
+//   PCI Bus to the local Memory.
+// The Host_Delayed_Read_State_Machine is responsible for requesting local memory
+//   references.  It is also reponsibel for making certain that a "last" entry
+//   is put in the Delayed Read FIFO in all cases.
+//
+// The Host_Target_State_Machine can ask the Host_Master_State_Machine to stick
+//   a write fence into the Host Request FIFO in order to correctly implement
+//   the PCI Ordering Rules.
+// The Host_Target_State_Machine is also constantly sending info about the status
+//   of Host-initiated PCI Activity back to the Host_Master_State_Machine.
+// See the PCI Local Bus Spec Revision 2.2 section 3.3.3.3.
+
+// The Host_Master_State_Machine either directly executes the read or write if
+//   it is to the local Memory, or it makes a request to the PCI Interface.
+// A real Host Interface might not have to bother with issuing a Memory Reference
+//   here, because it will have it's own port to the Memory and will never inform
+//   the Host PCI Interface that it is doing a Memory reference.
+// Writes are indicated to be done immediately.  Reads wait until the
+//   data gets back before indicating done.
+//
+// Write Fences are used so that Delayed Read data comes out after all posted
+//   writes are complete, and before writes done after the read are committed.
+// The protocol is this:
+// Host_Target_State_Machine asserts target_requests_write_fence;
+// Host Interface does as many writes as it wants.
+//   The Delayed Read cannot complete during this period.
+// Host Interface asserts host_allows_write_fence.
+//   Host Interface holds off further writes while the Fence is in the pipe.
+// Host_Master_State_Machine puts a Write Fence in the FIFO.
+// Host_Master_State_Machine asserts master_issues_write_fence.
+// Delayed Read state machine fetches and delivers data to external PCI Master.
+// Host_Target_State_Machine deasserts target_requests_write_fence.
+// Host Interface can start writing again.
+// If the request for a Write Fence comes in when the Host Interface is
+//   waiting for the results of a Read, the first thing done after the
+//   Read completes is to allow the Write Fence.  No writes are allowed
+//   to occur after a read during which a Write Fence was requested.
+
+  reg     target_requests_write_fence;
+  reg     master_issues_write_fence, target_sees_write_fence_end;
+
+  parameter Example_Host_Master_Idle          = 3'b001;
+  parameter Example_Host_Master_Transfer_Data = 3'b010;
+  parameter Example_Host_Master_Read_Linger   = 3'b100;
+
+  reg    [2:0] Example_Host_Master_State;
+
+  wire    present_command_is_read =
+            ((pci_master_ref_command[3:0] & `PCI_COMMAND_ANY_WRITE_MASK) == 4'h0);
+  wire    present_command_is_write = ~present_command_is_read;
+
+  reg    [3:0] pci_master_running_transfer_count;
+  reg     target_sees_read_end;
+  reg     master_ref_started, master_ref_done;
+
+// Host_Master_State_Machine.  Operates when Host talks to external PCI devices
+  always @(posedge host_clk)
+  begin
+    if (host_reset_to_PCI_interface)
+    begin
+//      pci_master_running_transfer_count[3:0] <= pci_master_ref_size[3:0];  // unimportant
+      master_ref_done <= 1'b0;
+      master_issues_write_fence <= 1'b0;
+      Example_Host_Master_State <= Example_Host_Master_Idle;
+    end
+    else
+    begin
+      case (Example_Host_Master_State[2:0])
+      Example_Host_Master_Idle:
+        begin
+//          pci_master_running_transfer_count[3:0] <= pci_master_ref_size[3:0];  // grab size
+          if (target_requests_write_fence & host_allows_write_fence
+              & ~master_issues_write_fence & pci_host_request_room_available_meta)
+          begin  // Issue Write Fence into FIFO, exclude other writes to FIFO
+            master_ref_done <= 1'b0;
+            master_issues_write_fence <= 1'b1;  // indicate that write fence inserted
+            Example_Host_Master_State <= Example_Host_Master_Idle;
+          end
+          else if (pci_master_ref_start & ~master_ref_done
+                    & pci_host_request_room_available_meta
+                    & (pci_master_ref_address[31:24] == 8'hCC) )
+          begin  // Issue Local PCI Register command to PCI Controller
+            if (present_command_is_write)
+            begin
+              master_ref_done <= 1'b1;
+              master_issues_write_fence <= 1'b0;
+              Example_Host_Master_State <= Example_Host_Master_Idle;
+            end
+            else
+            begin
+              master_ref_done <= 1'b0;
+              master_issues_write_fence <= 1'b0;
+              Example_Host_Master_State <= Example_Host_Master_Read_Linger;
+            end
+          end
+          else if (pci_master_ref_start & ~master_ref_done
+                    & pci_host_request_room_available_meta
+                    & (pci_master_ref_address[31:24] != 8'hDD))
+          begin  // Issue Remote PCI Reference to PCI Controller
+            master_ref_done <= 1'b0;
+            master_issues_write_fence <= 1'b0;
+            Example_Host_Master_State <= Example_Host_Master_Transfer_Data;
+          end
+          else
+          begin  // No requests which can be acted on, so stay idle.
+            master_ref_done <= 1'b0;
+            master_issues_write_fence <= 1'b0;
+            Example_Host_Master_State <= Example_Host_Master_Idle;
+          end
+        end
+      Example_Host_Master_Transfer_Data:
+        begin
+          if (~pci_host_request_room_available_meta)
+          begin
+            pci_master_running_transfer_count[3:0] <=
+                                  pci_master_running_transfer_count[3:0];
+            master_ref_done <= 1'b0;
+            Example_Host_Master_State <= Example_Host_Master_Transfer_Data;
+          end
+          else if ((pci_master_running_transfer_count[3:0] <= 4'h1)
+                     & present_command_is_read)  // end of read
+          begin
+            pci_master_running_transfer_count[3:0] <=
+                                  pci_master_running_transfer_count[3:0] - 4'h1;
+            master_ref_done <= 1'b0;
+            Example_Host_Master_State <= Example_Host_Master_Read_Linger;
+          end
+          else if ((pci_master_running_transfer_count[3:0] <= 4'h1)
+                     & present_command_is_write)  // end of write
+          begin
+            pci_master_running_transfer_count[3:0] <=
+                                  pci_master_running_transfer_count[3:0] - 4'h1;
+            master_ref_done <= 1'b1;
+            Example_Host_Master_State <= Example_Host_Master_Idle;
+          end
+          else  // more data to transfer
+          begin
+            pci_master_running_transfer_count[3:0] <=
+                                  pci_master_running_transfer_count[3:0] - 4'h1;
+            master_ref_done <= 1'b0;
+            Example_Host_Master_State <= Example_Host_Master_Transfer_Data;
+          end
+          master_issues_write_fence <= 1'b0;  // not doing write fence, so never.
+        end
+      Example_Host_Master_Read_Linger:
+        begin
+          if (~target_sees_read_end)
+          begin
+            pci_master_running_transfer_count[3:0] <=
+                                  pci_master_running_transfer_count[3:0];
+            master_ref_done <= 1'b0;
+            Example_Host_Master_State <= Example_Host_Master_Read_Linger;
+          end
+          else
+          begin
+            pci_master_running_transfer_count[3:0] <=
+                                  pci_master_running_transfer_count[3:0];
+            master_ref_done <= 1'b1;
+            Example_Host_Master_State <= Example_Host_Master_Idle;
+          end
+          master_issues_write_fence <= 1'b0;  // not doing write fence, so never.
+        end
+      default:
+        begin
+          pci_master_running_transfer_count[3:0] <=
+                                  pci_master_running_transfer_count[3:0];
+          master_ref_done <= 1'b0;
+          master_issues_write_fence <= 1'b0;
+          Example_Host_Master_State <= Example_Host_Master_Idle;
+          $display ("*** Example Host Controller %h - Host_Master_State_Machine State invalid %b, at %t",
+                      test_device_id[2:0], Example_Host_Master_State[2:0], $time);
+          error_detected <= ~error_detected;
+        end
+      endcase
+    end
+  end
+
+// Get the next Host Data during a Burst.  In this example Host Interface,
+//   data always increments by 32'h01010101 during a burst.
+// The Write side increments it during writes, and the Read side increments
+// it during compares.
+  wire    Offer_Next_Host_Data_During_Writes =
+                (Example_Host_Master_State[2:0] == Example_Host_Master_Transfer_Data)
+              & present_command_is_write & pci_host_request_room_available_meta;
+
+// References to the local Config Registers can only be 1 byte at a time.
+  wire   [7:0] config_ref_data =
+                (pci_master_byte_enables[0] ? pci_master_write_data[ 7: 0] : 8'h00)
+              | (pci_master_byte_enables[1] ? pci_master_write_data[15: 8] : 8'h00)
+              | (pci_master_byte_enables[2] ? pci_master_write_data[23:16] : 8'h00)
+              | (pci_master_byte_enables[3] ? pci_master_write_data[31:24] : 8'h00);
+  wire   [1:0] config_ref_addr_lsb =
+                (pci_master_byte_enables[0] ? 2'h0
+              : (pci_master_byte_enables[1] ? 2'h1
+              : (pci_master_byte_enables[2] ? 2'h2
+              : 2'h3)));
+
+// Data for either a Write Fence, a Config Reference, the PCI Address, or the PCI Data.
+// This is actually an if-then-else, done in combinational logic.  Would it be clearer as a function?
+// A slower Host Interface could do this as sequential logic in an always block.
+  assign  pci_host_request_data[31:0] =
+                (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
+                   & target_requests_write_fence & host_allows_write_fence
+                   & ~master_issues_write_fence & pci_host_request_room_available_meta)
+              ? {pci_master_ref_address[31:18], 2'b00, config_ref_data[7:0],
+                 pci_master_ref_address[7:2], config_ref_addr_lsb[1:0]}
+              : (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
+                   & pci_master_ref_start & ~master_ref_done
+                   & pci_host_request_room_available_meta
+                   & (pci_master_ref_address[31:24] == 8'hCC))
+              ? {pci_master_ref_address[31:18], present_command_is_read,
+                 present_command_is_write, config_ref_data[7:0],
+                 pci_master_ref_address[7:2], config_ref_addr_lsb[1:0]}
+              : (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
+                   & pci_master_ref_start & ~master_ref_done
+                   & pci_host_request_room_available_meta
+                   & (pci_master_ref_address[31:24] != 8'hDD))
+              ? pci_master_ref_address[31:0]
+              : ((Example_Host_Master_State[2:0] == Example_Host_Master_Transfer_Data)
+              ? pci_master_write_data[31:0]  // Data advanced by host interface during burst
+              : pci_master_ref_address[31:0]))));
+
+// Either the Host PCI Command or the Host Byte Enables.
+  assign  pci_host_request_cbe[3:0] =
+             (Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
+             ? pci_master_ref_command[3:0]
+             : pci_master_byte_enables[3:0];  // Byte Enables advanced by host interface during burst
+
+// Either Write Fence, Read/Write Config Register, Read/Write Address, Read/Write Data, Spare.
+// This is actually an if-then-else, done in combinational logic.  Would it be clearer as a function?
+// A slower Host Interface could do this as sequential logic in an always block.
+  assign  pci_host_request_type[2:0] =
+                (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
+                   & target_requests_write_fence & host_allows_write_fence
+                   & ~master_issues_write_fence & pci_host_request_room_available_meta)
+              ? `PCI_HOST_REQUEST_INSERT_WRITE_FENCE
+              : (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
+                   & pci_master_ref_start & ~master_ref_done
+                   & pci_host_request_room_available_meta
+                   & (pci_master_ref_address[31:24] == 8'hCC))
+              ? `PCI_HOST_REQUEST_INSERT_WRITE_FENCE  // `PCI_HOST_REQUEST_READ_WRITE_CONFIG_REGISTER
+              : (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
+                   & pci_master_ref_start & ~master_ref_done
+                   & pci_host_request_room_available_meta
+                   & (pci_master_ref_address[31:24] != 8'hDD)
+                   & ~pci_master_requests_serr)
+              ? `PCI_HOST_REQUEST_ADDRESS_COMMAND
+              : (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
+                   & pci_master_ref_start & ~master_ref_done
+                   & pci_host_request_room_available_meta
+                   & (pci_master_ref_address[31:24] != 8'hDD)
+                   & pci_master_requests_serr)
+              ? `PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR
+              : (((Example_Host_Master_State[2:0] == Example_Host_Master_Transfer_Data)
+                   & (pci_master_running_transfer_count[3:0] > 4'h1)
+                   & ~pci_master_requests_perr)
+              ? `PCI_HOST_REQUEST_W_DATA_RW_MASK
+              : (((Example_Host_Master_State[2:0] == Example_Host_Master_Transfer_Data)
+                   & (pci_master_running_transfer_count[3:0] <= 4'h1)
+                   & ~pci_master_requests_perr)
+              ? `PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST
+              : (((Example_Host_Master_State[2:0] == Example_Host_Master_Transfer_Data)
+                   & (pci_master_running_transfer_count[3:0] > 4'h1)
+                   & pci_master_requests_perr)
+              ? `PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR
+              : (((Example_Host_Master_State[2:0] == Example_Host_Master_Transfer_Data)
+                   & (pci_master_running_transfer_count[3:0] <= 4'h1)
+                   & pci_master_requests_perr)
+              ? `PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR
+              : `PCI_HOST_REQUEST_SPARE))))))));
+
+// Only write the FIFO when data is available and the FIFO has room for more data
+// This is actually an if-then-else, done in combinational logic.  Would it be clearer as a function?
+// A slower Host Interface could do this as sequential logic in an always block.
+// NOTE WORKING that 1'b0 & ( has to go!
+  assign  pci_host_request_submit = 1'b0 & (
+                ((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
+                 & target_requests_write_fence & host_allows_write_fence
+                 & ~master_issues_write_fence & pci_host_request_room_available_meta)
+              | ((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
+                 & pci_master_ref_start & ~master_ref_done
+                 & pci_host_request_room_available_meta
+                 & (pci_master_ref_address[31:24] == 8'hCC))
+              | ((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
+                 & pci_master_ref_start & ~master_ref_done
+                 & pci_host_request_room_available_meta
+                 & (pci_master_ref_address[31:24] != 8'hDD))
+              | ((Example_Host_Master_State[2:0] == Example_Host_Master_Transfer_Data)
+                 & pci_host_request_room_available_meta) );
+
+// Check for errors in the Host_Master_State_Machine
+  always @(posedge host_clk)
+  begin
+    if (pci_master_ref_start & ~master_ref_done
+         &  pci_host_request_room_available_meta
+         & (pci_master_ref_address[31:24] == 8'hCC) )
+    begin
+      if (~pci_master_requests_last)
+      begin
+        $display ("*** Example Host Controller %h - Local Config Reg Refs must be exactly 1 word long, at %t",
+                    test_device_id[2:0], $time);
+        error_detected <= ~error_detected;
+      end
+      `NO_ELSE;
+      if (  (pci_master_byte_enables[3:0] != 4'h1)
+          & (pci_master_byte_enables[3:0] != 4'h2)
+          & (pci_master_byte_enables[3:0] != 4'h4)
+          & (pci_master_byte_enables[3:0] != 4'h8) )
+      begin
+        $display ("*** Example Host Controller %h - Local Config Reg Refs must have exactly 1 Byte Enable %h, at %t",
+                    test_device_id[2:0], pci_master_byte_enables[3:0], $time);
+        error_detected <= ~error_detected;
+      end
+      `NO_ELSE;
+    end
+    `NO_ELSE;
+    if (pci_host_request_error)
+    begin
+      $display ("*** Example Host Controller %h - Request FIFO reports Error, at %t",
+                  test_device_id[2:0], $time);
+      error_detected <= ~error_detected;
+    end
+    `NO_ELSE;
+  end
+
+// Host_Target_State_Machine.
+// The Host_Target_State_Machine executes PCI Bus references to the local Memory.
+// The Host_Target_State_Machine can ask the Host_Master_State_Machine to stick
+//   a write fence into the Host Request FIFO in order to correctly implement
+//   the PCI Ordering Rules for Delayed Reads.  See the PCI Local Bus Spec
+//   Revision 2.2 section 3.3.3.3.
+// This State Machine is responsible for restarting the Memory Read in the case
+//   of a Delayed Read which is interrupted by a delayed write to the read region.
+//
+// This state machine seems to be mostly stateless.
+// The two bits of state it keeps are that it requested a Write Fence but the
+//   fence has not been sent yet, and that it requested a restart on an SRAM
+//   read but the restart has not happened yet.
+//
+// This example Host Interface also checks the results of Master Reference here.
+// Reads and Writes are tagged, and the information is encoded into the
+//   middle 16 bits of the PCI Address.  The information is used at the end
+//   of a PCI transfer to see if the expected activity occurred.
+//
+// There are two classes of entries in the Response FIFO.
+// Response entries can be caused by progress being made in the Master
+//   side of the interface, reflecting PCI activity initiated by this host.
+// Response entries can be caused by references initiated by external PCI
+//   Masters to this target interface.
+// Most Response FIFO entries are control or documentation entries,
+//   and can be dropped without action if the Host Interface isn't
+//   recording everything to allow protocol violations.
+// Certain Response FIFO entries can only be dropped after it is
+//   assured that the Host Interface has acted on the data.  Specifically,
+//   Address, Write Data, and Read Strobes from an external PCI Master
+//   must be captured before the FIFO is unloaded.  Also, Read Data
+//   returning as normal progress is being made to complete a Master-
+//   initiated Read must be captured before it is dropped.
+//
+// This interface is trying to be High Performance.  It wants to handle
+//   one FIFO entry every 2 processor clocks.  To achieve this, it must
+//   be able to unload a FIFO entry as soon as it becomes available.
+// This cannot be done in a state machine, because of the delays in the
+//   FIFO Flag logic.  Instead, combinational logic below unloads the
+//   FIFO depending on what the FIFO entry Type is, and also depending
+//   on whether the Host Interface can capture the data right now.
+
+// Capture signals needed to request the issuance of a Write Fence
+//   into the Request FIFO.
+// Forward references used to communicate with the Host_Master_State_Machine above:
+//  reg     target_requests_write_fence, target_sees_write_fence_end;
+
+  always @(posedge host_clk)
+  begin
+    if (host_reset_to_PCI_interface)
+    begin
+      target_requests_write_fence <= 1'b0;
+      target_sees_write_fence_end <= 1'b0;
+    end
+    else if (pci_host_response_data_available_meta)
+    begin
+      if (   (pci_host_response_type[3:0] ==
+                      `PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE)
+           & ((pci_host_response_cbe[3:0] & `PCI_COMMAND_ANY_WRITE_MASK) == 4'h0) )  // it's a read!
+      begin
+        target_requests_write_fence <= 1'b1;
+        target_sees_write_fence_end <= 1'b0;
+      end
+      else if (    (pci_host_response_type[3:0] ==
+                                    `PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE)
+                 & (pci_host_response_data[17:16] == 2'b00) )
+      begin
+        target_requests_write_fence <= 1'b0;
+        target_sees_write_fence_end <= 1'b1;
+      end
+      else
+      begin  // FIFO Command does not effect the Write Fence.  Just wait.
+        target_requests_write_fence <= target_requests_write_fence
+                                     & ~master_issues_write_fence;
+        target_sees_write_fence_end <= 1'b0;
+      end
+    end
+    else
+    begin  // No command in FIFO.  Just wait.
+      target_requests_write_fence <= target_requests_write_fence
+                                   & ~master_issues_write_fence;
+      target_sees_write_fence_end <= 1'b0;
+    end
+  end
+
+// Capture signals to indicate that a Read is done to the Master State Machine above
+// Forward references used to communicate with the Host_Master_State_Machine above:
+//  reg     target_sees_read_end;
+  reg     master_read_returning_data_now;
+
+  always @(posedge host_clk)
+  begin
+    if (host_reset_to_PCI_interface)
+    begin
+      master_read_returning_data_now <= 1'b0;
+      target_sees_read_end <= 1'b0;
+    end
+    else if (pci_host_response_data_available_meta)
+    begin
+      if (pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_EXECUTED_ADDRESS_COMMAND)
+      begin
+        master_read_returning_data_now <=
+          ((pci_host_response_cbe[3:0] & `PCI_COMMAND_ANY_WRITE_MASK) == 4'h0);  // it's a read!
+        target_sees_read_end <= 1'b0;
+      end
+      else if (master_read_returning_data_now
+                & (pci_host_response_type[3:0] ==
+                                 `PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT) )
+      begin
+        if (   pci_host_response_data[29]    // Master_Abort_Received
+             | pci_host_response_data[28] )  // Target_Abort_Received
+        begin
+          master_read_returning_data_now <= 1'b0;
+          target_sees_read_end <= 1'b1;
+        end
+        else
+        begin
+          master_read_returning_data_now <= master_read_returning_data_now;
+          target_sees_read_end <= 1'b0;
+        end
+      end
+      else if (master_read_returning_data_now
+                & (   (pci_host_response_type[3:0] ==
+                                 `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST)
+                    | (pci_host_response_type[3:0] ==
+                                 `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR)
+                    | (   (pci_host_response_type[3:0] ==
+                                 `PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE)
+                        & pci_host_response_data[17]) ) )  // Config Read done
+      begin
+        master_read_returning_data_now <= 1'b0;
+        target_sees_read_end <= 1'b1;
+      end
+      else
+      begin  // FIFO Command does not effect the Master Read status.  Just wait.
+        master_read_returning_data_now <= master_read_returning_data_now;
+        target_sees_read_end <= 1'b0;
+      end
+    end
+    else
+    begin  // No command in FIFO.  Just wait.
+      master_read_returning_data_now <= master_read_returning_data_now;
+      target_sees_read_end <= 1'b0;
+    end
+  end
+
+// Communication with the Host_Delayed_Read_State_Machine below:
+  reg     delayed_read_start_requested, delayed_read_stop_seen;
+  reg     delayed_read_flush_requested;
+  reg     delayed_read_start_granted, delayed_read_flush_granted;
+
+  always @(posedge host_clk)
+  begin
+    if (host_reset_to_PCI_interface)
+    begin
+      delayed_read_start_requested <= 1'b0;
+      delayed_read_stop_seen <= 1'b0;
+      delayed_read_flush_requested <= 1'b0;
+    end
+    else if (pci_host_response_data_available_meta)
+    begin
+      if (   (pci_host_response_type[3:0] ==
+                      `PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE)
+           & ((pci_host_response_cbe[3:0] & `PCI_COMMAND_ANY_WRITE_MASK) == 4'h0) )  // it's a read!
+      begin
+        delayed_read_start_requested <= 1'b1;
+        delayed_read_stop_seen <= 1'b0;
+        delayed_read_flush_requested <= delayed_read_flush_requested
+                                      & ~delayed_read_flush_granted;
+      end
+      else if (delayed_read_start_requested
+                & (pci_host_response_type[3:0] ==
+                      `PCI_HOST_RESPONSE_EXT_DELAYED_READ_RESTART) )
+      begin
+        delayed_read_start_requested <= delayed_read_start_requested
+                                      & ~delayed_read_start_granted;
+        delayed_read_stop_seen <= 1'b0;
+        delayed_read_flush_requested <= 1'b1;
+      end
+      else if (delayed_read_start_requested
+                & (   (pci_host_response_type[3:0] ==
+                             `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST)
+                    | (pci_host_response_type[3:0] ==
+                             `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST_PERR) ) )
+      begin
+        delayed_read_start_requested <= delayed_read_start_requested
+                                      & ~delayed_read_start_granted;
+        delayed_read_stop_seen <= 1'b1;
+        delayed_read_flush_requested <= delayed_read_flush_requested
+                                      & ~delayed_read_flush_granted;
+      end
+      else
+      begin  // FIFO Command does not effect the Delayed Read status.  Just wait.
+        delayed_read_start_requested <= delayed_read_start_requested
+                                      & ~delayed_read_start_granted;
+        delayed_read_stop_seen <= 1'b0;
+        delayed_read_flush_requested <= delayed_read_flush_requested
+                                      & ~delayed_read_flush_granted;
+      end
+    end
+    else
+    begin  // No command in FIFO.  Just wait.
+      delayed_read_start_requested <= delayed_read_start_requested
+                                    & ~delayed_read_start_granted;
+      delayed_read_stop_seen <= 1'b0;
+      delayed_read_flush_requested <= delayed_read_flush_requested
+                                    & ~delayed_read_flush_granted;
+    end
+  end
+
+// Capture signals needed to do local SRAM references
+  reg    [31:0] Captured_Target_Address;
+  reg    [3:0] Captured_Target_Type;
+  reg     target_request_being_serviced;
+
+  always @(posedge host_clk)
+  begin
+    if (host_reset_to_PCI_interface)
+    begin
+      Captured_Target_Address[31:0] <= Captured_Target_Address[31:0];
+      Captured_Target_Type[3:0] <= Captured_Target_Type[3:0];
+      target_request_being_serviced <= target_request_being_serviced;
+    end
+    else
+    begin
+      if (pci_host_response_data_available_meta)
+      begin  // NOTE WORKING
+        Captured_Target_Address[31:0] <= Captured_Target_Address[31:0];
+        Captured_Target_Type[3:0] <= Captured_Target_Type[3:0];
+        target_request_being_serviced <= target_request_being_serviced;
+      end
+      else
+      begin
+        Captured_Target_Address[31:0] <= Captured_Target_Address[31:0];
+        Captured_Target_Type[3:0] <= Captured_Target_Type[3:0];
+        target_request_being_serviced <= target_request_being_serviced;
+      end
+    end
+  end
+
+// Capture signals needed to check Master reference results.
+  reg    [31:0] Captured_Master_Address_Check;
+  reg    [3:0] Captured_Master_Type_Check;
+  reg     master_results_being_returned;
+
+  always @(posedge host_clk)
+  begin
+    if (host_reset_to_PCI_interface)
+    begin
+      Captured_Master_Address_Check[31:0] <= Captured_Master_Address_Check[31:0];
+      Captured_Master_Type_Check[3:0] <= Captured_Master_Type_Check[3:0];
+      master_results_being_returned <= 1'b0;
+    end
+    else
+    begin
+      if (pci_host_response_data_available_meta)
+      begin  // NOTE WORKING
+        Captured_Master_Address_Check[31:0] <= Captured_Master_Address_Check[31:0];
+        Captured_Master_Type_Check[3:0] <= Captured_Master_Type_Check[3:0];
+        master_results_being_returned <= master_results_being_returned;
+      end
+      else
+      begin
+        Captured_Master_Address_Check[31:0] <= Captured_Master_Address_Check[31:0];
+        Captured_Master_Type_Check[3:0] <= Captured_Master_Type_Check[3:0];
+        master_results_being_returned <= master_results_being_returned;
+      end
+    end
+  end
+
+// Capture Error bits in Host Status Register.
+  reg    [9:0] pci_interface_reports_errors;
+  always @(posedge host_clk)
+  begin
+    if (pci_host_response_data_available_meta)
+    begin
+      if (   ((pci_host_response_type[3:0] ==
+                            `PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT)
+                & pci_host_response_data[31])
+           | (pci_host_response_type[3:0] ==
+                            `PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR)
+           | (pci_host_response_type[3:0] ==
+                            `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR)
+           | (pci_host_response_type[3:0] ==
+                            `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_PERR)
+           | (pci_host_response_type[3:0] ==
+                            `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST_PERR) )
+      begin
+        pci_interface_reports_errors[9] <= 1'b1;  // PERR_Detected
+      end
+      else
+      begin
+        pci_interface_reports_errors[9] <= 1'b0;
+      end
+
+      if (pci_host_response_type[3:0] ==
+                         `PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT)
+      begin
+        pci_interface_reports_errors[8] <= pci_host_response_data[30];  // SERR_Detected
+        pci_interface_reports_errors[7] <= pci_host_response_data[29];  // Master_Abort_Received
+        pci_interface_reports_errors[6] <= pci_host_response_data[28];  // Target_Abort_Received
+        pci_interface_reports_errors[5] <= pci_host_response_data[27];  // Caused_Target_Abort
+        pci_interface_reports_errors[4] <= pci_host_response_data[24];  // Caused_PERR
+        pci_interface_reports_errors[3] <= pci_host_response_data[18];  // Discarded_Delayed_Read
+        pci_interface_reports_errors[2] <= pci_host_response_data[17];  // Target_Retry_Or_Disconnect
+        pci_interface_reports_errors[1] <= pci_host_response_data[16];  // Illegal_Command_Detected_In_Request_FIFO
+      end
+      else
+      begin
+        pci_interface_reports_errors[8:1] <= 8'h00;
+      end
+      pci_interface_reports_errors[0] <=  // Illegal_Command_Detected_In_Response_FIFO
+         (   (pci_host_response_type[3:0] == `PCI_HOST_RESPONSE_SPARE)
+           | (pci_host_response_type[3:0] == `PCI_HOST_RESPONSE_EXTERNAL_SPARE) );
+    end
+    else
+    begin
+      pci_interface_reports_errors[9:0]= 10'h000;
+    end
+  end
+
+// NOTE WORKING Need to get rid of that 1'b0
+// Unload Response FIFO when it is possible to pass its contents to all interested parties.
+  assign  pci_host_response_unload = 1'b0 & (pci_host_response_data_available_meta
+             & (   ((pci_host_response_type[3:0] == `PCI_HOST_RESPONSE_SPARE))
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_EXECUTED_ADDRESS_COMMAND))
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT))
+                 | ((pci_host_response_type[3:0] ==// PCI_HOST_RESPONSE_READ_WRITE_CONFIG_REGISTER
+                                   `PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE))
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_R_DATA_W_SENT))
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST))
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR))
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR))
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_EXTERNAL_SPARE))
+                 | ((pci_host_response_type[3:0] ==
+                        `PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE))  // wait!
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_EXT_DELAYED_READ_RESTART))  // wait!
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_EXT_READ_UNSUSPENDING))
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK))  // wait!
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST))  // wait!
+                 | ((pci_host_response_type[3:0] ==
+                                   `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_PERR))  // wait!
+                 | ((pci_host_response_type[3:0] ==
+                               `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST_PERR))   // wait!
+               ) );
+
+
+/*
+        `PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE:
+// also `PCI_HOST_RESPONSE_READ_WRITE_CONFIG_REGISTER
+// A write fence unload response will have Bits 16 and 17 both set to 1'b0.
+// Config References can be identified by noticing that Bits 16 or 17 are non-zero.
+// Data Bits [7:0] are the Byte Address of the Config Register being accessed.
+// Data Bits [15:8] are the single-byte Read Data returned when writing the Config Register.
+// Data Bit  [16] indicates that a Config Write has been done.
+// Data Bit  [17] indicates that a Config Read has been done.
+        `PCI_HOST_RESPONSE_R_DATA_W_SENT:
+        `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST:
+        `PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR:
+        `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR:
+        `PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE:
+        `PCI_HOST_RESPONSE_EXT_DELAYED_READ_RESTART:
+        `PCI_HOST_RESPONSE_EXT_READ_UNSUSPENDING:
+        `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK:
+        `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST:
+        `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_PERR:
+        `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST_PERR:
+*/
+
+// NOTE WORKING
+// Get the next Host Data during a Burst.  In this example Host Interface,
+//   data always increments by 32'h01010101 during a burst.
+// The Write side increments it during writes, and the Read side increments
+// it during compares.
+  wire    Calculate_Next_Host_Data_During_Reads = 1'b0;
+
+// Check for errors in the Host_Target_State_Machine
+  always @(posedge host_clk)
+  begin
+    if (   pci_host_response_data_available_meta
+         & ((^pci_host_response_type[3:0]) === 1'bX))
+    begin
+      $display ("*** Example Host Controller %h - Host_Target_State_Machine FIFO Type invalid %b, at %t",
+                  test_device_id[2:0], pci_host_response_type[3:0], $time);
+      error_detected <= ~error_detected;
+    end
+    `NO_ELSE;
+    if (pci_host_response_error)
+    begin
+      $display ("*** Example Host Controller %h - Response FIFO reports Error, at %t",
+                  test_device_id[2:0], $time);
+      error_detected <= ~error_detected;
+    end
+    `NO_ELSE;
+  end
+
+// Get the next Host Data during a Burst.  In this example Host Interface,
+//   data always increments by 32'h01010101 during a burst.
+// Only master-initiated transfers are checked for correctness.  To check that
+//   data is written correctly to a remote PCI device, read it back!
+// The Write side increments it during writes, and the Read side increments
+//   it during compares.
+ // assign  Expose_Next_Data_In_Burst = Offer_Next_Host_Data_During_Writes
+ //                                   | Calculate_Next_Host_Data_During_Reads;
+
+
+// Host_Delayed_Read_State_Machine
+// This state machine is given an address by the Host_Respons_FIFO.
+// One of two things can happen.
+//   1) Interface knows all data is prefetchable, so this starts reading immediately.
+//   2) Interface knows that data is NOT prefetchable, so this waits until the
+//      Byte Enables arrive fron the external PCI Master.
+//      If this state machine is lucky, it notices that only a single-word
+//      Read is being done, so it does not waste memory bandwidth by
+//      fetching data the remote PCI Master.
+//
+// This state machine gets notice from the Response FIFO State Machine that
+//   the External PCI Master has requested it's last data.  If this state
+//   machine is pre-fetching, it should stop and insert a last data item
+//   into the prefetch FIFO.
+// This state machine must ALWAYS insert a last data item whenever it is
+//   asked to restart a transfer (even if no real data has been transfered)
+//   and when the external PCI Target finishes it's burst.  This is because
+//   the PCI Interface will flush the FIFO until it sees a last data item.
+
+  reg     target_ref_start;
+  reg     target_ref_size;
+  reg    [31:0] target_ref_address;
+  reg    [3:0] target_ref_command;
+  reg    [3:0] target_byte_enables;
+  reg    [31:0] target_write_data;
+
+  always @(posedge host_clk)
+  begin
+    if (host_reset_to_PCI_interface)
+    begin
+      target_ref_start <= 1'b0;
+      target_write_data[31:0] <= 32'h00000000;
+      target_ref_address[5:0] <= 6'h00;
+      target_byte_enables[3:0] <= 4'h0;
+    end
+    else
+    begin
+      if (pci_host_delayed_read_room_available_meta)
+      begin
+      end
+    end
+  end
+
+// NOTE WORKING
+// Things to tag the outgoing data stream with
+//`define PCI_HOST_DELAYED_READ_DATA_SPARE               (3'b000)
+//`define PCI_HOST_DELAYED_READ_DATA_VALID               (3'b001)
+//`define PCI_HOST_DELAYED_READ_DATA_VALID_LAST          (3'b010)
+//`define PCI_HOST_DELAYED_READ_DATA_VALID_PERR          (3'b101)
+//`define PCI_HOST_DELAYED_READ_DATA_VALID_LAST_PERR     (3'b110)
+//`define PCI_HOST_DELAYED_READ_DATA_TARGET_ABORT        (3'b011)
+
+// NOTE WORKING
+  assign  pci_host_delayed_read_data[31:0] = 32'h00000000;
+  assign  pci_host_delayed_read_type[2:0] = `PCI_HOST_DELAYED_READ_DATA_SPARE;
+  assign  pci_host_delayed_read_data_submit = 1'b0;
+
+// Check for errors in the Host_Target_State_Machine
+  always @(posedge host_clk)
+  begin
+    if (pci_host_delayed_read_data_error)
+    begin
+      $display ("*** Example Host Controller %h - Delayed Read FIFO reports Error, at %t",
+                  test_device_id[2:0], $time);
+      error_detected <= ~error_detected;
+    end
+    `NO_ELSE;
+  end
+
+// Monitor the activity on the Host Interface of the PCI_Blue_Interface.
+monitor_pci_interface_host_port monitor_pci_interface_host_port (
+// Wires used by the host controller to request action by the pci interface
+  .pci_host_request_data      (pci_host_request_data[31:0]),
+  .pci_host_request_cbe       (pci_host_request_cbe[3:0]),
+  .pci_host_request_type      (pci_host_request_type[2:0]),
+  .pci_host_request_room_available_meta  (pci_host_request_room_available_meta),
+  .pci_host_request_submit    (pci_host_request_submit),
+  .pci_host_request_error     (pci_host_request_error),
+// Wires used by the pci interface to request action by the host controller
+  .pci_host_response_data     (pci_host_response_data[31:0]),
+  .pci_host_response_cbe      (pci_host_response_cbe[3:0]),
+  .pci_host_response_type     (pci_host_response_type[3:0]),
+  .pci_host_response_data_available_meta  (pci_host_response_data_available_meta),
+  .pci_host_response_unload   (pci_host_response_unload),
+  .pci_host_response_error    (pci_host_response_error),
+// Wires used by the host controller to send delayed read data by the pci interface
+  .pci_host_delayed_read_data (pci_host_delayed_read_data[31:0]),
+  .pci_host_delayed_read_type (pci_host_delayed_read_type[2:0]),
+  .pci_host_delayed_read_room_available_meta  (pci_host_delayed_read_room_available_meta),
+  .pci_host_delayed_read_data_submit          (pci_host_delayed_read_data_submit),
+  .pci_host_delayed_read_data_error (pci_host_delayed_read_data_error),
+  .host_clk                   (host_clk)
 );
 
 // Wires connecting the Host FIFOs to the PCI Interface

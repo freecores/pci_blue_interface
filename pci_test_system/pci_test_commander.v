@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_test_commander.v,v 1.2 2001-02-23 13:18:37 bbeaver Exp $
+// $Id: pci_test_commander.v,v 1.3 2001-02-26 11:50:13 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -379,7 +379,6 @@ task init_config_regs;
   input  [31:0] Target_Base_Addr_0;
   input  [31:0] Target_Base_Addr_1;
   begin
-// NOTE WORKING need to write the registers a different way if the device is the Real PCI Interface
 // Turn on the device before doing memory references
     CONFIG_WRITE ("CFG_W_BAR0", Master_ID[2:0],
                Target_Config_Addr[31:0] + 32'h10, Target_Base_Addr_0[31:0],
@@ -438,7 +437,6 @@ task init_config_regs_self;
   input  [31:0] Target_Base_Addr_0;
   input  [31:0] Target_Base_Addr_1;
   begin
-// NOTE WORKING need to write the registers a different way if the device is the Real PCI Interface
 // Turn on the device before doing memory references
     REG_WRITE_WORD_SELF ("CFG_W_BAR0", 8'hCC, 32'h10, Target_Base_Addr_0[31:0]);
     REG_WRITE_WORD_SELF ("CFG_W_BAR1", 8'hCC, 32'h14, Target_Base_Addr_1[31:0]);
@@ -1459,7 +1457,7 @@ endtask
     else if ( (test_sequence == 4'h4) | (test_sequence == 4'h5) )
     begin
 `ifdef REPORT_TEST_DEVICE
-      if (test_sequence == 4'hF)
+      if (test_sequence == 4'h4)
         $display (" test - Doing a sequence of Memory Reads and Writes from one master with various Wait States");
       else
         $display (" test - Doing a sequence of Memory Reads and Writes from alternating masters with various Wait States");

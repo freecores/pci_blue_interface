@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_example_chip.v,v 1.2 2001-02-23 13:18:37 bbeaver Exp $
+// $Id: pci_example_chip.v,v 1.3 2001-02-26 11:50:12 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -478,58 +478,82 @@ pci_null_interface pci_null_interface (
 `endif // SUPPORT_MULTIPLE_ONCHIP_INTERFACES
 
 // Instantiate one operational copy of the PCI interface
-// NOTE WORKING need to create host clock
+// NOTE WORKING need to create host clock which is different than the PCI Clock
   wire    host_clk = pci_clk;
   wire    host_reset = 1'b0;
-  wire   [31:0] pci_host_request_data;
-  wire   [3:0] pci_host_request_cbe;
-  wire   [2:0] pci_host_request_type;
-  wire    pci_host_request_room_available_meta;
-  wire    pci_host_request_submit;
-  wire    pci_host_request_error;
-  wire   [31:0] pci_host_response_data;
-  wire   [3:0] pci_host_response_cbe;
-  wire   [3:0] pci_host_response_type;
-  wire    pci_host_response_data_available_meta;
-  wire    pci_host_response_unload;
-  wire    pci_host_response_error;
-  wire   [31:0] pci_host_delayed_read_data;
-  wire   [2:0] pci_host_delayed_read_type;
-  wire    pci_host_delayed_read_room_available_meta;
-  wire    pci_host_delayed_read_data_submit;
-  wire    pci_host_delayed_read_data_error;
-// Courtesy indication that PCI Interface Config Register contains an error indication
-  wire    pci_config_reg_signals_some_error;
+
+// Coordinate Write_Fence with CPU
+  wire    pci_target_requests_write_fence, host_allows_write_fence;
+// Host uses these wires to request PCI activity.
+  wire   [31:0] pci_master_ref_address;
+  wire   [3:0] pci_master_ref_command;
+  wire    pci_master_ref_config;
+  wire   [3:0] pci_master_byte_enables;
+  wire   [31:0] pci_master_write_data;
+  wire   [31:0] pci_master_read_data;
+  wire    pci_master_idle;
+  wire    pci_master_ref_start;
+  wire    pci_master_requests_serr, pci_master_requests_perr;
+  wire    pci_master_requests_last;
+  wire    pci_master_data_transferred;
+  wire    pci_master_ref_error;
+// PCI Interface uses these wires to request local memory activity.   
+  wire   [31:0] pci_target_ref_address;
+  wire   [3:0] pci_target_ref_command;
+  wire   [3:0] pci_target_byte_enables;
+  wire   [31:0] pci_target_write_data;
+  wire   [31:0] pci_target_read_data;
+  wire    pci_target_idle;
+  wire    pci_target_ref_start;
+  wire    pci_target_requests_abort, pci_target_requests_perr;
+  wire    pci_target_requests_disconnect;
+  wire    pci_target_write_data_consumed;
+  wire    pci_target_read_data_available;
+// PCI_Error_Report.
+  wire   [9:0] pci_interface_reports_errors;
+  wire    pci_config_reg_reports_errors;
   wire    pci_host_sees_pci_reset;
 
 pci_blue_interface pci_blue_interface (
-// wires used by the host controller to request action by the pci interface
-  .pci_host_request_data      (pci_host_request_data[31:0]),
-  .pci_host_request_cbe       (pci_host_request_cbe[3:0]),
-  .pci_host_request_type      (pci_host_request_type[2:0]),
-  .pci_host_request_room_available_meta  (pci_host_request_room_available_meta),
-  .pci_host_request_submit    (pci_host_request_submit),
-  .pci_host_request_error     (pci_host_request_error),
-// wires used by the pci interface to request action by the host controller
-  .pci_host_response_data     (pci_host_response_data[31:0]),
-  .pci_host_response_cbe      (pci_host_response_cbe[3:0]),
-  .pci_host_response_type     (pci_host_response_type[3:0]),
-  .pci_host_response_data_available_meta  (pci_host_response_data_available_meta),
-  .pci_host_response_unload   (pci_host_response_unload),
-  .pci_host_response_error    (pci_host_response_error),
-// wires used by the host controller to send delayed read data by the pci interface
-  .pci_host_delayed_read_data (pci_host_delayed_read_data[31:0]),
-  .pci_host_delayed_read_type (pci_host_delayed_read_type[2:0]),
-  .pci_host_delayed_read_room_available_meta  (pci_host_delayed_read_room_available_meta),
-  .pci_host_delayed_read_data_submit          (pci_host_delayed_read_data_submit),
-  .pci_host_delayed_read_data_error (pci_host_delayed_read_data_error),
-// generic host interface wires
-  .pci_config_reg_signals_some_error (pci_config_reg_signals_some_error),
+// Coordinate Write_Fence with CPU
+  .pci_target_requests_write_fence (pci_target_requests_write_fence),
+  .host_allows_write_fence    (host_allows_write_fence),
+// Host uses these wires to request PCI activity.
+  .pci_master_ref_address     (pci_master_ref_address[31:0]),
+  .pci_master_ref_command     (pci_master_ref_command[3:0]),
+  .pci_master_ref_config      (pci_master_ref_config),
+  .pci_master_byte_enables    (pci_master_byte_enables[3:0]),
+  .pci_master_write_data      (pci_master_write_data[31:0]),
+  .pci_master_read_data       (pci_master_read_data[31:0]),
+  .pci_master_idle            (pci_master_idle),
+  .pci_master_ref_start       (pci_master_ref_start),
+  .pci_master_requests_serr   (pci_master_requests_serr),
+  .pci_master_requests_perr   (pci_master_requests_perr),
+  .pci_master_requests_last   (pci_master_requests_last),
+  .pci_master_data_transferred (pci_master_data_transferred),
+  .pci_master_ref_error       (pci_master_ref_error),
+// PCI Interface uses these wires to request local memory activity.   
+  .pci_target_ref_address     (pci_target_ref_address[31:0]),
+  .pci_target_ref_command     (pci_target_ref_command[3:0]),
+  .pci_target_byte_enables    (pci_target_byte_enables[3:0]),
+  .pci_target_write_data      (pci_target_write_data[31:0]),
+  .pci_target_read_data       (pci_target_read_data[31:0]),
+  .pci_target_idle            (pci_target_idle),
+  .pci_target_ref_start       (pci_target_ref_start),
+  .pci_target_requests_abort  (pci_target_requests_abort),
+  .pci_target_requests_perr   (pci_target_requests_perr),
+  .pci_target_requests_disconnect (pci_target_requests_disconnect),
+  .pci_target_write_data_consumed (pci_target_write_data_consumed),
+  .pci_target_read_data_available (pci_target_read_data_available),
+// PCI_Error_Report.
+  .pci_interface_reports_errors (pci_interface_reports_errors[9:0]),
+  .pci_config_reg_reports_errors (pci_config_reg_reports_errors),
   .pci_host_sees_pci_reset    (pci_host_sees_pci_reset),
+// Generic host interface wires
   .host_reset_to_PCI_interface (host_reset),
   .host_clk                   (host_clk),
   .host_sync_clk              (host_clk),
-// wires used by the PCI State Machine and PCI Bus Combiner to drive the PCI bus
+// Wires used by the PCI State Machine and PCI Bus Combiner to drive the PCI bus
   .pci_ad_in_prev             (pci_ad_in_prev[31:0]),
   .pci_ad_out_next            (pci_ad_out_next_a[31:0]),
   .pci_ad_out_en_next         (pci_ad_out_en_next_a),
@@ -564,7 +588,9 @@ pci_blue_interface pci_blue_interface (
   .pci_serr_out_oe_comb       (pci_serr_out_oe_comb_a),
 `ifdef PCI_EXTERNAL_IDSEL
   .pci_idsel_in_prev          (pci_idsel_in_prev),
-`endif // PCI_EXTERNAL_IDSEL
+`endif  // PCI_EXTERNAL_IDSEL
+  .test_device_id             (test_device_id[2:0]),
+  .interface_error_event      (test_error_event),
   .pci_reset_comb             (pci_reset_comb),
   .pci_clk                    (pci_clk),
   .pci_sync_clk               (pci_clk)
@@ -572,28 +598,41 @@ pci_blue_interface pci_blue_interface (
 
 // Instantiate a fake host adaptor to exercise the PCI interface
 pci_example_host_controller pci_example_host_controller (
-// wires used by the host controller to request action by the pci interface
-  .pci_host_request_data      (pci_host_request_data[31:0]),
-  .pci_host_request_cbe       (pci_host_request_cbe[3:0]),
-  .pci_host_request_type      (pci_host_request_type[2:0]),
-  .pci_host_request_room_available_meta  (pci_host_request_room_available_meta),
-  .pci_host_request_submit    (pci_host_request_submit),
-  .pci_host_request_error     (pci_host_request_error),
-// wires used by the pci interface to request action by the host controller
-  .pci_host_response_data     (pci_host_response_data[31:0]),
-  .pci_host_response_cbe      (pci_host_response_cbe[3:0]),
-  .pci_host_response_type     (pci_host_response_type[3:0]),
-  .pci_host_response_data_available_meta  (pci_host_response_data_available_meta),
-  .pci_host_response_unload   (pci_host_response_unload),
-  .pci_host_response_error    (pci_host_response_error),
-// wires used by the host controller to send delayed read data by the pci interface
-  .pci_host_delayed_read_data (pci_host_delayed_read_data[31:0]),
-  .pci_host_delayed_read_type (pci_host_delayed_read_type[2:0]),
-  .pci_host_delayed_read_room_available_meta  (pci_host_delayed_read_room_available_meta),
-  .pci_host_delayed_read_data_submit          (pci_host_delayed_read_data_submit),
-  .pci_host_delayed_read_data_error  (pci_host_delayed_read_data_error),
-// generic host interface wires
+// Coordinate Write_Fence with CPU
+  .pci_target_requests_write_fence (pci_target_requests_write_fence),
+  .host_allows_write_fence    (host_allows_write_fence),
+// Host uses these wires to request PCI activity.
+  .pci_master_ref_address     (pci_master_ref_address[31:0]),
+  .pci_master_ref_command     (pci_master_ref_command[3:0]),
+  .pci_master_ref_config      (pci_master_ref_config),
+  .pci_master_byte_enables    (pci_master_byte_enables[3:0]),
+  .pci_master_write_data      (pci_master_write_data[31:0]),
+  .pci_master_read_data       (pci_master_read_data[31:0]),
+  .pci_master_idle            (pci_master_idle),
+  .pci_master_ref_start       (pci_master_ref_start),
+  .pci_master_requests_serr   (pci_master_requests_serr),
+  .pci_master_requests_perr   (pci_master_requests_perr),
+  .pci_master_requests_last   (pci_master_requests_last),
+  .pci_master_data_transferred (pci_master_data_transferred),
+  .pci_master_ref_error       (pci_master_ref_error),
+// PCI Interface uses these wires to request local memory activity.   
+  .pci_target_ref_address     (pci_target_ref_address[31:0]),
+  .pci_target_ref_command     (pci_target_ref_command[3:0]),
+  .pci_target_byte_enables    (pci_target_byte_enables[3:0]),
+  .pci_target_write_data      (pci_target_write_data[31:0]),
+  .pci_target_read_data       (pci_target_read_data[31:0]),
+  .pci_target_idle            (pci_target_idle),
+  .pci_target_ref_start       (pci_target_ref_start),
+  .pci_target_requests_abort  (pci_target_requests_abort),
+  .pci_target_requests_perr   (pci_target_requests_perr),
+  .pci_target_requests_disconnect (pci_target_requests_disconnect),
+  .pci_target_write_data_consumed (pci_target_write_data_consumed),
+  .pci_target_read_data_available (pci_target_read_data_available),
+//  PCI_Error_Report.
+  .pci_interface_reports_errors (pci_interface_reports_errors[9:0]),
+  .pci_config_reg_reports_errors (pci_config_reg_reports_errors),
   .pci_host_sees_pci_reset    (pci_host_sees_pci_reset),
+// generic host interface wires
   .host_reset                 (host_reset),
   .host_clk                   (host_clk),
 // signals used by the test bench instead of using "." notation
@@ -618,7 +657,6 @@ pci_example_host_controller pci_example_host_controller (
   .test_device_id             (test_device_id[2:0]),
   .test_error_event           (test_error_event)
 );
-
 endmodule
 
 

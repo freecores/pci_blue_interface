@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_behaviorial_master.v,v 1.2 2001-02-23 13:18:34 bbeaver Exp $
+// $Id: pci_behaviorial_master.v,v 1.3 2001-02-26 11:50:08 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -410,9 +410,9 @@ endtask
 
 task Indicate_Done;
   begin
-`ifdef VERBOSE_TEST_DEVICE
-    $display (" test %h - Task Done, at %t", test_device_id[2:0], $time);
-`endif // VERBOSE_TEST_DEVICE
+// `ifdef VERBOSE_TEST_DEVICE
+//     $display (" test %h - Task Done, at %t", test_device_id[2:0], $time);
+// `endif // VERBOSE_TEST_DEVICE
       test_accepted_next <= 1'b0;
   end
 endtask
