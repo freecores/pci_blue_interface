@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_behaviorial_device.v,v 1.3 2001-02-26 11:50:08 bbeaver Exp $
+// $Id: pci_behaviorial_device.v,v 1.4 2001-03-05 09:54:50 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -78,7 +78,7 @@ module pci_behaviorial_device (
 // Signals used by the test bench instead of using "." notation
   test_observe_oe_sigs,
   test_master_number, test_address, test_command,
-  test_data, test_byte_enables, test_size,
+  test_data, test_byte_enables_l, test_size,
   test_make_addr_par_error, test_make_data_par_error,
   test_master_initial_wait_states, test_master_subsequent_wait_states,
   test_target_initial_wait_states, test_target_subsequent_wait_states,
@@ -105,7 +105,7 @@ module pci_behaviorial_device (
   input  [31:0] test_address;
   input  [3:0] test_command;
   input  [31:0] test_data;
-  input  [3:0] test_byte_enables;
+  input  [3:0] test_byte_enables_l;
   input  [3:0] test_size;
   input   test_make_addr_par_error, test_make_data_par_error;
   input  [3:0] test_master_initial_wait_states;
@@ -395,7 +395,7 @@ pci_behaviorial_master pci_behaviorial_master (
   .test_address               (test_address[31:0]),
   .test_command               (test_command[3:0]),
   .test_data                  (test_data[31:0]),
-  .test_byte_enables          (test_byte_enables[3:0]),
+  .test_byte_enables_l        (test_byte_enables_l[3:0]),
   .test_size                  (test_size[3:0]),
   .test_make_addr_par_error   (test_make_addr_par_error),
   .test_make_data_par_error   (test_make_data_par_error),

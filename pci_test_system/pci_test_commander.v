@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_test_commander.v,v 1.3 2001-02-26 11:50:13 bbeaver Exp $
+// $Id: pci_test_commander.v,v 1.4 2001-03-05 09:54:56 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -73,7 +73,7 @@ module pci_test_commander (
 // signals used by the test bench instead of using "." notation
   test_sequence,
   test_master_number, test_address, test_command,
-  test_data, test_byte_enables, test_size,
+  test_data, test_byte_enables_l, test_size,
   test_make_addr_par_error, test_make_data_par_error,
   test_master_initial_wait_states, test_master_subsequent_wait_states,
   test_target_initial_wait_states, test_target_subsequent_wait_states,
@@ -90,7 +90,7 @@ module pci_test_commander (
   output [31:0] test_address;
   output [3:0] test_command;
   output [31:0] test_data;
-  output [3:0] test_byte_enables;
+  output [3:0] test_byte_enables_l;
   output [3:0] test_size;
   output  test_make_addr_par_error, test_make_data_par_error;
   output [3:0] test_master_initial_wait_states;
@@ -112,7 +112,7 @@ module pci_test_commander (
   reg    [31:0] test_address;
   reg    [3:0] test_command;
   reg    [31:0] test_data;
-  reg    [3:0] test_byte_enables;
+  reg    [3:0] test_byte_enables_l;
   reg    [3:0] test_size;
   reg     test_make_addr_par_error, test_make_data_par_error;
   reg    [3:0] test_master_initial_wait_states;
@@ -150,7 +150,7 @@ task DO_REF;
   input  [31:0] address;
   input  [3:0] command;
   input  [31:0] data;
-  input  [3:0] byte_enables;
+  input  [3:0] byte_enables_l;
   input  [3:0] size;
   input   make_addr_par_error, make_data_par_error;
   input  [7:0] master_wait_states;
@@ -182,7 +182,7 @@ task DO_REF;
     test_address <= address[31:0];
     test_command <= command[3:0] ;
     test_data <= data[31:0];
-    test_byte_enables <= byte_enables[3:0];
+    test_byte_enables_l <= byte_enables_l[3:0];
     test_size <= size[3:0];
     test_make_addr_par_error <= make_addr_par_error;
     test_make_data_par_error <= make_data_par_error;
@@ -219,7 +219,7 @@ endtask
 
 // DO_REF (name[79:0], master_number[2:0],
 //          address[31:0], command[3:0],
-//          data[31:0], byte_enables[3:0], size[3:0],
+//          data[31:0], byte_enables_l[3:0], size[3:0],
 //          make_addr_par_error, make_data_par_error,
 //          master_wait_states[8:0], target_wait_states[8:0],
 //          target_devsel_speed[1:0], fast_back_to_back,
@@ -406,25 +406,25 @@ task REG_WRITE_WORD_SELF;
   input  [31:0] data;
   begin
     DO_REF (name[79:0], 3'h7, {Address_MSB[7:0], 16'h0000, address[7:0]},
-              `PCI_COMMAND_CONFIG_WRITE, data[31:0], `Test_All_Bytes,
+              `PCI_COMMAND_CONFIG_WRITE, data[31:0], `Test_Byte_0,
               `Test_One_Word, `Test_No_Addr_Perr, `Test_No_Data_Perr,
               `Test_No_Master_WS, `Test_No_Target_WS,
               `Test_Devsel_Medium, `Test_Fast_B2B,
               `Test_Target_Normal_Completion, `Test_Expect_No_Master_Abort);
     DO_REF (name[79:0], 3'h7, {Address_MSB[7:0], 16'h0000, address[7:0]},
-              `PCI_COMMAND_CONFIG_WRITE, data[31:0], `Test_All_Bytes,
+              `PCI_COMMAND_CONFIG_WRITE, data[31:0], `Test_Byte_1,
               `Test_One_Word, `Test_No_Addr_Perr, `Test_No_Data_Perr,
               `Test_No_Master_WS, `Test_No_Target_WS,
               `Test_Devsel_Medium, `Test_Fast_B2B,
               `Test_Target_Normal_Completion, `Test_Expect_No_Master_Abort);
     DO_REF (name[79:0], 3'h7, {Address_MSB[7:0], 16'h0000, address[7:0]},
-              `PCI_COMMAND_CONFIG_WRITE, data[31:0], `Test_All_Bytes,
+              `PCI_COMMAND_CONFIG_WRITE, data[31:0], `Test_Byte_2,
               `Test_One_Word, `Test_No_Addr_Perr, `Test_No_Data_Perr,
               `Test_No_Master_WS, `Test_No_Target_WS,
               `Test_Devsel_Medium, `Test_Fast_B2B,
               `Test_Target_Normal_Completion, `Test_Expect_No_Master_Abort);
     DO_REF (name[79:0], 3'h7, {Address_MSB[7:0], 16'h0000, address[7:0]},
-              `PCI_COMMAND_CONFIG_WRITE, data[31:0], `Test_All_Bytes,
+              `PCI_COMMAND_CONFIG_WRITE, data[31:0], `Test_Byte_3,
               `Test_One_Word, `Test_No_Addr_Perr, `Test_No_Data_Perr,
               `Test_No_Master_WS, `Test_No_Target_WS,
               `Test_Devsel_Medium, `Test_Fast_B2B,
@@ -441,7 +441,7 @@ task init_config_regs_self;
     REG_WRITE_WORD_SELF ("CFG_W_BAR0", 8'hCC, 32'h10, Target_Base_Addr_0[31:0]);
     REG_WRITE_WORD_SELF ("CFG_W_BAR1", 8'hCC, 32'h14, Target_Base_Addr_1[31:0]);
     REG_WRITE_WORD_SELF ("CFG_W_CMD ", 8'hCC, 32'h04,
-               `CONFIG_CMD_FB2B_EN
+                       `CONFIG_CMD_FB2B_EN
                      | `CONFIG_CMD_SERR_EN | `CONFIG_CMD_PAR_ERR_EN
                      | `CONFIG_CMD_MASTER_EN | `CONFIG_CMD_TARGET_EN);
   end
@@ -1335,7 +1335,7 @@ endtask
     test_address <= 32'h00000000;
     test_command <= `PCI_COMMAND_RESERVED_4;
     test_data <= 32'h00000000;
-    test_byte_enables <= `Test_All_Bytes;
+    test_byte_enables_l <= `Test_All_Bytes;
     test_size <= `Test_One_Word;
     test_make_addr_par_error <= `Test_No_Addr_Perr;
     test_make_data_par_error <= `Test_No_Data_Perr;
@@ -1486,6 +1486,7 @@ endtask
       else
         $display (" test - Synthesizable interface doing a sequence of Memory Reads and Writes from alternating masters with various Wait States");
 `endif // REPORT_TEST_DEVICE
+
       MEM_WRITE ("WRITE_SRAM", 3'h7, 32'hDD000000, 32'h04030201,
                `Test_One_Word, `Test_No_Master_WS, `Test_No_Target_WS,
                `Test_Devsel_Medium, `Test_Target_Normal_Completion);
@@ -1511,9 +1512,11 @@ endtask
       MEM_READ  ("READ_SRAM ", 3'h7, 32'hDD00000C, 32'h100F0E0D,
                `Test_One_Word, `Test_No_Master_WS, `Test_No_Target_WS,
                `Test_Devsel_Medium, `Test_Target_Normal_Completion);
-
+      do_pause( 16'h0008);
 
       init_config_regs_self (Target_Base_Addr_A0[31:0], Target_Base_Addr_A1[31:0]);
+      do_pause( 16'h0008);
+/*
       init_config_regs (Master_ID_B[2:0], Target_Config_Addr_B[31:0],
                         Target_Base_Addr_B0[31:0], Target_Base_Addr_B1[31:0]);
       do_pause( 16'h0008);
@@ -1527,6 +1530,7 @@ endtask
         exhaustive_mem_refs_scan (1'b1, Master_ID_A[2:0], Target_Base_Addr_A0[31:0],
                                         Master_ID_B[2:0], Target_Base_Addr_B0[31:0]);
       end
+*/
     end
 
     test_start <= 1'b0;

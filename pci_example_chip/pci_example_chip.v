@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_example_chip.v,v 1.3 2001-02-26 11:50:12 bbeaver Exp $
+// $Id: pci_example_chip.v,v 1.4 2001-03-05 09:54:56 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -106,7 +106,7 @@ module pci_example_chip (
 // signals used by the test bench instead of using "." notation
   test_observe_oe_sigs,
   test_master_number, test_address, test_command,
-  test_data, test_byte_enables, test_size,
+  test_data, test_byte_enables_l, test_size,
   test_make_addr_par_error, test_make_data_par_error,
   test_master_initial_wait_states, test_master_subsequent_wait_states,
   test_target_initial_wait_states, test_target_subsequent_wait_states,
@@ -143,7 +143,7 @@ module pci_example_chip (
   input  [31:0] test_address;
   input  [3:0] test_command;
   input  [31:0] test_data;
-  input  [3:0] test_byte_enables;
+  input  [3:0] test_byte_enables_l;
   input  [3:0] test_size;
   input   test_make_addr_par_error, test_make_data_par_error;
   input  [3:0] test_master_initial_wait_states;
@@ -189,7 +189,7 @@ module pci_example_chip (
   wire    pci_serr_out_oe_comb;
   wire    pci_idsel_in_prev;
 
-// make the async-assert, sync-deassert reset needed by all PCI modules
+// Make the async-assert, sync-deassert reset needed by all PCI modules
   reg     pci_reset_comb, pci_reset_d1, pci_reset_d2, pci_reset_d3;
   always @(posedge pci_clk or posedge pci_reset_raw)
   begin
@@ -206,6 +206,30 @@ module pci_example_chip (
             pci_reset_d2 <= pci_reset_d1;
             pci_reset_d3 <= pci_reset_d2;
             pci_reset_comb <= pci_reset_d3;  // asserts quickly, deasserts slowly
+        end
+  end
+
+// Make the async-assert, sync-deassert reset needed by all Host modules
+
+// NOTE WORKING need to create host clock which is different than the PCI Clock
+  wire    host_clk = pci_clk;
+
+  reg     host_reset, host_reset_d1, host_reset_d2, host_reset_d3;
+  always @(posedge host_clk or posedge pci_reset_raw)
+  begin
+        if (pci_reset_raw)
+        begin
+            host_reset_d1 <= 1'b1;
+            host_reset_d2 <= 1'b1;
+            host_reset_d3 <= 1'b1;
+            host_reset <= 1'b1;
+        end
+        else
+        begin
+            host_reset_d1 <= 1'b0;
+            host_reset_d2 <= host_reset_d1;
+            host_reset_d3 <= host_reset_d2;
+            host_reset <= host_reset_d3;  // asserts quickly, deasserts slowly
         end
   end
 
@@ -478,9 +502,6 @@ pci_null_interface pci_null_interface (
 `endif // SUPPORT_MULTIPLE_ONCHIP_INTERFACES
 
 // Instantiate one operational copy of the PCI interface
-// NOTE WORKING need to create host clock which is different than the PCI Clock
-  wire    host_clk = pci_clk;
-  wire    host_reset = 1'b0;
 
 // Coordinate Write_Fence with CPU
   wire    pci_target_requests_write_fence, host_allows_write_fence;
@@ -488,27 +509,25 @@ pci_null_interface pci_null_interface (
   wire   [31:0] pci_master_ref_address;
   wire   [3:0] pci_master_ref_command;
   wire    pci_master_ref_config;
-  wire   [3:0] pci_master_byte_enables;
+  wire   [3:0] pci_master_byte_enables_l;
   wire   [31:0] pci_master_write_data;
   wire   [31:0] pci_master_read_data;
-  wire    pci_master_idle;
-  wire    pci_master_ref_start;
+  wire    pci_master_addr_valid, pci_master_data_valid;
   wire    pci_master_requests_serr, pci_master_requests_perr;
   wire    pci_master_requests_last;
-  wire    pci_master_data_transferred;
+  wire    pci_master_data_consumed;
   wire    pci_master_ref_error;
 // PCI Interface uses these wires to request local memory activity.   
   wire   [31:0] pci_target_ref_address;
   wire   [3:0] pci_target_ref_command;
-  wire   [3:0] pci_target_byte_enables;
+  wire   [3:0] pci_target_byte_enables_l;
   wire   [31:0] pci_target_write_data;
   wire   [31:0] pci_target_read_data;
-  wire    pci_target_idle;
+  wire    pci_target_busy;
   wire    pci_target_ref_start;
   wire    pci_target_requests_abort, pci_target_requests_perr;
   wire    pci_target_requests_disconnect;
-  wire    pci_target_write_data_consumed;
-  wire    pci_target_read_data_available;
+  wire    pci_target_data_transferred;
 // PCI_Error_Report.
   wire   [9:0] pci_interface_reports_errors;
   wire    pci_config_reg_reports_errors;
@@ -522,29 +541,28 @@ pci_blue_interface pci_blue_interface (
   .pci_master_ref_address     (pci_master_ref_address[31:0]),
   .pci_master_ref_command     (pci_master_ref_command[3:0]),
   .pci_master_ref_config      (pci_master_ref_config),
-  .pci_master_byte_enables    (pci_master_byte_enables[3:0]),
+  .pci_master_byte_enables_l  (pci_master_byte_enables_l[3:0]),
   .pci_master_write_data      (pci_master_write_data[31:0]),
   .pci_master_read_data       (pci_master_read_data[31:0]),
-  .pci_master_idle            (pci_master_idle),
-  .pci_master_ref_start       (pci_master_ref_start),
+  .pci_master_addr_valid      (pci_master_addr_valid),
+  .pci_master_data_valid      (pci_master_data_valid),
   .pci_master_requests_serr   (pci_master_requests_serr),
   .pci_master_requests_perr   (pci_master_requests_perr),
   .pci_master_requests_last   (pci_master_requests_last),
-  .pci_master_data_transferred (pci_master_data_transferred),
+  .pci_master_data_consumed   (pci_master_data_consumed),
   .pci_master_ref_error       (pci_master_ref_error),
 // PCI Interface uses these wires to request local memory activity.   
   .pci_target_ref_address     (pci_target_ref_address[31:0]),
   .pci_target_ref_command     (pci_target_ref_command[3:0]),
-  .pci_target_byte_enables    (pci_target_byte_enables[3:0]),
+  .pci_target_byte_enables_l  (pci_target_byte_enables_l[3:0]),
   .pci_target_write_data      (pci_target_write_data[31:0]),
   .pci_target_read_data       (pci_target_read_data[31:0]),
-  .pci_target_idle            (pci_target_idle),
+  .pci_target_busy            (pci_target_busy),
   .pci_target_ref_start       (pci_target_ref_start),
   .pci_target_requests_abort  (pci_target_requests_abort),
   .pci_target_requests_perr   (pci_target_requests_perr),
   .pci_target_requests_disconnect (pci_target_requests_disconnect),
-  .pci_target_write_data_consumed (pci_target_write_data_consumed),
-  .pci_target_read_data_available (pci_target_read_data_available),
+  .pci_target_data_transferred (pci_target_data_transferred),
 // PCI_Error_Report.
   .pci_interface_reports_errors (pci_interface_reports_errors[9:0]),
   .pci_config_reg_reports_errors (pci_config_reg_reports_errors),
@@ -605,29 +623,28 @@ pci_example_host_controller pci_example_host_controller (
   .pci_master_ref_address     (pci_master_ref_address[31:0]),
   .pci_master_ref_command     (pci_master_ref_command[3:0]),
   .pci_master_ref_config      (pci_master_ref_config),
-  .pci_master_byte_enables    (pci_master_byte_enables[3:0]),
+  .pci_master_byte_enables_l  (pci_master_byte_enables_l[3:0]),
   .pci_master_write_data      (pci_master_write_data[31:0]),
   .pci_master_read_data       (pci_master_read_data[31:0]),
-  .pci_master_idle            (pci_master_idle),
-  .pci_master_ref_start       (pci_master_ref_start),
+  .pci_master_addr_valid      (pci_master_addr_valid),
+  .pci_master_data_valid      (pci_master_data_valid),
   .pci_master_requests_serr   (pci_master_requests_serr),
   .pci_master_requests_perr   (pci_master_requests_perr),
   .pci_master_requests_last   (pci_master_requests_last),
-  .pci_master_data_transferred (pci_master_data_transferred),
+  .pci_master_data_consumed   (pci_master_data_consumed),
   .pci_master_ref_error       (pci_master_ref_error),
 // PCI Interface uses these wires to request local memory activity.   
   .pci_target_ref_address     (pci_target_ref_address[31:0]),
   .pci_target_ref_command     (pci_target_ref_command[3:0]),
-  .pci_target_byte_enables    (pci_target_byte_enables[3:0]),
+  .pci_target_byte_enables_l  (pci_target_byte_enables_l[3:0]),
   .pci_target_write_data      (pci_target_write_data[31:0]),
   .pci_target_read_data       (pci_target_read_data[31:0]),
-  .pci_target_idle            (pci_target_idle),
+  .pci_target_busy            (pci_target_busy),
   .pci_target_ref_start       (pci_target_ref_start),
   .pci_target_requests_abort  (pci_target_requests_abort),
   .pci_target_requests_perr   (pci_target_requests_perr),
   .pci_target_requests_disconnect (pci_target_requests_disconnect),
-  .pci_target_write_data_consumed (pci_target_write_data_consumed),
-  .pci_target_read_data_available (pci_target_read_data_available),
+  .pci_target_data_transferred (pci_target_data_transferred),
 //  PCI_Error_Report.
   .pci_interface_reports_errors (pci_interface_reports_errors[9:0]),
   .pci_config_reg_reports_errors (pci_config_reg_reports_errors),
@@ -640,7 +657,7 @@ pci_example_host_controller pci_example_host_controller (
   .test_address               (test_address[31:0]),
   .test_command               (test_command[3:0]),
   .test_data                  (test_data[31:0]),
-  .test_byte_enables          (test_byte_enables[3:0]),
+  .test_byte_enables_l        (test_byte_enables_l[3:0]),
   .test_size                  (test_size[3:0]),
   .test_make_addr_par_error   (test_make_addr_par_error),
   .test_make_data_par_error   (test_make_data_par_error),

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_clk_reset_pads.v,v 1.3 2001-02-26 11:50:12 bbeaver Exp $
+// $Id: pci_clk_reset_pads.v,v 1.4 2001-03-05 09:54:56 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //

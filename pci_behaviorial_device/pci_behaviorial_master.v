@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_behaviorial_master.v,v 1.3 2001-02-26 11:50:08 bbeaver Exp $
+// $Id: pci_behaviorial_master.v,v 1.4 2001-03-05 09:54:50 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -100,7 +100,7 @@ module pci_behaviorial_master (
 // Signals used by the test bench instead of using "." notation
   master_debug_force_bad_par,
   test_master_number, test_address, test_command,
-  test_data, test_byte_enables, test_size,
+  test_data, test_byte_enables_l, test_size,
   test_make_addr_par_error, test_make_data_par_error,
   test_master_initial_wait_states, test_master_subsequent_wait_states,
   test_target_initial_wait_states, test_target_subsequent_wait_states,
@@ -139,7 +139,7 @@ module pci_behaviorial_master (
   input  [31:0] test_address;
   input  [3:0] test_command;
   input  [31:0] test_data;
-  input  [3:0] test_byte_enables;
+  input  [3:0] test_byte_enables_l;
   input  [3:0] test_size;
   input   test_make_addr_par_error, test_make_data_par_error;
   input  [3:0] test_master_initial_wait_states;
@@ -330,7 +330,7 @@ endtask
   reg    [23:9] hold_master_address;
   reg    [3:0] hold_master_command;
   reg    [31:0] hold_master_data;
-  reg    [3:0] hold_master_byte_enables;
+  reg    [3:0] hold_master_byte_enables_l;
   reg    [3:0] hold_master_size;
   reg     hold_master_addr_par_err, hold_master_data_par_err;
   reg    [3:0] hold_master_initial_waitstates;
@@ -1116,7 +1116,7 @@ task Execute_Master_PCI_Ref;
                  ((words_transferred[3:0] + 4'h1) == hold_master_size[3:0]);
     watching_for_master_abort = 1'b1;
     master_write_data = hold_master_data[31:0];
-    master_mask_l = hold_master_byte_enables[3:0];
+    master_mask_l = hold_master_byte_enables_l[3:0];
     got_master_abort = 1'b0;
     got_target_retry = 1'b0;
     got_target_stop = 1'b0;
@@ -1175,7 +1175,7 @@ task Report_Master_Reference_Paramaters;
     if (hold_master_address[23:9] != 15'h0000)
     begin
 // hold_master_address, hold_master_command, hold_master_data,
-// hold_master_byte_enables, hold_master_size
+// hold_master_byte_enables_l, hold_master_size
       $display ("  First Master Data Wait States %h, Subsequent Master Data Wait States %h",
             hold_master_initial_waitstates[3:0],
             hold_master_subsequent_waitstates[3:0]);
@@ -1264,7 +1264,7 @@ endtask
         hold_master_address[23:9] = test_address[23:9];
         hold_master_command[3:0] = test_command[3:0];
         hold_master_data[31:0] = test_data[31:0];
-        hold_master_byte_enables[3:0] = test_byte_enables[3:0];
+        hold_master_byte_enables_l[3:0] = test_byte_enables_l[3:0];
         hold_master_size[3:0] = test_size[3:0];
         hold_master_addr_par_err = test_make_addr_par_error;
         hold_master_data_par_err = test_make_data_par_error;

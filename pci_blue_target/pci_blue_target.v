@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_target.v,v 1.3 2001-02-26 11:50:11 bbeaver Exp $
+// $Id: pci_blue_target.v,v 1.4 2001-03-05 09:54:54 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -151,12 +151,17 @@ module pci_blue_target (
   pci_master_to_target_request_room_available_meta,
   pci_master_to_target_request_data_load,
   pci_master_to_target_request_error,
+// Signals from the Master to the Target to let the Delayed Read logic implement
+//   the ordering rules.
+  pci_master_executing_read,
+  pci_master_seeing_write_fence,
 // Signals from the Master to the Target to set bits in the Status Register
   master_got_parity_error,
   master_caused_serr,
   master_got_master_abort,
   master_got_target_abort,
   master_caused_parity_error,
+  master_request_fifo_error,
   master_enable,
   master_fast_b2b_en,
   master_perr_enable,
@@ -215,12 +220,17 @@ module pci_blue_target (
   output  pci_master_to_target_request_room_available_meta;
   input   pci_master_to_target_request_data_load;
   output  pci_master_to_target_request_error;
+// Signals from the Master to the Target to let the Delayed Read logic implement
+//   the ordering rules.
+  input   pci_master_executing_read;
+  input   pci_master_seeing_write_fence;
 // Signals from the Master to the Target to set bits in the Status Register
   input   master_got_parity_error;
   input   master_caused_serr;
   input   master_got_master_abort;
   input   master_got_target_abort;
   input   master_caused_parity_error;
+  input   master_request_fifo_error;
   output  master_enable;
   output  master_fast_b2b_en;
   output  master_perr_enable;

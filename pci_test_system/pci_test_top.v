@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_test_top.v,v 1.3 2001-02-26 11:50:13 bbeaver Exp $
+// $Id: pci_test_top.v,v 1.4 2001-03-05 09:54:56 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -77,7 +77,7 @@
 module pci_test_top (
   test_sequence,
   test_master_number, test_address, test_command,
-  test_data, test_byte_enables, test_size,
+  test_data, test_byte_enables_l, test_size,
   test_make_addr_par_error, test_make_data_par_error,
   test_master_initial_wait_states, test_master_subsequent_wait_states,
   test_target_initial_wait_states, test_target_subsequent_wait_states,
@@ -104,7 +104,7 @@ module pci_test_top (
   output [31:0] test_address;
   output [3:0] test_command;
   output [31:0] test_data;
-  output [3:0] test_byte_enables;
+  output [3:0] test_byte_enables_l;
   output [3:0] test_size;
   output  test_make_addr_par_error, test_make_data_par_error;
   output [3:0] test_master_initial_wait_states;
@@ -361,7 +361,7 @@ pci_example_chip pci_example_chip (
   .test_address               (test_address[31:0]),
   .test_command               (test_command[3:0]),
   .test_data                  (test_data[31:0]),
-  .test_byte_enables          (test_byte_enables[3:0]),
+  .test_byte_enables_l        (test_byte_enables_l[3:0]),
   .test_size                  (test_size[3:0]),
   .test_make_addr_par_error   (test_make_addr_par_error),
   .test_make_data_par_error   (test_make_data_par_error),
@@ -404,7 +404,7 @@ pci_behaviorial_device pci_behaviorial_device_0 (
   .test_address               (test_address[31:0]),
   .test_command               (test_command[3:0]),
   .test_data                  (test_data[31:0]),
-  .test_byte_enables          (test_byte_enables[3:0]),
+  .test_byte_enables_l        (test_byte_enables_l[3:0]),
   .test_size                  (test_size[3:0]),
   .test_make_addr_par_error   (test_make_addr_par_error),
   .test_make_data_par_error   (test_make_data_par_error),
@@ -447,7 +447,7 @@ pci_behaviorial_device pci_behaviorial_device_1 (
   .test_address               (test_address[31:0]),
   .test_command               (test_command[3:0]),
   .test_data                  (test_data[31:0]),
-  .test_byte_enables          (test_byte_enables[3:0]),
+  .test_byte_enables_l        (test_byte_enables_l[3:0]),
   .test_size                  (test_size[3:0]),
   .test_make_addr_par_error   (test_make_addr_par_error),
   .test_make_data_par_error   (test_make_data_par_error),
@@ -512,7 +512,7 @@ pci_test_commander pci_test_commander (
   .test_address               (test_address[31:0]),
   .test_command               (test_command[3:0]),
   .test_data                  (test_data[31:0]),
-  .test_byte_enables          (test_byte_enables[3:0]),
+  .test_byte_enables_l        (test_byte_enables_l[3:0]),
   .test_size                  (test_size[3:0]),
   .test_make_addr_par_error   (test_make_addr_par_error),
   .test_make_data_par_error   (test_make_data_par_error),

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_interface.v,v 1.3 2001-02-26 11:50:09 bbeaver Exp $
+// $Id: pci_blue_interface.v,v 1.4 2001-03-05 09:54:52 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -100,17 +100,17 @@ module pci_blue_interface (
   pci_target_requests_write_fence, host_allows_write_fence,
 // Host uses these wires to request PCI activity.
   pci_master_ref_address, pci_master_ref_command, pci_master_ref_config,
-  pci_master_byte_enables, pci_master_write_data, pci_master_read_data,
-  pci_master_idle, pci_master_ref_start,
+  pci_master_byte_enables_l, pci_master_write_data, pci_master_read_data,
+  pci_master_addr_valid, pci_master_data_valid,
   pci_master_requests_serr, pci_master_requests_perr, pci_master_requests_last,
-  pci_master_data_transferred, pci_master_ref_error,
+  pci_master_data_consumed, pci_master_ref_error,
 // PCI Interface uses these wires to request local memory activity.   
   pci_target_ref_address, pci_target_ref_command,
-  pci_target_byte_enables, pci_target_write_data, pci_target_read_data,
-  pci_target_idle, pci_target_ref_start,
+  pci_target_byte_enables_l, pci_target_write_data, pci_target_read_data,
+  pci_target_busy, pci_target_ref_start,
   pci_target_requests_abort, pci_target_requests_perr,
   pci_target_requests_disconnect,
-  pci_target_write_data_consumed, pci_target_read_data_available,
+  pci_target_data_transferred,
 // PCI_Error_Report.
   pci_interface_reports_errors, pci_config_reg_reports_errors,
 // Generic host interface wires
@@ -148,27 +148,25 @@ module pci_blue_interface (
   input  [31:0] pci_master_ref_address;
   input  [3:0] pci_master_ref_command;
   input   pci_master_ref_config;
-  input  [3:0] pci_master_byte_enables;
+  input  [3:0] pci_master_byte_enables_l;
   input  [31:0] pci_master_write_data;
   output [31:0] pci_master_read_data;
-  output  pci_master_idle;
-  input   pci_master_ref_start;
+  input   pci_master_addr_valid, pci_master_data_valid;
   input   pci_master_requests_serr, pci_master_requests_perr;
   input   pci_master_requests_last;
-  output  pci_master_data_transferred;
+  output  pci_master_data_consumed;  // Host knows Data (and Address) used when data_valid and data_consumed
   output  pci_master_ref_error;
 // PCI Interface uses these wires to request local memory activity.   
   output [31:0] pci_target_ref_address;
   output [3:0] pci_target_ref_command;
-  output [3:0] pci_target_byte_enables;
+  output [3:0] pci_target_byte_enables_l;
   output [31:0] pci_target_write_data;
   input  [31:0] pci_target_read_data;
-  input   pci_target_idle;
+  input   pci_target_busy;
   output  pci_target_ref_start;
   input   pci_target_requests_abort, pci_target_requests_perr;
   input   pci_target_requests_disconnect;
-  input   pci_target_write_data_consumed;
-  input   pci_target_read_data_available;
+  input   pci_target_data_transferred;
 // PCI_Error_Report.
   output [9:0] pci_interface_reports_errors;
   output  pci_config_reg_reports_errors;
@@ -305,7 +303,7 @@ pci_synchronizer_flop sync_error_flop (
 // Write Fences are used so that Delayed Read data comes out after all posted
 //   writes are complete, and before writes done after the read are committed.
 // The protocol is this:
-// Host_Target_State_Machine asserts target_requests_write_fence;
+// Host_Target_State_Machine asserts pci_target_requests_write_fence;
 // Host Interface does as many writes as it wants.
 //   The Delayed Read cannot complete during this period.
 // Host Interface asserts host_allows_write_fence.
@@ -313,14 +311,14 @@ pci_synchronizer_flop sync_error_flop (
 // Host_Master_State_Machine puts a Write Fence in the FIFO.
 // Host_Master_State_Machine asserts master_issues_write_fence.
 // Delayed Read state machine fetches and delivers data to external PCI Master.
-// Host_Target_State_Machine deasserts target_requests_write_fence.
+// Host_Target_State_Machine deasserts pci_target_requests_write_fence.
 // Host Interface can start writing again.
 // If the request for a Write Fence comes in when the Host Interface is
 //   waiting for the results of a Read, the first thing done after the
 //   Read completes is to allow the Write Fence.  No writes are allowed
 //   to occur after a read during which a Write Fence was requested.
 
-  reg     target_requests_write_fence;
+  reg     pci_target_requests_write_fence;
   reg     master_issues_write_fence, target_sees_write_fence_end;
 
   parameter Example_Host_Master_Idle          = 3'b001;
@@ -333,7 +331,6 @@ pci_synchronizer_flop sync_error_flop (
             ((pci_master_ref_command[3:0] & `PCI_COMMAND_ANY_WRITE_MASK) == 4'h0);
   wire    present_command_is_write = ~present_command_is_read;
 
-  reg    [3:0] pci_master_running_transfer_count;
   reg     target_sees_read_end;
   reg     master_ref_started, master_ref_done;
 
@@ -342,7 +339,6 @@ pci_synchronizer_flop sync_error_flop (
   begin
     if (host_reset_to_PCI_interface)
     begin
-//      pci_master_running_transfer_count[3:0] <= pci_master_ref_size[3:0];  // unimportant
       master_ref_done <= 1'b0;
       master_issues_write_fence <= 1'b0;
       Example_Host_Master_State <= Example_Host_Master_Idle;
@@ -352,38 +348,48 @@ pci_synchronizer_flop sync_error_flop (
       case (Example_Host_Master_State[2:0])
       Example_Host_Master_Idle:
         begin
-//          pci_master_running_transfer_count[3:0] <= pci_master_ref_size[3:0];  // grab size
-          if (target_requests_write_fence & host_allows_write_fence
-              & ~master_issues_write_fence & pci_host_request_room_available_meta)
+          if (pci_target_requests_write_fence & host_allows_write_fence)
           begin  // Issue Write Fence into FIFO, exclude other writes to FIFO
+// Fence inserted if (~master_issues_write_fence & pci_host_request_room_available_meta)
             master_ref_done <= 1'b0;
-            master_issues_write_fence <= 1'b1;  // indicate that write fence inserted
+            master_issues_write_fence <= pci_host_request_room_available_meta
+                                       | master_issues_write_fence;
             Example_Host_Master_State <= Example_Host_Master_Idle;
+$display ("Fence");  // NOTE WORKING
           end
-          else if (pci_master_ref_start & ~master_ref_done
-                    & pci_host_request_room_available_meta
-                    & (pci_master_ref_address[31:24] == 8'hCC) )
-          begin  // Issue Local PCI Register command to PCI Controller
-            if (present_command_is_write)
-            begin
-              master_ref_done <= 1'b1;
-              master_issues_write_fence <= 1'b0;
-              Example_Host_Master_State <= Example_Host_Master_Idle;
-            end
-            else
+          else if (pci_master_addr_valid & pci_master_ref_config)
+          begin  // Issue Local PCI Register Command to PCI Controller
+            if (~pci_host_request_room_available_meta | ~pci_master_data_valid)
             begin
               master_ref_done <= 1'b0;
               master_issues_write_fence <= 1'b0;
-              Example_Host_Master_State <= Example_Host_Master_Read_Linger;
+              Example_Host_Master_State <= Example_Host_Master_Idle;
+$display ("Fence FIFOs Full");  // NOTE WORKING
+            end
+            else
+            begin
+              if (present_command_is_write)
+              begin
+                master_ref_done <= 1'b1;
+                master_issues_write_fence <= 1'b0;
+                Example_Host_Master_State <= Example_Host_Master_Idle;
+$display ("Config Write");  // NOTE WORKING
+              end
+              else
+              begin
+                master_ref_done <= 1'b0;
+                master_issues_write_fence <= 1'b0;
+                Example_Host_Master_State <= Example_Host_Master_Read_Linger;
+$display ("Config Read");  // NOTE WORKING
+              end
             end
           end
-          else if (pci_master_ref_start & ~master_ref_done
-                    & pci_host_request_room_available_meta
-                    & (pci_master_ref_address[31:24] != 8'hDD))
-          begin  // Issue Remote PCI Reference to PCI Controller
+          else if (pci_master_addr_valid & pci_host_request_room_available_meta)
+          begin  // Issue Remote PCI Reference Address to PCI Controller
             master_ref_done <= 1'b0;
             master_issues_write_fence <= 1'b0;
             Example_Host_Master_State <= Example_Host_Master_Transfer_Data;
+$display ("Mem Address");  // NOTE WORKING
           end
           else
           begin  // No requests which can be acted on, so stay idle.
@@ -394,35 +400,30 @@ pci_synchronizer_flop sync_error_flop (
         end
       Example_Host_Master_Transfer_Data:
         begin
-          if (~pci_host_request_room_available_meta)
+          if (~pci_host_request_room_available_meta | ~pci_master_data_valid)
           begin
-            pci_master_running_transfer_count[3:0] <=
-                                  pci_master_running_transfer_count[3:0];
             master_ref_done <= 1'b0;
             Example_Host_Master_State <= Example_Host_Master_Transfer_Data;
+$display ("Data FIFOs full");  // NOTE WORKING
           end
-          else if ((pci_master_running_transfer_count[3:0] <= 4'h1)
-                     & present_command_is_read)  // end of read
+          else if (pci_master_requests_last & present_command_is_write)  // end of write
           begin
-            pci_master_running_transfer_count[3:0] <=
-                                  pci_master_running_transfer_count[3:0] - 4'h1;
-            master_ref_done <= 1'b0;
-            Example_Host_Master_State <= Example_Host_Master_Read_Linger;
-          end
-          else if ((pci_master_running_transfer_count[3:0] <= 4'h1)
-                     & present_command_is_write)  // end of write
-          begin
-            pci_master_running_transfer_count[3:0] <=
-                                  pci_master_running_transfer_count[3:0] - 4'h1;
             master_ref_done <= 1'b1;
             Example_Host_Master_State <= Example_Host_Master_Idle;
+$display ("Mem Write Last");  // NOTE WORKING
+          end
+
+          else if (pci_master_requests_last & present_command_is_read)  // end of read
+          begin
+            master_ref_done <= 1'b0;
+            Example_Host_Master_State <= Example_Host_Master_Read_Linger;
+$display ("Mem Read Last");  // NOTE WORKING
           end
           else  // more data to transfer
           begin
-            pci_master_running_transfer_count[3:0] <=
-                                  pci_master_running_transfer_count[3:0] - 4'h1;
             master_ref_done <= 1'b0;
             Example_Host_Master_State <= Example_Host_Master_Transfer_Data;
+$display ("Stay in Burst");  // NOTE WORKING
           end
           master_issues_write_fence <= 1'b0;  // not doing write fence, so never.
         end
@@ -430,28 +431,24 @@ pci_synchronizer_flop sync_error_flop (
         begin
           if (~target_sees_read_end)
           begin
-            pci_master_running_transfer_count[3:0] <=
-                                  pci_master_running_transfer_count[3:0];
             master_ref_done <= 1'b0;
             Example_Host_Master_State <= Example_Host_Master_Read_Linger;
+$display ("Waiting for Last Read Data");  // NOTE WORKING
           end
           else
           begin
-            pci_master_running_transfer_count[3:0] <=
-                                  pci_master_running_transfer_count[3:0];
             master_ref_done <= 1'b1;
             Example_Host_Master_State <= Example_Host_Master_Idle;
+$display ("Got Last Read Data");  // NOTE WORKING
           end
           master_issues_write_fence <= 1'b0;  // not doing write fence, so never.
         end
       default:
         begin
-          pci_master_running_transfer_count[3:0] <=
-                                  pci_master_running_transfer_count[3:0];
           master_ref_done <= 1'b0;
           master_issues_write_fence <= 1'b0;
           Example_Host_Master_State <= Example_Host_Master_Idle;
-          $display ("*** Example Host Controller %h - Host_Master_State_Machine State invalid %b, at %t",
+          $display ("*** PCI Blue Interface %h - Host_Master_State_Machine State invalid %b, at %t",
                       test_device_id[2:0], Example_Host_Master_State[2:0], $time);
           error_detected <= ~error_detected;
         end
@@ -459,24 +456,17 @@ pci_synchronizer_flop sync_error_flop (
     end
   end
 
-// Get the next Host Data during a Burst.  In this example Host Interface,
-//   data always increments by 32'h01010101 during a burst.
-// The Write side increments it during writes, and the Read side increments
-// it during compares.
-  wire    Offer_Next_Host_Data_During_Writes =
-                (Example_Host_Master_State[2:0] == Example_Host_Master_Transfer_Data)
-              & present_command_is_write & pci_host_request_room_available_meta;
-
-// References to the local Config Registers can only be 1 byte at a time.
+// Create the funny fence-like message used to do local config references.
+// Remember references to the local Config Registers can only be 1 byte at a time.
   wire   [7:0] config_ref_data =
-                (pci_master_byte_enables[0] ? pci_master_write_data[ 7: 0] : 8'h00)
-              | (pci_master_byte_enables[1] ? pci_master_write_data[15: 8] : 8'h00)
-              | (pci_master_byte_enables[2] ? pci_master_write_data[23:16] : 8'h00)
-              | (pci_master_byte_enables[3] ? pci_master_write_data[31:24] : 8'h00);
+                (~pci_master_byte_enables_l[0] ? pci_master_write_data[ 7: 0] : 8'h00)
+              | (~pci_master_byte_enables_l[1] ? pci_master_write_data[15: 8] : 8'h00)
+              | (~pci_master_byte_enables_l[2] ? pci_master_write_data[23:16] : 8'h00)
+              | (~pci_master_byte_enables_l[3] ? pci_master_write_data[31:24] : 8'h00);
   wire   [1:0] config_ref_addr_lsb =
-                (pci_master_byte_enables[0] ? 2'h0
-              : (pci_master_byte_enables[1] ? 2'h1
-              : (pci_master_byte_enables[2] ? 2'h2
+                (~pci_master_byte_enables_l[0] ? 2'h0
+              : (~pci_master_byte_enables_l[1] ? 2'h1
+              : (~pci_master_byte_enables_l[2] ? 2'h2
               : 2'h3)));
 
 // Data for either a Write Fence, a Config Reference, the PCI Address, or the PCI Data.
@@ -484,115 +474,93 @@ pci_synchronizer_flop sync_error_flop (
 // A slower Host Interface could do this as sequential logic in an always block.
   assign  pci_host_request_data[31:0] =
                 (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
-                   & target_requests_write_fence & host_allows_write_fence
-                   & ~master_issues_write_fence & pci_host_request_room_available_meta)
+                   & pci_target_requests_write_fence & host_allows_write_fence)
               ? {pci_master_ref_address[31:18], 2'b00, config_ref_data[7:0],
                  pci_master_ref_address[7:2], config_ref_addr_lsb[1:0]}
               : (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
-                   & pci_master_ref_start & ~master_ref_done
-                   & pci_host_request_room_available_meta
-                   & (pci_master_ref_address[31:24] == 8'hCC))
+                   & pci_master_ref_config)
               ? {pci_master_ref_address[31:18], present_command_is_read,
                  present_command_is_write, config_ref_data[7:0],
                  pci_master_ref_address[7:2], config_ref_addr_lsb[1:0]}
-              : (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
-                   & pci_master_ref_start & ~master_ref_done
-                   & pci_host_request_room_available_meta
-                   & (pci_master_ref_address[31:24] != 8'hDD))
+              : ((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
               ? pci_master_ref_address[31:0]
-              : ((Example_Host_Master_State[2:0] == Example_Host_Master_Transfer_Data)
-              ? pci_master_write_data[31:0]  // Data advanced by host interface during burst
-              : pci_master_ref_address[31:0]))));
+              : pci_master_write_data[31:0])));  // Data advanced by host interface during burst
 
 // Either the Host PCI Command or the Host Byte Enables.
   assign  pci_host_request_cbe[3:0] =
              (Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
              ? pci_master_ref_command[3:0]
-             : pci_master_byte_enables[3:0];  // Byte Enables advanced by host interface during burst
+             : pci_master_byte_enables_l[3:0];  // Byte Enables advanced by host interface during burst
 
 // Either Write Fence, Read/Write Config Register, Read/Write Address, Read/Write Data, Spare.
 // This is actually an if-then-else, done in combinational logic.  Would it be clearer as a function?
 // A slower Host Interface could do this as sequential logic in an always block.
   assign  pci_host_request_type[2:0] =
                 (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
-                   & target_requests_write_fence & host_allows_write_fence
-                   & ~master_issues_write_fence & pci_host_request_room_available_meta)
+                   & pci_target_requests_write_fence & host_allows_write_fence)
               ? `PCI_HOST_REQUEST_INSERT_WRITE_FENCE
               : (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
-                   & pci_master_ref_start & ~master_ref_done
-                   & pci_host_request_room_available_meta
-                   & (pci_master_ref_address[31:24] == 8'hCC))
+                   & pci_master_ref_config)
               ? `PCI_HOST_REQUEST_INSERT_WRITE_FENCE  // `PCI_HOST_REQUEST_READ_WRITE_CONFIG_REGISTER
               : (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
-                   & pci_master_ref_start & ~master_ref_done
-                   & pci_host_request_room_available_meta
-                   & (pci_master_ref_address[31:24] != 8'hDD)
                    & ~pci_master_requests_serr)
               ? `PCI_HOST_REQUEST_ADDRESS_COMMAND
               : (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
-                   & pci_master_ref_start & ~master_ref_done
-                   & pci_host_request_room_available_meta
-                   & (pci_master_ref_address[31:24] != 8'hDD)
                    & pci_master_requests_serr)
               ? `PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR
               : (((Example_Host_Master_State[2:0] == Example_Host_Master_Transfer_Data)
-                   & (pci_master_running_transfer_count[3:0] > 4'h1)
-                   & ~pci_master_requests_perr)
+                   & ~pci_master_requests_last & ~pci_master_requests_perr)
               ? `PCI_HOST_REQUEST_W_DATA_RW_MASK
               : (((Example_Host_Master_State[2:0] == Example_Host_Master_Transfer_Data)
-                   & (pci_master_running_transfer_count[3:0] <= 4'h1)
-                   & ~pci_master_requests_perr)
+                   & pci_master_requests_last & ~pci_master_requests_perr)
               ? `PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST
               : (((Example_Host_Master_State[2:0] == Example_Host_Master_Transfer_Data)
-                   & (pci_master_running_transfer_count[3:0] > 4'h1)
-                   & pci_master_requests_perr)
+                   & ~pci_master_requests_last & pci_master_requests_perr)
               ? `PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR
               : (((Example_Host_Master_State[2:0] == Example_Host_Master_Transfer_Data)
-                   & (pci_master_running_transfer_count[3:0] <= 4'h1)
-                   & pci_master_requests_perr)
+                   & pci_master_requests_last & pci_master_requests_perr)
               ? `PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR
               : `PCI_HOST_REQUEST_SPARE))))))));
 
 // Only write the FIFO when data is available and the FIFO has room for more data
 // This is actually an if-then-else, done in combinational logic.  Would it be clearer as a function?
 // A slower Host Interface could do this as sequential logic in an always block.
-// NOTE WORKING that 1'b0 & ( has to go!
-  assign  pci_host_request_submit = 1'b0 & (
-                ((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
-                 & target_requests_write_fence & host_allows_write_fence
-                 & ~master_issues_write_fence & pci_host_request_room_available_meta)
-              | ((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
-                 & pci_master_ref_start & ~master_ref_done
-                 & pci_host_request_room_available_meta
-                 & (pci_master_ref_address[31:24] == 8'hCC))
-              | ((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
-                 & pci_master_ref_start & ~master_ref_done
-                 & pci_host_request_room_available_meta
-                 & (pci_master_ref_address[31:24] != 8'hDD))
-              | ((Example_Host_Master_State[2:0] == Example_Host_Master_Transfer_Data)
-                 & pci_host_request_room_available_meta) );
+  assign  pci_host_request_submit =
+                (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
+                   & pci_target_requests_write_fence & host_allows_write_fence)
+              ? (~master_issues_write_fence & pci_host_request_room_available_meta)
+              : (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
+                   & pci_master_ref_config)
+              ? (  pci_master_addr_valid & pci_master_data_valid
+                 & pci_host_request_room_available_meta)
+              : ((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
+              ? (pci_master_addr_valid & pci_host_request_room_available_meta)
+              : ((Example_Host_Master_State[2:0] == Example_Host_Master_Transfer_Data)
+              ? pci_host_request_room_available_meta
+              : 1'b0))));
+
+  assign  pci_master_data_consumed = pci_host_request_submit;
 
 // Check for errors in the Host_Master_State_Machine
   always @(posedge host_clk)
   begin
-    if (pci_master_ref_start & ~master_ref_done
-         &  pci_host_request_room_available_meta
-         & (pci_master_ref_address[31:24] == 8'hCC) )
+    if (pci_master_addr_valid & pci_master_data_valid & ~master_ref_done
+         &  pci_host_request_room_available_meta & pci_master_ref_config)
     begin
       if (~pci_master_requests_last)
       begin
-        $display ("*** Example Host Controller %h - Local Config Reg Refs must be exactly 1 word long, at %t",
+        $display ("*** PCI Blue Interface %h - Local Config Reg Refs must be exactly 1 word long, at %t",
                     test_device_id[2:0], $time);
         error_detected <= ~error_detected;
       end
       `NO_ELSE;
-      if (  (pci_master_byte_enables[3:0] != 4'h1)
-          & (pci_master_byte_enables[3:0] != 4'h2)
-          & (pci_master_byte_enables[3:0] != 4'h4)
-          & (pci_master_byte_enables[3:0] != 4'h8) )
+      if (  (pci_master_byte_enables_l[3:0] != 4'hE)
+          & (pci_master_byte_enables_l[3:0] != 4'hD)
+          & (pci_master_byte_enables_l[3:0] != 4'hB)
+          & (pci_master_byte_enables_l[3:0] != 4'h7) )
       begin
-        $display ("*** Example Host Controller %h - Local Config Reg Refs must have exactly 1 Byte Enable %h, at %t",
-                    test_device_id[2:0], pci_master_byte_enables[3:0], $time);
+        $display ("*** PCI Blue Interface %h - Local Config Reg Refs must have exactly 1 Byte Enable %h, at %t",
+                    test_device_id[2:0], pci_master_byte_enables_l[3:0], $time);
         error_detected <= ~error_detected;
       end
       `NO_ELSE;
@@ -600,7 +568,7 @@ pci_synchronizer_flop sync_error_flop (
     `NO_ELSE;
     if (pci_host_request_error)
     begin
-      $display ("*** Example Host Controller %h - Request FIFO reports Error, at %t",
+      $display ("*** PCI Blue Interface %h - Request FIFO reports Error, at %t",
                   test_device_id[2:0], $time);
       error_detected <= ~error_detected;
     end
@@ -652,13 +620,13 @@ pci_synchronizer_flop sync_error_flop (
 // Capture signals needed to request the issuance of a Write Fence
 //   into the Request FIFO.
 // Forward references used to communicate with the Host_Master_State_Machine above:
-//  reg     target_requests_write_fence, target_sees_write_fence_end;
+//  reg     pci_target_requests_write_fence, target_sees_write_fence_end;
 
   always @(posedge host_clk)
   begin
     if (host_reset_to_PCI_interface)
     begin
-      target_requests_write_fence <= 1'b0;
+      pci_target_requests_write_fence <= 1'b0;
       target_sees_write_fence_end <= 1'b0;
     end
     else if (pci_host_response_data_available_meta)
@@ -667,27 +635,27 @@ pci_synchronizer_flop sync_error_flop (
                       `PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE)
            & ((pci_host_response_cbe[3:0] & `PCI_COMMAND_ANY_WRITE_MASK) == 4'h0) )  // it's a read!
       begin
-        target_requests_write_fence <= 1'b1;
+        pci_target_requests_write_fence <= 1'b1;
         target_sees_write_fence_end <= 1'b0;
       end
       else if (    (pci_host_response_type[3:0] ==
                                     `PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE)
                  & (pci_host_response_data[17:16] == 2'b00) )
       begin
-        target_requests_write_fence <= 1'b0;
+        pci_target_requests_write_fence <= 1'b0;
         target_sees_write_fence_end <= 1'b1;
       end
       else
       begin  // FIFO Command does not effect the Write Fence.  Just wait.
-        target_requests_write_fence <= target_requests_write_fence
-                                     & ~master_issues_write_fence;
+        pci_target_requests_write_fence <= pci_target_requests_write_fence
+                                         & ~master_issues_write_fence;
         target_sees_write_fence_end <= 1'b0;
       end
     end
     else
     begin  // No command in FIFO.  Just wait.
-      target_requests_write_fence <= target_requests_write_fence
-                                   & ~master_issues_write_fence;
+      pci_target_requests_write_fence <= pci_target_requests_write_fence
+                                       & ~master_issues_write_fence;
       target_sees_write_fence_end <= 1'b0;
     end
   end
@@ -1001,14 +969,14 @@ pci_synchronizer_flop sync_error_flop (
     if (   pci_host_response_data_available_meta
          & ((^pci_host_response_type[3:0]) === 1'bX))
     begin
-      $display ("*** Example Host Controller %h - Host_Target_State_Machine FIFO Type invalid %b, at %t",
+      $display ("*** PCI Blue Interface %h - Host_Target_State_Machine FIFO Type invalid %b, at %t",
                   test_device_id[2:0], pci_host_response_type[3:0], $time);
       error_detected <= ~error_detected;
     end
     `NO_ELSE;
     if (pci_host_response_error)
     begin
-      $display ("*** Example Host Controller %h - Response FIFO reports Error, at %t",
+      $display ("*** PCI Blue Interface %h - Response FIFO reports Error, at %t",
                   test_device_id[2:0], $time);
       error_detected <= ~error_detected;
     end
@@ -1021,9 +989,9 @@ pci_synchronizer_flop sync_error_flop (
 //   data is written correctly to a remote PCI device, read it back!
 // The Write side increments it during writes, and the Read side increments
 //   it during compares.
- // assign  Expose_Next_Data_In_Burst = Offer_Next_Host_Data_During_Writes
- //                                   | Calculate_Next_Host_Data_During_Reads;
-
+//  assign  pci_master_data_transferred = Offer_Next_Host_Data_During_Writes
+//                                     | Calculate_Next_Host_Data_During_Reads;
+  assign  pci_master_ref_error = 1'b0;  // NOTE WORKING
 
 // Host_Delayed_Read_State_Machine
 // This state machine is given an address by the Host_Respons_FIFO.
@@ -1048,7 +1016,7 @@ pci_synchronizer_flop sync_error_flop (
   reg     target_ref_size;
   reg    [31:0] target_ref_address;
   reg    [3:0] target_ref_command;
-  reg    [3:0] target_byte_enables;
+  reg    [3:0] target_byte_enables_l;
   reg    [31:0] target_write_data;
 
   always @(posedge host_clk)
@@ -1058,7 +1026,7 @@ pci_synchronizer_flop sync_error_flop (
       target_ref_start <= 1'b0;
       target_write_data[31:0] <= 32'h00000000;
       target_ref_address[5:0] <= 6'h00;
-      target_byte_enables[3:0] <= 4'h0;
+      target_byte_enables_l[3:0] <= 4'hF;
     end
     else
     begin
@@ -1087,13 +1055,14 @@ pci_synchronizer_flop sync_error_flop (
   begin
     if (pci_host_delayed_read_data_error)
     begin
-      $display ("*** Example Host Controller %h - Delayed Read FIFO reports Error, at %t",
+      $display ("*** PCI Blue Interface %h - Delayed Read FIFO reports Error, at %t",
                   test_device_id[2:0], $time);
       error_detected <= ~error_detected;
     end
     `NO_ELSE;
   end
 
+`ifdef VERBOSE_TEST_DEVICE
 // Monitor the activity on the Host Interface of the PCI_Blue_Interface.
 monitor_pci_interface_host_port monitor_pci_interface_host_port (
 // Wires used by the host controller to request action by the pci interface
@@ -1118,6 +1087,7 @@ monitor_pci_interface_host_port monitor_pci_interface_host_port (
   .pci_host_delayed_read_data_error (pci_host_delayed_read_data_error),
   .host_clk                   (host_clk)
 );
+`endif  // VERBOSE_TEST_DEVICE
 
 // Wires connecting the Host FIFOs to the PCI Interface
   wire   [2:0] pci_iface_request_type;
@@ -1214,10 +1184,15 @@ pci_fifo_storage_Nx35 pci_delayed_read_data_fifo (
   wire    pci_master_to_target_request_data_load;
   wire    pci_master_to_target_request_error;
 
+// Signals from the Master to the Target to let the Delayed Read logic implement
+//   the ordering rules.
+  wire    pci_master_executing_read;
+  wire    pci_master_seeing_write_fence;
+
 // Signals from the Master to the Target to set bits in the Status Register.
   wire    master_got_parity_error, master_caused_serr;
   wire    master_got_master_abort, master_got_target_abort;
-  wire    master_caused_parity_error;
+  wire    master_caused_parity_error, master_request_fifo_error;
   wire    master_enable, master_fast_b2b_en, master_perr_enable, master_serr_enable;
   wire   [7:0] master_latency_value;
 
@@ -1271,12 +1246,17 @@ pci_blue_target pci_blue_target (
                                 (pci_master_to_target_request_room_available_meta),
   .pci_master_to_target_request_data_load (pci_master_to_target_request_data_load),
   .pci_master_to_target_request_error (pci_master_to_target_request_error),
+// Signals from the Master to the Target to let the Delayed Read logic implement
+//   the ordering rules.
+  .pci_master_executing_read  (pci_master_executing_read),
+  .pci_master_seeing_write_fence (pci_master_seeing_write_fence),
 // Signals from the Master to the Target to set bits in the Status Register
   .master_got_parity_error    (master_got_parity_error),
   .master_caused_serr         (master_caused_serr),
   .master_got_master_abort    (master_got_master_abort),
   .master_got_target_abort    (master_got_target_abort),
   .master_caused_parity_error (master_caused_parity_error),
+  .master_request_fifo_error  (master_request_fifo_error),
   .master_enable              (master_enable),
   .master_fast_b2b_en         (master_fast_b2b_en),
   .master_perr_enable         (master_perr_enable),
@@ -1343,12 +1323,17 @@ pci_blue_master pci_blue_master (
                                 (pci_master_to_target_request_room_available_meta),
   .pci_master_to_target_request_data_load (pci_master_to_target_request_data_load),
   .pci_master_to_target_request_error (pci_master_to_target_request_error),
+// Signals from the Master to the Target to let the Delayed Read logic implement
+//   the ordering rules.
+  .pci_master_executing_read  (pci_master_executing_read),
+  .pci_master_seeing_write_fence (pci_master_seeing_write_fence),
 // Signals from the Master to the Target to set bits in the Status Register
   .master_got_parity_error    (master_got_parity_error),
   .master_caused_serr         (master_caused_serr),
   .master_got_master_abort    (master_got_master_abort),
   .master_got_target_abort    (master_got_target_abort),
   .master_caused_parity_error (master_caused_parity_error),
+  .master_request_fifo_error  (master_request_fifo_error),
   .master_enable              (master_enable),
   .master_fast_b2b_en         (master_fast_b2b_en),
   .master_perr_enable         (master_perr_enable),

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: monitor_pci_interface_host_port.v,v 1.3 2001-02-26 11:50:12 bbeaver Exp $
+// $Id: monitor_pci_interface_host_port.v,v 1.4 2001-03-05 09:54:56 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -73,24 +73,24 @@ module monitor_pci_interface_host_port (
   host_clk
 );
 // Wires used by the host controller to request action by the pci interface
-  output [31:0] pci_host_request_data;
-  output [3:0] pci_host_request_cbe;
-  output [2:0] pci_host_request_type;
+  input  [31:0] pci_host_request_data;
+  input  [3:0] pci_host_request_cbe;
+  input  [2:0] pci_host_request_type;
   input   pci_host_request_room_available_meta;
-  output  pci_host_request_submit;
+  input   pci_host_request_submit;
   input   pci_host_request_error;
 // Wires used by the pci interface to request action by the host controller
   input  [31:0] pci_host_response_data;
   input  [3:0] pci_host_response_cbe;
   input  [3:0] pci_host_response_type;
   input   pci_host_response_data_available_meta;
-  output  pci_host_response_unload;
+  input   pci_host_response_unload;
   input   pci_host_response_error;
 // Wires used by the host controller to send delayed read data by the pci interface
-  output [31:0] pci_host_delayed_read_data;
-  output [2:0] pci_host_delayed_read_type;
+  input  [31:0] pci_host_delayed_read_data;
+  input  [2:0] pci_host_delayed_read_type;
   input   pci_host_delayed_read_room_available_meta;
-  output  pci_host_delayed_read_data_submit;
+  input   pci_host_delayed_read_data_submit;
   input   pci_host_delayed_read_data_error;
 // Generic host interface wires
   input   host_clk;
@@ -99,7 +99,6 @@ module monitor_pci_interface_host_port (
   begin
     if ($time > 0)
     begin
-
       if (pci_host_request_submit)
       begin
         case (pci_host_request_type[2:0])
