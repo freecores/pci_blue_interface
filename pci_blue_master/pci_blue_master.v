@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_master.v,v 1.35 2001-08-12 04:30:52 bbeaver Exp $
+// $Id: pci_blue_master.v,v 1.36 2001-08-12 11:21:29 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -1887,9 +1887,6 @@ endfunction
                         proceed_with_stored_address_plus_stored_data
                       & (Master_Sending_First_Data == 1'b1);
 
-
-wire working = Master_Flushes_Request_FIFO_Entry_After_Abort;  // ***
-
 // NOTE: WORKING: any way to keep AD bus from latching data when Target is using it?
 // NOTE: WORKING: this would allow the always latch term to not be critical.
 
@@ -2132,6 +2129,8 @@ wire working = Master_Flushes_Request_FIFO_Entry_After_Abort;  // ***
       $display ("*** %m PCI Master Request Fifo Unload Error at time %t", $time);
     end
   end
+
+wire working = master_request_fifo_error;  // TOADS
 // synopsys translate_on
 
 // synopsys translate_off
@@ -2169,13 +2168,19 @@ task call_out_transition;
 endtask
 
 task report_missing_transitions;
-  integer i;
+  integer i, j;
   begin
+  $display ("calling out transitions which were not yet exercised");
+    j = 0;
     for (i = 1; i <= 67; i = i + 1)
     begin
       if (transitions_seen[i] == 1'b0)
+      begin
         $display ("transition %d not seen", i);
+        j = j + 1;
+      end
     end
+    $display ("%d transitions not seen", j);
   end
 endtask
 
