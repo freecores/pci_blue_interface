@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_master_pads.v,v 1.8 2001-07-03 09:21:30 bbeaver Exp $
+// $Id: pci_master_pads.v,v 1.9 2001-07-06 10:51:23 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -63,8 +63,6 @@
 //
 //===========================================================================
 
-`include "pci_blue_options.vh"
-`include "pci_blue_constants.vh"
 `timescale 1ns/1ps
 
 module pci_master_pads (
@@ -77,6 +75,10 @@ module pci_master_pads (
   pci_gnt_in_prev,   pci_gnt_in_comb,
   pci_clk
 );
+
+`include "pci_blue_options.vh"
+`include "pci_blue_constants.vh"
+
   output  pci_ext_req_l;
   input   pci_ext_gnt_l;
   input   pci_req_out_next;

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_arbiter.v,v 1.7 2001-07-03 09:20:48 bbeaver Exp $
+// $Id: pci_blue_arbiter.v,v 1.8 2001-07-06 10:51:01 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -98,8 +98,6 @@
 //
 //===========================================================================
 
-`include "pci_blue_options.vh"
-`include "pci_blue_constants.vh"
 `timescale 1ns/1ps
 
 // Allows printing of Arbiter Debug info.  Usually not defined
@@ -112,6 +110,10 @@ module pci_blue_arbiter (
   arbitration_enable,
   pci_clk, pci_reset_comb
 );
+
+`include "pci_blue_options.vh"
+`include "pci_blue_constants.vh"
+
   input   pci_int_req_direct;  // direct from internal flop clocked with pci_clk
   input  [3:0] pci_ext_req_prev;
   output  pci_int_gnt_direct_out;

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_example_host_controller.v,v 1.8 2001-07-03 09:21:30 bbeaver Exp $
+// $Id: pci_example_host_controller.v,v 1.9 2001-07-06 10:51:23 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -60,8 +60,6 @@
 //
 //===========================================================================
 
-`include "pci_blue_options.vh"
-`include "pci_blue_constants.vh"
 `timescale 1ns/1ps
 
 module pci_example_host_controller (
@@ -98,27 +96,31 @@ module pci_example_host_controller (
   test_start, test_accepted_l, test_error_event,
   test_device_id
 );
+
+`include "pci_blue_options.vh"
+`include "pci_blue_constants.vh"
+
 // Coordinate Write_Fence with CPU
   input   pci_target_requests_write_fence;
   output  host_allows_write_fence;
 // Host uses these wires to request PCI activity.
-  output [`PCI_FIFO_DATA_RANGE] pci_master_ref_address;
+  output [PCI_FIFO_DATA_RANGE:0] pci_master_ref_address;
   output [3:0] pci_master_ref_command;
   output  pci_master_ref_config;
-  output [`PCI_FIFO_CBE_RANGE] pci_master_byte_enables_l;
-  output [`PCI_FIFO_DATA_RANGE] pci_master_write_data;
-  input  [`PCI_FIFO_DATA_RANGE] pci_master_read_data;
+  output [PCI_FIFO_CBE_RANGE:0] pci_master_byte_enables_l;
+  output [PCI_FIFO_DATA_RANGE:0] pci_master_write_data;
+  input  [PCI_FIFO_DATA_RANGE:0] pci_master_read_data;
   output  pci_master_addr_valid, pci_master_data_valid;
   output  pci_master_requests_serr, pci_master_requests_perr;
   output  pci_master_requests_last;
   input   pci_master_data_consumed;
   input   pci_master_ref_error;
 // PCI Interface uses these wires to request local memory activity.   
-  input  [`PCI_BUS_DATA_RANGE] pci_target_ref_address;
+  input  [PCI_BUS_DATA_RANGE:0] pci_target_ref_address;
   input  [3:0] pci_target_ref_command;
-  input  [`PCI_BUS_CBE_RANGE] pci_target_byte_enables_l;
-  input  [`PCI_BUS_DATA_RANGE] pci_target_write_data;
-  output [`PCI_BUS_DATA_RANGE] pci_target_read_data;
+  input  [PCI_BUS_CBE_RANGE:0] pci_target_byte_enables_l;
+  input  [PCI_BUS_DATA_RANGE:0] pci_target_write_data;
+  output [PCI_BUS_DATA_RANGE:0] pci_target_read_data;
   output  pci_target_busy;
   input   pci_target_ref_start;
   output  pci_target_requests_abort, pci_target_requests_perr;
@@ -133,10 +135,10 @@ module pci_example_host_controller (
   input   host_clk;
 // Signals used by the test bench instead of using "." notation
   input  [2:0] test_master_number;
-  input  [`PCI_FIFO_DATA_RANGE] test_address;
+  input  [PCI_FIFO_DATA_RANGE:0] test_address;
   input  [3:0] test_command;
-  input  [`PCI_FIFO_DATA_RANGE] test_data;
-  input  [`PCI_FIFO_CBE_RANGE] test_byte_enables_l;
+  input  [PCI_FIFO_DATA_RANGE:0] test_data;
+  input  [PCI_FIFO_CBE_RANGE:0] test_byte_enables_l;
   input  [3:0] test_size;
   input   test_make_addr_par_error, test_make_data_par_error;
   input  [3:0] test_master_initial_wait_states;
@@ -180,10 +182,10 @@ module pci_example_host_controller (
 //   testbench issues a command with the top 8 bits of address are 8'hCC.
 
 // Signals used by Master test code to apply correct info to the PCI bus
-  reg    [`PCI_FIFO_DATA_RANGE] hold_master_address;
+  reg    [PCI_BUS_DATA_RANGE:0] hold_master_address;
   reg    [3:0] hold_master_command;
-  reg    [`PCI_FIFO_DATA_RANGE] hold_master_data;
-  reg    [`PCI_FIFO_CBE_RANGE] hold_master_byte_enables_l;
+  reg    [PCI_BUS_DATA_RANGE:0] hold_master_data;
+  reg    [PCI_BUS_CBE_RANGE:0] hold_master_byte_enables_l;
   reg    [3:0] hold_master_size;
   reg     hold_master_addr_par_err, hold_master_data_par_err;
   reg    [3:0] hold_master_initial_waitstates;
@@ -194,16 +196,16 @@ module pci_example_host_controller (
   reg     hold_master_fast_b2b;
   reg    [2:0] hold_master_target_termination;
   reg     hold_master_expect_master_abort;
-  reg    [`PCI_FIFO_DATA_RANGE] modified_master_address;
+  reg    [PCI_BUS_DATA_RANGE:0] modified_master_address;
 
 // This models a CPU or other Master device.
 // Capture Host Command from top-level Test Commander.
 task Clear_Example_Host_Command;
   begin
-    hold_master_address[`PCI_FIFO_DATA_RANGE] <= `BUS_IMPOSSIBLE_VALUE;
-    hold_master_command[`PCI_FIFO_CBE_RANGE] <= `PCI_COMMAND_RESERVED_4;
-    hold_master_data[`PCI_FIFO_DATA_RANGE] <= `BUS_IMPOSSIBLE_VALUE;
-    hold_master_byte_enables_l[`PCI_FIFO_CBE_RANGE] <= 4'hF;
+    hold_master_address[PCI_BUS_DATA_RANGE:0] <= `BUS_IMPOSSIBLE_VALUE;
+    hold_master_command[PCI_BUS_CBE_RANGE:0] <= PCI_COMMAND_RESERVED_4;
+    hold_master_data[PCI_BUS_DATA_RANGE:0] <= `BUS_IMPOSSIBLE_VALUE;
+    hold_master_byte_enables_l[PCI_BUS_CBE_RANGE:0] <= 4'hF;
     hold_master_addr_par_err <= 1'b0;
     hold_master_data_par_err <= 1'b0;
     hold_master_initial_waitstates[3:0] <= 4'h0;
@@ -215,7 +217,7 @@ task Clear_Example_Host_Command;
     hold_master_expect_master_abort <= 1'b0;
     hold_master_size[3:0] <= 4'h0;
     hold_master_target_termination[2:0] <= 3'h0;
-    modified_master_address[`PCI_FIFO_DATA_RANGE] <= `PCI_FIFO_DATA_ZERO;
+    modified_master_address[PCI_BUS_DATA_RANGE:0] <= `PCI_FIFO_DATA_ZERO;
   end
 endtask
 
@@ -243,10 +245,10 @@ endtask
 `endif // VERBOSE_TEST_DEVICE
         host_command_started <= 1'b1;
 // Grab address and data in case it takes a while to get bus mastership
-        hold_master_address[`PCI_FIFO_DATA_RANGE] <= test_address[`PCI_FIFO_DATA_RANGE];
+        hold_master_address[PCI_BUS_DATA_RANGE:0] <= test_address[PCI_BUS_DATA_RANGE:0];
         hold_master_command[3:0] <= test_command[3:0];
-        hold_master_data[`PCI_FIFO_DATA_RANGE] <= test_data[`PCI_FIFO_DATA_RANGE];
-        hold_master_byte_enables_l[`PCI_FIFO_CBE_RANGE] <= test_byte_enables_l[`PCI_FIFO_CBE_RANGE];
+        hold_master_data[PCI_BUS_DATA_RANGE:0] <= test_data[PCI_FIFO_DATA_RANGE:0];
+        hold_master_byte_enables_l[PCI_BUS_CBE_RANGE:0] <= test_byte_enables_l[PCI_BUS_CBE_RANGE:0];
         hold_master_addr_par_err <= test_make_addr_par_error;
         hold_master_data_par_err <= test_make_data_par_error;
         hold_master_initial_waitstates[3:0] <= test_master_initial_wait_states[3:0];
@@ -288,15 +290,15 @@ endtask
       else if (host_command_started & ~host_command_finished)  // hold
       begin
         host_command_started <= host_command_started;
-        hold_master_address[`PCI_FIFO_DATA_RANGE] <= hold_master_address[`PCI_FIFO_DATA_RANGE];
+        hold_master_address[PCI_BUS_DATA_RANGE:0] <= hold_master_address[PCI_BUS_DATA_RANGE:0];
         hold_master_command[3:0] <= hold_master_command[3:0];
-        hold_master_data[`PCI_FIFO_DATA_RANGE] <= Update_Captured_Host_Data
-               ? (hold_master_data[`PCI_FIFO_DATA_RANGE] + 32'h01010101)
-               : hold_master_data[`PCI_FIFO_DATA_RANGE];
+        hold_master_data[PCI_BUS_DATA_RANGE:0] <= Update_Captured_Host_Data
+               ? (hold_master_data[PCI_BUS_DATA_RANGE:0] + 32'h01010101)
+               : hold_master_data[PCI_BUS_DATA_RANGE:0];
 // NOTE:  A real Master might change byte enables throughout a Burst.
-        hold_master_byte_enables_l[`PCI_FIFO_CBE_RANGE] <= Update_Captured_Host_Data
-               ? hold_master_byte_enables_l[`PCI_FIFO_CBE_RANGE]
-               : hold_master_byte_enables_l[`PCI_FIFO_CBE_RANGE];
+        hold_master_byte_enables_l[PCI_BUS_CBE_RANGE:0] <= Update_Captured_Host_Data
+               ? hold_master_byte_enables_l[PCI_BUS_CBE_RANGE:0]
+               : hold_master_byte_enables_l[PCI_BUS_CBE_RANGE:0];
         hold_master_addr_par_err <= hold_master_addr_par_err;
         hold_master_data_par_err <= hold_master_data_par_err;
         hold_master_initial_waitstates[3:0] <= hold_master_initial_waitstates[3:0];
@@ -311,7 +313,7 @@ endtask
         hold_master_expect_master_abort <= hold_master_expect_master_abort;
         hold_master_size[3:0] <= hold_master_size[3:0];
         hold_master_target_termination[2:0] <= hold_master_target_termination[2:0];
-        modified_master_address[`PCI_FIFO_DATA_RANGE] <= modified_master_address[`PCI_FIFO_DATA_RANGE];
+        modified_master_address[PCI_BUS_DATA_RANGE:0] <= modified_master_address[PCI_BUS_DATA_RANGE:0];
       end
       else if (host_command_started & host_command_finished)  // drop
       begin
@@ -440,31 +442,31 @@ endtask
 // These variables come from a ficticious processor or DMA device
   wire    Host_Mem_Read_Request, Host_Mem_Write_Request;
   wire   [7:2] Host_Mem_Address = modified_master_address[7:2];
-  wire   [`PCI_FIFO_DATA_RANGE] Host_Mem_Write_Data = hold_master_data[`PCI_FIFO_DATA_RANGE];
-  wire   [`PCI_FIFO_CBE_RANGE] Host_Mem_Write_Byte_Enables_l = hold_master_byte_enables_l[`PCI_FIFO_CBE_RANGE];
+  wire   [PCI_BUS_DATA_RANGE:0] Host_Mem_Write_Data = hold_master_data[PCI_BUS_DATA_RANGE:0];
+  wire   [PCI_BUS_CBE_RANGE:0] Host_Mem_Write_Byte_Enables_l = hold_master_byte_enables_l[PCI_BUS_CBE_RANGE:0];
 
 // These following variables come from the PCI Delayed Read State Machine below.
   wire    PCI_Bus_Mem_Read_Request, PCI_Bus_Mem_Write_Request;
   wire   [7:2] PCI_Bus_Mem_Address;
-  wire   [`PCI_FIFO_DATA_RANGE] PCI_Bus_Mem_Write_Data;
-  wire   [`PCI_FIFO_CBE_RANGE] PCI_Bus_Mem_Write_Byte_Enables_l;
+  wire   [PCI_BUS_DATA_RANGE:0] PCI_Bus_Mem_Write_Data;
+  wire   [PCI_FIFO_CBE_RANGE:0] PCI_Bus_Mem_Write_Byte_Enables_l;
   reg     PCI_Bus_Mem_Grant;
 
-  wire   [`PCI_FIFO_DATA_RANGE] mem_write_data = Host_Mem_Write_Request
-                         ? Host_Mem_Write_Data[`PCI_FIFO_DATA_RANGE]
-                         : PCI_Bus_Mem_Write_Data[`PCI_FIFO_DATA_RANGE];
+  wire   [PCI_BUS_DATA_RANGE:0] mem_write_data = Host_Mem_Write_Request
+                         ? Host_Mem_Write_Data[PCI_BUS_DATA_RANGE:0]
+                         : PCI_Bus_Mem_Write_Data[PCI_BUS_DATA_RANGE:0];
   wire   [7:2] mem_address = (Host_Mem_Read_Request | Host_Mem_Write_Request)
                          ? Host_Mem_Address[7:2] : PCI_Bus_Mem_Address[7:2];
-  wire   [`PCI_FIFO_CBE_RANGE] mem_write_byte_enables_l = Host_Mem_Write_Request
-                         ? Host_Mem_Write_Byte_Enables_l[`PCI_FIFO_CBE_RANGE]
-                         : PCI_Bus_Mem_Write_Byte_Enables_l[`PCI_FIFO_CBE_RANGE];
+  wire   [PCI_BUS_CBE_RANGE:0] mem_write_byte_enables_l = Host_Mem_Write_Request
+                         ? Host_Mem_Write_Byte_Enables_l[PCI_BUS_CBE_RANGE:0]
+                         : PCI_Bus_Mem_Write_Byte_Enables_l[PCI_BUS_CBE_RANGE:0];
   wire    mem_read_enable = Host_Mem_Read_Request
                           | ( (~Host_Mem_Read_Request & ~Host_Mem_Write_Request)
                               & PCI_Bus_Mem_Read_Request);
   wire    mem_write_enable = Host_Mem_Write_Request
                           | ( (~Host_Mem_Read_Request & ~Host_Mem_Write_Request)
                               & PCI_Bus_Mem_Write_Request);
-  reg    [`PCI_FIFO_DATA_RANGE] mem_read_data;
+  reg    [PCI_BUS_DATA_RANGE:0] mem_read_data;
 
 // storage accessed only through the following always block
 // `define VERILOGGER_BUG
@@ -496,7 +498,7 @@ endtask
               (mem_write_enable & ~mem_write_byte_enables_l[3])
              ? mem_write_data[31:24] : Example_Host_Mem_3[mem_address[7:2]];
 
-    mem_read_data[`PCI_FIFO_DATA_RANGE] <= mem_read_enable
+    mem_read_data[PCI_BUS_DATA_RANGE:0] <= mem_read_enable
              ? (  (mem_address[7:2] == 6'h3F)
                   ? {22'h000000, Host_Interface_Status_Register[9:0]}  // read status register
                   : {Example_Host_Mem_3[mem_address],
@@ -517,7 +519,7 @@ endtask
     Example_Host_Mem_3[7:0] <=
               ((mem_write_enable & ~mem_write_byte_enables_l[3]) != 1'b0)
              ? mem_write_data[31:24] : Example_Host_Mem_3[7:0];
-    mem_read_data[`PCI_FIFO_DATA_RANGE] <= mem_read_enable
+    mem_read_data[PCI_BUS_DATA_RANGE:0] <= mem_read_enable
              ? (  (mem_address[7:2] == 6'h3F)
                   ? {22'h000000, Host_Interface_Status_Register[9:0]}  // read status register
                   : {Example_Host_Mem_3[7:0], Example_Host_Mem_2[7:0],
@@ -536,7 +538,7 @@ endtask
            Example_Host_Mem_2[mem_address[7:2]],
            Example_Host_Mem_1[mem_address[7:2]],
            Example_Host_Mem_0[mem_address[7:2]]}
-          !== hold_master_data[`PCI_FIFO_DATA_RANGE])
+          !== hold_master_data[PCI_BUS_DATA_RANGE:0])
       begin
         $display ("*** %m %h - Local Memory Read Data invalid 'h%h, expected 'h%h, at %t",
                     test_device_id[2:0],
@@ -544,7 +546,7 @@ endtask
                      Example_Host_Mem_2[mem_address[7:2]],
                      Example_Host_Mem_1[mem_address[7:2]],
                      Example_Host_Mem_0[mem_address[7:2]]},
-                     hold_master_data[`PCI_FIFO_DATA_RANGE], $time);
+                     hold_master_data[PCI_BUS_DATA_RANGE:0], $time);
         error_detected <= ~error_detected;
       end
       `NO_ELSE;
@@ -565,8 +567,8 @@ endtask
     begin
       $display ("Example Host Controller %h - Local Memory written with Address %h, Data %h, Strobes %h, at time %t",
                  test_device_id[2:0], {mem_address[7:2], 2'b00},
-                 mem_write_data[`PCI_FIFO_DATA_RANGE],
-                 mem_write_byte_enables_l[`PCI_FIFO_CBE_RANGE], $time);
+                 mem_write_data[`PCI_BUS_DATA_RANGE:0],
+                 mem_write_byte_enables_l[PCI_BUS_CBE_RANGE:0], $time);
     end
     `NO_ELSE;
 `endif  // VERBOSE_TEST_DEVICE
@@ -575,13 +577,13 @@ endtask
     begin
       if ({Example_Host_Mem_3[7:0], Example_Host_Mem_2[7:0],
            Example_Host_Mem_1[7:0], Example_Host_Mem_0[7:0]}
-             !== hold_master_data[`PCI_FIFO_DATA_RANGE])
+             !== hold_master_data[PCI_BUS_DATA_RANGE:0])
       begin
         $display ("*** %m %h - Local Memory Read Data invalid 'h%h, expected 'h%h, at %t",
                     test_device_id[2:0],
                     {Example_Host_Mem_3[7:0], Example_Host_Mem_2[7:0],
                      Example_Host_Mem_1[7:0], Example_Host_Mem_0[7:0]},
-                     hold_master_data[`PCI_FIFO_DATA_RANGE], $time);
+                     hold_master_data[PCI_BUS_DATA_RANGE:0], $time);
         error_detected <= ~error_detected;
       end
       `NO_ELSE;
@@ -600,8 +602,8 @@ endtask
     begin
       $display ("Example Host Controller %h - Local Memory written with Address %h, Data %h, Strobes %h, at time %t",
                  test_device_id[2:0], {mem_address[7:2], 2'b00},
-                 mem_write_data[`PCI_FIFO_DATA_RANGE],
-                 mem_write_byte_enables_l[`PCI_FIFO_CBE_RANGE], $time);
+                 mem_write_data[PCI_BUS_DATA_RANGE:0],
+                 mem_write_byte_enables_l[PCI_BUS_CBE_RANGE:0], $time);
     end
     `NO_ELSE;
 `endif  // VERILOGGER_BUG
@@ -658,10 +660,10 @@ endtask
 //   different data goes over the bus.  This update is achieved by using
 //   a combinational MUX on the write data bus.
 
-  wire    host_doing_write_now = (hold_master_command[`PCI_FIFO_CBE_RANGE]
-                               & `PCI_COMMAND_ANY_WRITE_MASK) != `PCI_FIFO_CBE_ZERO;
+  wire    host_doing_write_now = (hold_master_command[PCI_BUS_CBE_RANGE:0]
+                               & PCI_COMMAND_ANY_WRITE_MASK) != `PCI_FIFO_CBE_ZERO;
   reg     host_working_on_pci_reference, host_doing_write;
-  reg    [`PCI_FIFO_DATA_RANGE] pci_master_updated_data;
+  reg    [PCI_BUS_DATA_RANGE:0] pci_master_updated_data;
   reg    [3:0] pci_master_updated_burst_size;
 
 // When host_command_started is asserted, the following signals are valid:
@@ -681,7 +683,7 @@ endtask
       host_command_finished <= 1'b0;
       host_working_on_pci_reference <= 1'b0;  // pci interface stuff
       host_doing_write <= host_doing_write;  // don't care
-      pci_master_updated_data[`PCI_FIFO_DATA_RANGE] <= hold_master_data[`PCI_FIFO_DATA_RANGE];  // don't care
+      pci_master_updated_data[PCI_BUS_DATA_RANGE:0] <= hold_master_data[PCI_BUS_DATA_RANGE:0];  // don't care
       pci_master_updated_burst_size[3:0] <= pci_master_updated_burst_size[3:0];  // don't care
     end
     else if (host_command_started & ~host_command_finished  // second term prevents accidental back-to-back references
@@ -690,7 +692,7 @@ endtask
       host_command_finished <= 1'b1;  // assume Host SRAM Ref always finishes immediately
       host_working_on_pci_reference <= 1'b0;
       host_doing_write <= host_doing_write;  // don't care
-      pci_master_updated_data[`PCI_FIFO_DATA_RANGE] <= pci_master_updated_data[`PCI_FIFO_DATA_RANGE];  // don't care
+      pci_master_updated_data[PCI_BUS_DATA_RANGE:0] <= pci_master_updated_data[PCI_BUS_DATA_RANGE:0];  // don't care
       pci_master_updated_burst_size[3:0] <= pci_master_updated_burst_size[3:0];  // don't care
     end
     else if (host_command_started & ~host_working_on_pci_reference  // second term prevents accidental back-to-back references
@@ -700,7 +702,7 @@ endtask
       host_command_finished <= 1'b1;
       host_working_on_pci_reference <= 1'b0;
       host_doing_write <= host_doing_write_now;  // grab to allow writes to be dismissed early
-      pci_master_updated_data[`PCI_FIFO_DATA_RANGE] <= hold_master_data[`PCI_FIFO_DATA_RANGE];
+      pci_master_updated_data[PCI_BUS_DATA_RANGE:0] <= hold_master_data[PCI_BUS_DATA_RANGE:0];
       pci_master_updated_burst_size[3:0] <= hold_master_size[3:0];
     end
 
@@ -711,7 +713,7 @@ endtask
       host_command_finished <= 1'b0;
       host_working_on_pci_reference <= 1'b1;
       host_doing_write <= host_doing_write_now;  // grab to allow writes to be dismissed early
-      pci_master_updated_data[`PCI_FIFO_DATA_RANGE] <= hold_master_data[`PCI_FIFO_DATA_RANGE];
+      pci_master_updated_data[PCI_BUS_DATA_RANGE:0] <= hold_master_data[PCI_BUS_DATA_RANGE:0];
       pci_master_updated_burst_size[3:0] <= hold_master_size[3:0];
     end
     else if (host_working_on_pci_reference)  // only get here for PCI references.
@@ -721,7 +723,7 @@ endtask
         host_command_finished <= 1'b1;
         host_working_on_pci_reference <= 1'b0;
         host_doing_write <= host_doing_write;
-        pci_master_updated_data[`PCI_FIFO_DATA_RANGE] <= pci_master_updated_data[`PCI_FIFO_DATA_RANGE];
+        pci_master_updated_data[PCI_BUS_DATA_RANGE:0] <= pci_master_updated_data[PCI_BUS_DATA_RANGE:0];
         pci_master_updated_burst_size[3:0] <= pci_master_updated_burst_size[3:0];
         if (~hold_master_expect_master_abort)
         begin
@@ -747,16 +749,16 @@ endtask
         begin
           host_command_finished <= 1'b0;
           host_working_on_pci_reference <= 1'b1;
-          if (pci_master_read_data[`PCI_FIFO_DATA_RANGE] !== pci_master_updated_data[`PCI_FIFO_DATA_RANGE])
+          if (pci_master_read_data[PCI_BUS_DATA_RANGE:0] !== pci_master_updated_data[PCI_BUS_DATA_RANGE:0])
           begin
             $display ("*** %m %h - Read Data %h not expected %h, at %t",
-                        test_device_id[2:0], pci_master_read_data[`PCI_FIFO_DATA_RANGE],
-                        pci_master_updated_data[`PCI_FIFO_DATA_RANGE], $time);
+                        test_device_id[2:0], pci_master_read_data[PCI_BUS_DATA_RANGE:0],
+                        pci_master_updated_data[PCI_BUS_DATA_RANGE:0], $time);
             error_detected <= ~error_detected;
           end
         end
         host_doing_write <= host_doing_write;
-        pci_master_updated_data[`PCI_FIFO_DATA_RANGE] <= pci_master_updated_data[`PCI_FIFO_DATA_RANGE]
+        pci_master_updated_data[PCI_BUS_DATA_RANGE:0] <= pci_master_updated_data[PCI_BUS_DATA_RANGE:0]
                                                        + 32'h01010101;
         pci_master_updated_burst_size[3:0] <= pci_master_updated_burst_size[3:0] - 4'h1;
       end
@@ -765,7 +767,7 @@ endtask
         host_command_finished <= 1'b0;
         host_working_on_pci_reference <= 1'b1;
         host_doing_write <= host_doing_write;
-        pci_master_updated_data[`PCI_FIFO_DATA_RANGE] <= pci_master_updated_data[`PCI_FIFO_DATA_RANGE];
+        pci_master_updated_data[PCI_BUS_DATA_RANGE:0] <= pci_master_updated_data[PCI_BUS_DATA_RANGE:0];
         pci_master_updated_burst_size[3:0] <= pci_master_updated_burst_size[3:0];
       end
     end
@@ -774,7 +776,7 @@ endtask
       host_command_finished <= 1'b0;
       host_working_on_pci_reference <= 1'b0;
       host_doing_write <= host_doing_write;  // don't care
-      pci_master_updated_data[`PCI_FIFO_DATA_RANGE] <= pci_master_updated_data[`PCI_FIFO_DATA_RANGE];  // don't care
+      pci_master_updated_data[PCI_BUS_DATA_RANGE:0] <= pci_master_updated_data[PCI_BUS_DATA_RANGE:0];  // don't care
       pci_master_updated_burst_size[3:0] <= pci_master_updated_burst_size[3:0];  // don't care
     end
   end
@@ -797,13 +799,13 @@ endtask
                                  & ~host_command_finished;
 // This low-performance Host Controller makes the Host wait till the data is consumed.
 // This would be fine of the Host had a write buffer.
-  assign  pci_master_ref_address[`PCI_FIFO_DATA_RANGE] = modified_master_address[`PCI_FIFO_DATA_RANGE];
+  assign  pci_master_ref_address[PCI_BUS_DATA_RANGE:0] = modified_master_address[PCI_BUS_DATA_RANGE:0];
   assign  pci_master_ref_command[3:0] = hold_master_command[3:0];
   assign  pci_master_ref_config = (modified_master_address[31:24] == 8'hCC);
-  assign  pci_master_byte_enables_l[`PCI_FIFO_CBE_RANGE] = hold_master_byte_enables_l[`PCI_FIFO_CBE_RANGE];
-  assign  pci_master_write_data[`PCI_FIFO_DATA_RANGE] = ~host_working_on_pci_reference
-                                 ? hold_master_data[`PCI_FIFO_DATA_RANGE]
-                                 : pci_master_updated_data[`PCI_FIFO_DATA_RANGE];
+  assign  pci_master_byte_enables_l[PCI_BUS_CBE_RANGE:0] = hold_master_byte_enables_l[PCI_BUS_CBE_RANGE:0];
+  assign  pci_master_write_data[PCI_BUS_DATA_RANGE:0] = ~host_working_on_pci_reference
+                                 ? hold_master_data[PCI_BUS_DATA_RANGE:0]
+                                 : pci_master_updated_data[PCI_BUS_DATA_RANGE:0];
   assign  pci_master_requests_serr = hold_master_addr_par_err;
   assign  pci_master_requests_perr = hold_master_data_par_err;
   assign  pci_master_requests_last = pci_master_ref_config
@@ -833,11 +835,11 @@ endtask
 //   was about to be completed, it could unload at the correct time, and suffer
 //   no performance loss.
   wire    target_doing_write = (pci_target_ref_command[3:0]
-                                 & `PCI_COMMAND_ANY_WRITE_MASK) != 4'h0;
+                                 & PCI_COMMAND_ANY_WRITE_MASK) != 4'h0;
 
   reg    [7:0] pci_target_hold_address;
-  reg    [`PCI_FIFO_DATA_RANGE] pci_target_hold_write_data;
-  reg    [`PCI_FIFO_CBE_RANGE] pci_target_hold_byte_enables_l;
+  reg    [PCI_BUS_DATA_RANGE:0] pci_target_hold_write_data;
+  reg    [PCI_BUS_CBE_RANGE:0] pci_target_hold_byte_enables_l;
   reg     pci_target_hold_write_reference;
   reg     pci_target_perr_requested;
   reg     pci_target_disconnect_with_first;
@@ -854,10 +856,10 @@ endtask
       mem_read_in_progress <= mem_read_in_progress;
       mem_last_word_in_progress <= mem_last_word_in_progress;
       pci_target_hold_address[7:0] <= pci_target_hold_address[7:0];
-      pci_target_hold_write_data[`PCI_FIFO_DATA_RANGE] <=
-                            pci_target_hold_write_data[`PCI_FIFO_DATA_RANGE]; 
-      pci_target_hold_byte_enables_l[`PCI_FIFO_CBE_RANGE] <=
-                            pci_target_hold_byte_enables_l[`PCI_FIFO_CBE_RANGE];
+      pci_target_hold_write_data[PCI_BUS_DATA_RANGE:0] <=
+                            pci_target_hold_write_data[PCI_BUS_DATA_RANGE:0]; 
+      pci_target_hold_byte_enables_l[PCI_BUS_CBE_RANGE:0] <=
+                            pci_target_hold_byte_enables_l[PCI_BUS_CBE_RANGE:0];
       pci_target_hold_write_reference <= pci_target_hold_write_reference;
       pci_target_perr_requested <= pci_target_perr_requested;
       pci_target_disconnect_with_first <= pci_target_disconnect_with_first;
@@ -873,10 +875,10 @@ endtask
         mem_read_in_progress <= mem_read_in_progress;
         mem_last_word_in_progress <= mem_last_word_in_progress;
         pci_target_hold_address[7:0] <= pci_target_ref_address[7:0];
-        pci_target_hold_write_data[`PCI_FIFO_DATA_RANGE] <=
-                        pci_target_write_data[`PCI_FIFO_DATA_RANGE]; 
-        pci_target_hold_byte_enables_l[`PCI_FIFO_CBE_RANGE] <=
-                        pci_target_byte_enables_l[`PCI_FIFO_CBE_RANGE];
+        pci_target_hold_write_data[PCI_BUS_DATA_RANGE:0] <=
+                        pci_target_write_data[PCI_BUS_DATA_RANGE:0]; 
+        pci_target_hold_byte_enables_l[PCI_BUS_CBE_RANGE:0] <=
+                        pci_target_byte_enables_l[PCI_BUS_CBE_RANGE:0];
         pci_target_hold_write_reference <= target_doing_write;
         pci_target_perr_requested <= pci_target_ref_address[23]
                & pci_target_ref_address[9];
@@ -895,10 +897,10 @@ endtask
         mem_read_in_progress <= mem_read_in_progress;
         mem_last_word_in_progress <= mem_last_word_in_progress;
         pci_target_hold_address[7:0] <= pci_target_hold_address[7:0];
-        pci_target_hold_write_data[`PCI_FIFO_DATA_RANGE] <=
-                        pci_target_hold_write_data[`PCI_FIFO_DATA_RANGE];
-        pci_target_hold_byte_enables_l[`PCI_FIFO_CBE_RANGE] <=
-                        pci_target_hold_byte_enables_l[`PCI_FIFO_CBE_RANGE];
+        pci_target_hold_write_data[PCI_BUS_DATA_RANGE:0] <=
+                        pci_target_hold_write_data[PCI_BUS_DATA_RANGE:0];
+        pci_target_hold_byte_enables_l[PCI_BUS_CBE_RANGE:0] <=
+                        pci_target_hold_byte_enables_l[PCI_BUS_CBE_RANGE:0];
         pci_target_hold_write_reference <= pci_target_hold_write_reference;
         pci_target_perr_requested <= pci_target_perr_requested;
         pci_target_disconnect_with_first <= pci_target_disconnect_with_first;
@@ -912,12 +914,12 @@ endtask
   assign  PCI_Bus_Mem_Address[7:2] = ~mem_ref_in_progress
                                    ? pci_target_ref_address[7:2]
                                    : pci_target_hold_address[7:2];
-  assign  PCI_Bus_Mem_Write_Data[`PCI_FIFO_DATA_RANGE] = ~mem_ref_in_progress
-                                   ? pci_target_write_data[`PCI_FIFO_DATA_RANGE]
-                                   : pci_target_hold_write_data[`PCI_FIFO_DATA_RANGE];
-  assign  PCI_Bus_Mem_Write_Byte_Enables_l[`PCI_FIFO_CBE_RANGE] = ~mem_ref_in_progress
-                                   ? pci_target_byte_enables_l[`PCI_FIFO_CBE_RANGE]
-                                   : pci_target_hold_byte_enables_l[`PCI_FIFO_CBE_RANGE];
+  assign  PCI_Bus_Mem_Write_Data[PCI_BUS_DATA_RANGE:0] = ~mem_ref_in_progress
+                                   ? pci_target_write_data[PCI_BUS_DATA_RANGE:0]
+                                   : pci_target_hold_write_data[PCI_BUS_DATA_RANGE:0];
+  assign  PCI_Bus_Mem_Write_Byte_Enables_l[PCI_BUS_CBE_RANGE:0] = ~mem_ref_in_progress
+                                   ? pci_target_byte_enables_l[PCI_BUS_CBE_RANGE:0]
+                                   : pci_target_hold_byte_enables_l[PCI_BUS_CBE_RANGE:0];
   assign  PCI_Bus_Mem_Read_Request = 1'b0 & (~mem_ref_in_progress  // NOTE WORKING
                                    ? (mem_ref_in_progress & ~PCI_Bus_Mem_Grant)
                                    : pci_target_ref_start);
@@ -925,7 +927,7 @@ endtask
                                    ? target_doing_write
                                    : pci_target_hold_write_reference);
 
-  assign  pci_target_read_data[`PCI_FIFO_DATA_RANGE] = mem_read_data[`PCI_FIFO_DATA_RANGE];
+  assign  pci_target_read_data[PCI_BUS_DATA_RANGE:0] = mem_read_data[PCI_BUS_DATA_RANGE:0];
   assign  pci_target_requests_abort = pci_target_abort_before_first;
   assign  pci_target_requests_perr = pci_target_perr_requested;
   assign  pci_target_requests_disconnect = pci_target_disconnect_with_first;

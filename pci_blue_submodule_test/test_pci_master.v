@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_master.v,v 1.7 2001-07-05 08:00:09 bbeaver Exp $
+// $Id: test_pci_master.v,v 1.8 2001-07-06 10:51:22 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -62,8 +62,6 @@
 //
 //===========================================================================
 
-`include "pci_blue_options.vh"
-`include "pci_blue_constants.vh"
 `timescale 1ns/1ps
 
 module pci_test_master (
@@ -107,12 +105,16 @@ module pci_test_master (
   master_caused_parity_error,
   master_asked_to_retry
 );
+
+`include "pci_blue_options.vh"
+`include "pci_blue_constants.vh"
+
   output  host_reset_comb;
   output  pci_host_request_submit;
   output  pci_request_fifo_error;
   output [2:0] master_to_target_status_type;
-  output [`PCI_BUS_CBE_RANGE] master_to_target_status_cbe;
-  output [`PCI_BUS_DATA_RANGE] master_to_target_status_data;
+  output [PCI_BUS_CBE_RANGE:0] master_to_target_status_cbe;
+  output [PCI_BUS_DATA_RANGE:0] master_to_target_status_data;
   output  master_to_target_status_flush;
   output  master_to_target_status_available;
   output  master_to_target_status_unload;
@@ -120,10 +122,10 @@ module pci_test_master (
   output  pci_req_out_oe_comb;
   output  pci_gnt_in_comb;
   output  pci_clk;
-  output [`PCI_BUS_DATA_RANGE] pci_ad_in_prev;
-  output [`PCI_BUS_DATA_RANGE] pci_master_ad_out_next;
+  output [PCI_BUS_DATA_RANGE:0] pci_ad_in_prev;
+  output [PCI_BUS_DATA_RANGE:0] pci_master_ad_out_next;
   output  pci_master_ad_out_oe_comb;
-  output [`PCI_BUS_CBE_RANGE] pci_cbe_l_out_next;
+  output [PCI_BUS_CBE_RANGE:0] pci_cbe_l_out_next;
   output  pci_cbe_out_oe_comb;
   output  pci_frame_in_comb;
   output  pci_frame_out_next, pci_frame_out_oe_comb;
@@ -165,10 +167,10 @@ module pci_test_master (
 // PCI signals
   wire    pci_req_out_next, pci_req_out_oe_comb;
   reg     pci_gnt_in_prev, pci_gnt_in_comb;
-  reg    [`PCI_BUS_DATA_RANGE] pci_ad_in_prev;
-  wire   [`PCI_BUS_DATA_RANGE] pci_master_ad_out_next;
+  reg    [PCI_BUS_DATA_RANGE:0] pci_ad_in_prev;
+  wire   [PCI_BUS_DATA_RANGE:0] pci_master_ad_out_next;
   wire    pci_master_ad_out_oe_comb;
-  wire   [`PCI_BUS_CBE_RANGE] pci_cbe_l_out_next;
+  wire   [PCI_BUS_CBE_RANGE:0] pci_cbe_l_out_next;
   wire    pci_cbe_out_oe_comb;
   reg     pci_frame_in_comb;
   wire    pci_frame_out_next, pci_frame_out_oe_comb;
@@ -186,8 +188,8 @@ module pci_test_master (
   wire    PERR_Detected_While_Master_Read;
 
   wire   [2:0] master_to_target_status_type;
-  wire   [`PCI_FIFO_CBE_RANGE] master_to_target_status_cbe;
-  wire   [`PCI_FIFO_DATA_RANGE] master_to_target_status_data;
+  wire   [PCI_BUS_CBE_RANGE:0] master_to_target_status_cbe;
+  wire   [PCI_BUS_DATA_RANGE:0] master_to_target_status_data;
   wire    master_to_target_status_flush;
   wire    master_to_target_status_available;
   reg     master_to_target_status_unload;
@@ -213,16 +215,16 @@ module pci_test_master (
   wire    pci_host_request_room_available_meta;
   reg     pci_host_request_submit;
   reg    [2:0] pci_host_request_type;
-  reg    [`PCI_FIFO_CBE_RANGE] pci_host_request_cbe;
-  reg    [`PCI_FIFO_DATA_RANGE] pci_host_request_data;
+  reg    [PCI_FIFO_CBE_RANGE:0] pci_host_request_cbe;
+  reg    [PCI_FIFO_DATA_RANGE:0] pci_host_request_data;
   wire    pci_host_request_error;
 
   wire    pci_request_fifo_data_available_meta;
   wire    pci_request_fifo_two_words_available_meta;
   wire    pci_request_fifo_data_unload;
   wire   [2:0] pci_request_fifo_type;
-  wire   [`PCI_FIFO_CBE_RANGE] pci_request_fifo_cbe;
-  wire   [`PCI_FIFO_DATA_RANGE] pci_request_fifo_data;
+  wire   [PCI_FIFO_CBE_RANGE:0] pci_request_fifo_cbe;
+  wire   [PCI_FIFO_DATA_RANGE:0] pci_request_fifo_data;
   wire    pci_request_fifo_error;
 
 
@@ -255,12 +257,12 @@ task do_reset;
 endtask
 
   reg    pci_perr_in_comb, pci_serr_in_comb;
-  reg   [`PCI_BUS_DATA_RANGE] pci_ad_in_comb;
+  reg   [PCI_BUS_DATA_RANGE:0] pci_ad_in_comb;
 
 task set_pci_idle;
   begin
     pci_gnt_in_comb = 1'b0;
-    pci_ad_in_comb[`PCI_BUS_DATA_RANGE] = `PCI_BUS_DATA_X;
+    pci_ad_in_comb[PCI_BUS_DATA_RANGE:0] = `PCI_BUS_DATA_X;
     pci_frame_in_comb = 1'b0;
     pci_irdy_in_comb = 1'b0;
     pci_devsel_in_comb = 1'b0;
@@ -283,13 +285,13 @@ endtask
 
 task write_fifo;
   input [2:0] entry_type;
-  input [`PCI_FIFO_CBE_RANGE] entry_cbe;
-  input [`PCI_FIFO_DATA_RANGE] entry_data;
+  input [PCI_FIFO_CBE_RANGE:0] entry_cbe;
+  input [PCI_FIFO_DATA_RANGE:0] entry_data;
   begin
     pci_host_request_submit = 1'b1;
     pci_host_request_type[2:0] = entry_type[2:0];
-    pci_host_request_cbe[`PCI_FIFO_CBE_RANGE] = entry_cbe[`PCI_FIFO_CBE_RANGE];
-    pci_host_request_data[`PCI_FIFO_DATA_RANGE] = entry_data[`PCI_FIFO_DATA_RANGE];
+    pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0] = entry_cbe[PCI_FIFO_CBE_RANGE:0];
+    pci_host_request_data[PCI_FIFO_DATA_RANGE:0] = entry_data[PCI_FIFO_DATA_RANGE:0];
   end
 endtask
 
@@ -351,7 +353,7 @@ endtask
   always @(posedge pci_clk)
   begin
     pci_gnt_in_prev <= pci_gnt_in_comb;
-    pci_ad_in_prev[`PCI_BUS_DATA_RANGE] <= pci_ad_in_comb[`PCI_BUS_DATA_RANGE];
+    pci_ad_in_prev[PCI_BUS_DATA_RANGE:0] <= pci_ad_in_comb[PCI_BUS_DATA_RANGE:0];
     pci_devsel_in_prev <= pci_devsel_in_comb;
     pci_trdy_in_prev <= pci_trdy_in_comb;
     pci_stop_in_prev <= pci_stop_in_comb;
@@ -364,8 +366,8 @@ endtask
   begin
     pci_host_request_submit <= 1'b0;
     pci_host_request_type[2:0] <= 3'hX;
-    pci_host_request_cbe[`PCI_FIFO_CBE_RANGE] <= 4'hX;
-    pci_host_request_data[`PCI_FIFO_DATA_RANGE] <= `PCI_FIFO_DATA_X;
+    pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0] <= 4'hX;
+    pci_host_request_data[PCI_FIFO_DATA_RANGE:0] <= `PCI_FIFO_DATA_X;
     pci_gnt_in_comb <= 1'b0;
     pci_gnt_in_prev <= pci_gnt_in_comb;
     pci_frame_in_comb <= 1'b0;
@@ -384,8 +386,8 @@ endtask
   begin
     pci_host_request_submit <= 1'b0;
     pci_host_request_type[2:0] <= 3'hX;
-    pci_host_request_cbe[`PCI_FIFO_CBE_RANGE] <= 4'hX;
-    pci_host_request_data[`PCI_FIFO_DATA_RANGE] <= `PCI_FIFO_DATA_X;
+    pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0] <= 4'hX;
+    pci_host_request_data[PCI_FIFO_DATA_RANGE:0] <= `PCI_FIFO_DATA_X;
     pci_gnt_in_comb <= 1'b0;
     pci_gnt_in_prev <= pci_gnt_in_comb;
     pci_frame_in_comb <= 1'b0;
@@ -412,39 +414,39 @@ endtask
 
     $display ("Doing Read Reg, at time %t", $time);
     do_reset;
-    write_fifo (`PCI_HOST_REQUEST_INSERT_WRITE_FENCE, 4'h0, 32'h00020000);
+    write_fifo (PCI_HOST_REQUEST_INSERT_WRITE_FENCE, 4'h0, 32'h00020000);
       do_clocks (4'h4);
     unload_target_data;
       do_clocks (4'h4);
 
     $display ("Doing Write Reg, at time %t", $time);
     do_reset;
-    write_fifo (`PCI_HOST_REQUEST_INSERT_WRITE_FENCE, 4'h0, 32'h00010000);
+    write_fifo (PCI_HOST_REQUEST_INSERT_WRITE_FENCE, 4'h0, 32'h00010000);
       do_clocks (4'h4);
     unload_target_data;
       do_clocks (4'h4);
 
     $display ("Doing Write Fence, at time %t", $time);
     do_reset;
-    write_fifo (`PCI_HOST_REQUEST_INSERT_WRITE_FENCE, 4'h0, 32'h00000000);
+    write_fifo (PCI_HOST_REQUEST_INSERT_WRITE_FENCE, 4'h0, 32'h00000000);
       do_clocks (4'h4);
     unload_target_data;
       do_clocks (4'h4);
 
     $display ("Doing Write Fence, no room in Target, at time %t", $time);
     do_reset;
-    write_fifo (`PCI_HOST_REQUEST_INSERT_WRITE_FENCE, 4'h0, 32'h00011111);
+    write_fifo (PCI_HOST_REQUEST_INSERT_WRITE_FENCE, 4'h0, 32'h00011111);
       do_clocks (4'h1);
-    write_fifo (`PCI_HOST_REQUEST_INSERT_WRITE_FENCE, 4'h0, 32'h00001111);
+    write_fifo (PCI_HOST_REQUEST_INSERT_WRITE_FENCE, 4'h0, 32'h00001111);
       do_clocks (4'h6);
     unload_target_data;
       do_clocks (4'h4);
 
     $display ("Doing Config Read, 1 word, Loose Arb, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_CONFIG_READ, 32'h11223344);
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_READ, 32'h11223344);
       do_clocks (4'h1);
-    write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h15667788);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h15667788);
       do_clocks (4'h1);
     unload_target_data;
     pci_grant;           // park
@@ -462,11 +464,11 @@ endtask
 
     $display ("Doing Config Read, 2 words, Loose Arb, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_CONFIG_READ, 32'h21223344);
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_READ, 32'h21223344);
       do_clocks (4'h1);
-    write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'h25667788);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'h25667788);
       do_clocks (4'h1);
-    write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h29AABBCC);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h29AABBCC);
       do_clocks (4'h1);
     unload_target_data;
     pci_grant;           // park
@@ -482,9 +484,9 @@ endtask
 
     $display ("Doing Config Write, 1 word, Loose Arb, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_CONFIG_WRITE, 32'h31223344);
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_WRITE, 32'h31223344);
       do_clocks (4'h1);
-    write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h35667788);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h35667788);
       do_clocks (4'h1);
     unload_target_data;
     pci_grant;           // park
@@ -502,11 +504,11 @@ endtask
 
     $display ("Doing Config Write, 2 words, Loose Arb, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_CONFIG_WRITE, 32'h41223344);
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_WRITE, 32'h41223344);
       do_clocks (4'h1);
-    write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'h45667788);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'h45667788);
       do_clocks (4'h1);
-    write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h49AABBCC);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h49AABBCC);
       do_clocks (4'h1);
     unload_target_data;
     pci_grant;           // park
@@ -523,34 +525,34 @@ endtask
 `ifdef LATER
     $display ("Doing Memory Read, 1 word, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_MEMORY_READ, 32'h51223344);
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ, 32'h51223344);
       do_clocks (4'h1);
-    write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_0, 32'h55667788);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_0, 32'h55667788);
       do_clocks (4'h8);
 
     $display ("Doing Memory Read, 2 words, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_MEMORY_READ, 32'h61223344);
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ, 32'h61223344);
       do_clocks (4'h1);
-    write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1, 32'h65667788);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1, 32'h65667788);
       do_clocks (4'h1);
-    write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_2, 32'h69AABBCC);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_2, 32'h69AABBCC);
       do_clocks (4'h8);
 
     $display ("Doing Memory Write, 1 word, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_MEMORY_WRITE, 32'h71223344);
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE, 32'h71223344);
       do_clocks (4'h1);
-    write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_3, 32'h75667788);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_3, 32'h75667788);
       do_clocks (4'h8);
 
     $display ("Doing Memory Write, 2 words, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_MEMORY_WRITE, 32'h81223344);
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE, 32'h81223344);
       do_clocks (4'h1);
-    write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_0, 32'h85667788);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_0, 32'h85667788);
       do_clocks (4'h1);
-    write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Half_1, 32'h89AABBCC);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Half_1, 32'h89AABBCC);
       do_clocks (4'h8);
 
     $display ("Doing Memory Read, 1 word, Target Abort, at time %t", $time);
@@ -769,8 +771,8 @@ pci_fifo_storage_request pci_fifo_storage_request (
   .write_submit               (pci_host_request_submit),
   .write_room_available_meta  (pci_host_request_room_available_meta),  // NOTE Needs extra settling time to avoid metastability
   .write_data                 ({pci_host_request_type[2:0],
-                                pci_host_request_cbe[`PCI_FIFO_CBE_RANGE],
-                                pci_host_request_data[`PCI_FIFO_DATA_RANGE]}),
+                                pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0],
+                                pci_host_request_data[PCI_FIFO_DATA_RANGE:0]}),
   .write_error                (pci_host_request_error),
   .read_clk                   (pci_clk),
   .read_sync_clk              (pci_clk),
@@ -778,8 +780,8 @@ pci_fifo_storage_request pci_fifo_storage_request (
   .read_data_available_meta   (pci_request_fifo_data_available_meta),  // NOTE Needs extra settling time to avoid metastability
   .read_two_words_available_meta (pci_request_fifo_two_words_available_meta),  // NOTE Needs extra settling time to avoid metastability
   .read_data                  ({pci_request_fifo_type[2:0],
-                                pci_request_fifo_cbe[`PCI_FIFO_CBE_RANGE],
-                                pci_request_fifo_data[`PCI_FIFO_DATA_RANGE]}),
+                                pci_request_fifo_cbe[PCI_FIFO_CBE_RANGE:0],
+                                pci_request_fifo_data[PCI_FIFO_DATA_RANGE:0]}),
   .read_error                 (pci_request_fifo_error)
 );
 
@@ -790,9 +792,9 @@ pci_blue_master pci_blue_master (
   .pci_req_out_oe_comb        (pci_req_out_oe_comb),
   .pci_gnt_in_prev            (pci_gnt_in_prev),
   .pci_gnt_in_comb            (pci_gnt_in_comb),
-  .pci_master_ad_out_next     (pci_master_ad_out_next[`PCI_BUS_DATA_RANGE]),
+  .pci_master_ad_out_next     (pci_master_ad_out_next[PCI_BUS_DATA_RANGE:0]),
   .pci_master_ad_out_oe_comb  (pci_master_ad_out_oe_comb),
-  .pci_cbe_l_out_next         (pci_cbe_l_out_next[`PCI_BUS_CBE_RANGE]),
+  .pci_cbe_l_out_next         (pci_cbe_l_out_next[PCI_BUS_CBE_RANGE:0]),
   .pci_cbe_out_oe_comb        (pci_cbe_out_oe_comb),
   .pci_frame_in_comb          (pci_frame_in_comb),
   .pci_frame_out_next         (pci_frame_out_next),
@@ -819,16 +821,16 @@ pci_blue_master pci_blue_master (
 // Host Interface Request FIFO used to ask the PCI Interface to initiate
 //   PCI References to an external PCI Target.
   .pci_request_fifo_type      (pci_request_fifo_type[2:0]),
-  .pci_request_fifo_cbe       (pci_request_fifo_cbe[`PCI_FIFO_CBE_RANGE]),
-  .pci_request_fifo_data      (pci_request_fifo_data[`PCI_FIFO_DATA_RANGE]),
+  .pci_request_fifo_cbe       (pci_request_fifo_cbe[PCI_FIFO_CBE_RANGE:0]),
+  .pci_request_fifo_data      (pci_request_fifo_data[PCI_FIFO_DATA_RANGE:0]),
   .pci_request_fifo_data_available_meta (pci_request_fifo_data_available_meta),
   .pci_request_fifo_two_words_available_meta (pci_request_fifo_two_words_available_meta),
   .pci_request_fifo_data_unload (pci_request_fifo_data_unload),
   .pci_request_fifo_error     (pci_request_fifo_error),
 // Signals from the Master to the Target to insert Status Info into the Response FIFO.
   .master_to_target_status_type   (master_to_target_status_type[2:0]),
-  .master_to_target_status_cbe    (master_to_target_status_cbe[`PCI_FIFO_CBE_RANGE]),
-  .master_to_target_status_data   (master_to_target_status_data[`PCI_FIFO_DATA_RANGE]),
+  .master_to_target_status_cbe    (master_to_target_status_cbe[PCI_BUS_CBE_RANGE:0]),
+  .master_to_target_status_data   (master_to_target_status_data[PCI_BUS_DATA_RANGE:0]),
   .master_to_target_status_flush  (master_to_target_status_flush),
   .master_to_target_status_available (master_to_target_status_available),
   .master_to_target_status_unload (master_to_target_status_unload),

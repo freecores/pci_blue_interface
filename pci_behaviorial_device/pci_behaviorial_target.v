@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_behaviorial_target.v,v 1.7 2001-07-03 09:20:44 bbeaver Exp $
+// $Id: pci_behaviorial_target.v,v 1.8 2001-07-06 10:51:01 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -84,8 +84,6 @@
 //
 //===========================================================================
 
-`include "pci_blue_options.vh"
-`include "pci_blue_constants.vh"
 `timescale 1ns/1ps
 
 module pci_behaviorial_target (
@@ -105,12 +103,16 @@ module pci_behaviorial_target (
   target_debug_force_bad_par,
   test_error_event, test_device_id
 );
-  input  [`PCI_BUS_DATA_RANGE] ad_now;
-  input  [`PCI_BUS_DATA_RANGE] ad_prev;
-  output [`PCI_BUS_DATA_RANGE] target_ad_out;
+
+`include "pci_blue_options.vh"
+`include "pci_blue_constants.vh"
+
+  input  [PCI_BUS_DATA_RANGE:0] ad_now;
+  input  [PCI_BUS_DATA_RANGE:0] ad_prev;
+  output [PCI_BUS_DATA_RANGE:0] target_ad_out;
   output  target_ad_oe;
-  input  [`PCI_BUS_CBE_RANGE] cbe_l_now;
-  input  [`PCI_BUS_CBE_RANGE] cbe_l_prev;
+  input  [PCI_BUS_CBE_RANGE:0] cbe_l_now;
+  input  [PCI_BUS_CBE_RANGE:0] cbe_l_prev;
   input   calc_input_parity_prev;
   input   par_now, par_prev;
   input   frame_now, frame_prev, irdy_now, irdy_prev;
@@ -128,7 +130,7 @@ module pci_behaviorial_target (
   output  test_error_event;
   input  [2:0] test_device_id;
 
-  reg    [`PCI_BUS_DATA_RANGE] target_ad_out;
+  reg    [PCI_BUS_DATA_RANGE:0] target_ad_out;
   reg     target_ad_oe;
   reg     target_devsel_out, target_trdy_out, target_stop_out;
   wire    target_d_t_s_oe, target_perr_oe;
@@ -233,7 +235,7 @@ module pci_behaviorial_target (
 
 task Read_Test_Device_Config_Regs;
   input  [7:2] reg_number;
-  output [`PCI_BUS_DATA_RANGE] Read_Config_Reg;
+  output [PCI_BUS_DATA_RANGE:0] Read_Config_Reg;
   begin  // Addresses except 0, 4, 8, A, 10, 14, 3C all return 0x00
     case (reg_number[7:2])
     6'h00: Read_Config_Reg = 32'h8000AAAA
@@ -257,19 +259,19 @@ endtask
 
 // store info away so Config Register code can update register correctly
   reg    [7:2] pending_config_reg_write_address;
-  reg    [`PCI_BUS_CBE_RANGE] pending_config_reg_write_byte_enables;
-  reg    [`PCI_BUS_DATA_RANGE] pending_config_reg_write_data;
+  reg    [PCI_BUS_CBE_RANGE:0] pending_config_reg_write_byte_enables;
+  reg    [PCI_BUS_DATA_RANGE:0] pending_config_reg_write_data;
   reg     pending_config_write_request;
 task Write_Test_Device_Config_Regs;
   input  [7:2] reg_number;
-  input  [`PCI_BUS_DATA_RANGE] data;
-  input  [`PCI_BUS_CBE_RANGE] master_mask_l;
+  input  [PCI_BUS_DATA_RANGE:0] data;
+  input  [PCI_BUS_CBE_RANGE:0] master_mask_l;
   begin
     if (~pci_reset_comb)
     begin
       pending_config_reg_write_address[7:2] <= reg_number[7:2];
-      pending_config_reg_write_byte_enables[`PCI_BUS_CBE_RANGE] <= master_mask_l[`PCI_BUS_CBE_RANGE];
-      pending_config_reg_write_data[`PCI_BUS_DATA_RANGE] <= data[`PCI_BUS_DATA_RANGE];
+      pending_config_reg_write_byte_enables[PCI_BUS_CBE_RANGE:0] <= master_mask_l[PCI_BUS_CBE_RANGE:0];
+      pending_config_reg_write_data[PCI_BUS_DATA_RANGE:0] <= data[PCI_BUS_DATA_RANGE:0];
       pending_config_write_request <= 1'b1;
     end
     `NO_ELSE;
@@ -308,48 +310,48 @@ endtask
 // Words 0 and 2 are not writable.  Only certain bits in word 1 are writable.
         FB2B_En    <= ((pending_config_reg_write_address[7:2] == 6'h01)
                         & ~pending_config_reg_write_byte_enables[1])
-             ? ((pending_config_reg_write_data[`PCI_BUS_DATA_RANGE] & `CONFIG_CMD_FB2B_EN)
+             ? ((pending_config_reg_write_data[PCI_BUS_DATA_RANGE:0] & CONFIG_CMD_FB2B_EN)
                         != `PCI_BUS_DATA_ZERO) : FB2B_En;
         SERR_En    <= ((pending_config_reg_write_address[7:2] == 6'h01)
                         & ~pending_config_reg_write_byte_enables[1])
-             ? ((pending_config_reg_write_data[`PCI_BUS_DATA_RANGE] & `CONFIG_CMD_SERR_EN)
+             ? ((pending_config_reg_write_data[PCI_BUS_DATA_RANGE:0] & CONFIG_CMD_SERR_EN)
                         != `PCI_BUS_DATA_ZERO) : SERR_En;
         Par_Err_En <= ((pending_config_reg_write_address[7:2] == 6'h01)
                         & ~pending_config_reg_write_byte_enables[0])
-             ? ((pending_config_reg_write_data[`PCI_BUS_DATA_RANGE] & `CONFIG_CMD_PAR_ERR_EN)
+             ? ((pending_config_reg_write_data[PCI_BUS_DATA_RANGE:0] & CONFIG_CMD_PAR_ERR_EN)
                         != `PCI_BUS_DATA_ZERO) : Par_Err_En;
         Master_En  <= ((pending_config_reg_write_address[7:2] == 6'h01)
                         & ~pending_config_reg_write_byte_enables[0])
-             ? ((pending_config_reg_write_data[`PCI_BUS_DATA_RANGE] & `CONFIG_CMD_MASTER_EN)
+             ? ((pending_config_reg_write_data[PCI_BUS_DATA_RANGE:0] & CONFIG_CMD_MASTER_EN)
                         != `PCI_BUS_DATA_ZERO) : Master_En;
         Target_En  <= ((pending_config_reg_write_address[7:2] == 6'h01)
                         & ~pending_config_reg_write_byte_enables[0])
-             ? ((pending_config_reg_write_data[`PCI_BUS_DATA_RANGE] & `CONFIG_CMD_TARGET_EN)
+             ? ((pending_config_reg_write_data[PCI_BUS_DATA_RANGE:0] & CONFIG_CMD_TARGET_EN)
                         != `PCI_BUS_DATA_ZERO) : Target_En;
 // Certain bits in word 1 are only clearable, not writable.
         Detected_PERR    <= ((pending_config_reg_write_address[7:2] == 6'h01)
                         & ~pending_config_reg_write_byte_enables[3]
-                    & ((pending_config_reg_write_data[`PCI_BUS_DATA_RANGE] & `CONFIG_STAT_DETECTED_PERR) != `PCI_BUS_DATA_ZERO))
+                    & ((pending_config_reg_write_data[PCI_BUS_DATA_RANGE:0] & CONFIG_STAT_DETECTED_PERR) != `PCI_BUS_DATA_ZERO))
              ? 1'b0 : Detected_PERR | master_got_parity_error | target_got_parity_error;
         Signaled_SERR    <= ((pending_config_reg_write_address[7:2] == 6'h01)
                         & ~pending_config_reg_write_byte_enables[3]
-                    & ((pending_config_reg_write_data[`PCI_BUS_DATA_RANGE] & `CONFIG_STAT_DETECTED_SERR) != `PCI_BUS_DATA_ZERO))
+                    & ((pending_config_reg_write_data[PCI_BUS_DATA_RANGE:0] & CONFIG_STAT_DETECTED_SERR) != `PCI_BUS_DATA_ZERO))
              ? 1'b0 : Signaled_SERR | master_asserted_serr | target_asserted_serr;
         Received_Master_Abort <= ((pending_config_reg_write_address[7:2] == 6'h01)
                         & ~pending_config_reg_write_byte_enables[3]
-                    & ((pending_config_reg_write_data[`PCI_BUS_DATA_RANGE] & `CONFIG_STAT_GOT_MABORT) != `PCI_BUS_DATA_ZERO))
+                    & ((pending_config_reg_write_data[PCI_BUS_DATA_RANGE:0] & CONFIG_STAT_GOT_MABORT) != `PCI_BUS_DATA_ZERO))
              ? 1'b0 : Received_Master_Abort | master_got_master_abort;
         Received_Target_Abort <= ((pending_config_reg_write_address[7:2] == 6'h01)
                         & ~pending_config_reg_write_byte_enables[3]
-                    & ((pending_config_reg_write_data[`PCI_BUS_DATA_RANGE] & `CONFIG_STAT_GOT_TABORT) != `PCI_BUS_DATA_ZERO))
+                    & ((pending_config_reg_write_data[PCI_BUS_DATA_RANGE:0] & CONFIG_STAT_GOT_TABORT) != `PCI_BUS_DATA_ZERO))
              ? 1'b0 : Received_Target_Abort | master_got_target_abort;
         Signaled_Target_Abort <= ((pending_config_reg_write_address[7:2] == 6'h01)
                         & ~pending_config_reg_write_byte_enables[3]
-                    & ((pending_config_reg_write_data[`PCI_BUS_DATA_RANGE] & `CONFIG_STAT_CAUSED_TABORT) != `PCI_BUS_DATA_ZERO))
+                    & ((pending_config_reg_write_data[PCI_BUS_DATA_RANGE:0] & CONFIG_STAT_CAUSED_TABORT) != `PCI_BUS_DATA_ZERO))
              ? 1'b0 : Signaled_Target_Abort | target_signaling_target_abort;
         Master_Caused_PERR <= (  (pending_config_reg_write_address[7:2] == 6'h01)
                         & ~pending_config_reg_write_byte_enables[3]
-                    & ((pending_config_reg_write_data[`PCI_BUS_DATA_RANGE] & `CONFIG_STAT_CAUSED_PERR) != `PCI_BUS_DATA_ZERO))
+                    & ((pending_config_reg_write_data[PCI_BUS_DATA_RANGE:0] & CONFIG_STAT_CAUSED_PERR) != `PCI_BUS_DATA_ZERO))
              ? 1'b0 : Master_Caused_PERR | master_caused_parity_error;
 // Certain bytes in higher words are writable
         Latency_Timer    <= (  (pending_config_reg_write_address[7:2] == 6'h03)
@@ -400,7 +402,7 @@ endtask
   end
 
 // Tasks to manage the small SRAM visible in Memory Space
-  reg    [`PCI_BUS_DATA_RANGE] Test_Device_Mem [0:63];  // address limits, not bits in address
+  reg    [PCI_BUS_DATA_RANGE:0] Test_Device_Mem [0:63];  // address limits, not bits in address
 // Tasks can't have local storage!  have to be module global
   reg    [6:0] sram_addr;
 task Init_Test_Device_SRAM;
@@ -414,25 +416,25 @@ endtask
 
 task Read_Test_Device_SRAM;
   input  [7:2] sram_address;
-  output [`PCI_BUS_DATA_RANGE] target_read_data;
+  output [PCI_BUS_DATA_RANGE:0] target_read_data;
   begin
     target_read_data = Test_Device_Mem[sram_address[7:2]];
   end
 endtask
 
 // Tasks can't have local storage!  have to be module global
-  reg    [`PCI_BUS_DATA_RANGE] sram_temp;
+  reg    [PCI_BUS_DATA_RANGE:0] sram_temp;
 task Write_Test_Device_SRAM;
   input  [7:2] sram_address;
-  input  [`PCI_BUS_DATA_RANGE] master_write_data;
-  input  [`PCI_BUS_CBE_RANGE] master_mask_l;
+  input  [PCI_BUS_DATA_RANGE:0] master_write_data;
+  input  [PCI_BUS_CBE_RANGE:0] master_mask_l;
   begin
     sram_temp = Test_Device_Mem[sram_address[7:2]];
     sram_temp[7:0]   = (~master_mask_l[0]) ? master_write_data[7:0]   : sram_temp[7:0];
     sram_temp[15:8]  = (~master_mask_l[1]) ? master_write_data[15:8]  : sram_temp[15:8];
     sram_temp[23:16] = (~master_mask_l[2]) ? master_write_data[23:16] : sram_temp[23:16];
     sram_temp[31:24] = (~master_mask_l[3]) ? master_write_data[31:24] : sram_temp[31:24];
-    Test_Device_Mem[sram_address[7:2]] = sram_temp[`PCI_BUS_DATA_RANGE];
+    Test_Device_Mem[sram_address[7:2]] = sram_temp[PCI_BUS_DATA_RANGE:0];
   end
 endtask
 
@@ -523,8 +525,8 @@ endtask
 //   encode Target Wait State, Target Completion, and Target Error info.
 
 // signals used by Target test code to apply correct info to the PCI bus
-  reg    [`PCI_BUS_DATA_RANGE] hold_target_address;
-  reg    [`PCI_BUS_CBE_RANGE] hold_target_command;
+  reg    [PCI_BUS_DATA_RANGE:0] hold_target_address;
+  reg    [PCI_BUS_CBE_RANGE:0] hold_target_command;
   reg    [3:0] hold_target_initial_waitstates;
   reg    [3:0] hold_target_subsequent_waitstates;
   reg    [2:0] hold_target_termination;
@@ -536,40 +538,40 @@ endtask
 //   update the address counter, emulating the target address counter during bursts.
 // Store data from PCI bus into Config Register, and increment Write Pointer
 task Capture_Config_Reg_Data_From_AD_Bus;
-  input  [`PCI_BUS_DATA_RANGE] master_write_data;
-  input  [`PCI_BUS_CBE_RANGE] master_mask_l;
+  input  [PCI_BUS_DATA_RANGE:0] master_write_data;
+  input  [PCI_BUS_CBE_RANGE:0] master_mask_l;
   begin
     Write_Test_Device_Config_Regs (hold_target_address[7:2],
-                           master_write_data[`PCI_BUS_DATA_RANGE], master_mask_l[`PCI_BUS_CBE_RANGE]);
+                           master_write_data[PCI_BUS_DATA_RANGE:0], master_mask_l[PCI_BUS_CBE_RANGE:0]);
     hold_target_address[7:2] = hold_target_address[7:2] + 6'h01;  // addr++
   end
 endtask
 
 // Drive Config Register Data onto AD bus, and increment Read Pointer
 task Fetch_Config_Reg_Data_For_Read_Onto_AD_Bus;
-  output [`PCI_BUS_DATA_RANGE] target_read_data;
+  output [PCI_BUS_DATA_RANGE:0] target_read_data;
   begin
-    Read_Test_Device_Config_Regs (hold_target_address[7:2], target_read_data[`PCI_BUS_DATA_RANGE]);
+    Read_Test_Device_Config_Regs (hold_target_address[7:2], target_read_data[PCI_BUS_DATA_RANGE:0]);
     hold_target_address[7:2] = hold_target_address[7:2] + 6'h01;  // addr++
   end
 endtask
 
 // Store data from PCI bus into SRAM, and increment Write Pointer
 task Capture_SRAM_Data_From_AD_Bus;
-  input  [`PCI_BUS_DATA_RANGE] master_write_data;
-  input  [`PCI_BUS_CBE_RANGE] master_mask_l;
+  input  [PCI_BUS_DATA_RANGE:0] master_write_data;
+  input  [PCI_BUS_CBE_RANGE:0] master_mask_l;
   begin
     Write_Test_Device_SRAM (hold_target_address[7:2],
-                            master_write_data[`PCI_BUS_DATA_RANGE], master_mask_l[`PCI_BUS_CBE_RANGE]);
+                            master_write_data[PCI_BUS_DATA_RANGE:0], master_mask_l[PCI_BUS_CBE_RANGE:0]);
     hold_target_address[7:2] = hold_target_address[7:2] + 6'h01;  // addr++
   end
 endtask
 
 // Drive SRAM Data onto AD bus, and increment Read Pointer
 task Fetch_SRAM_Data_For_Read_Onto_AD_Bus;
-  output [`PCI_BUS_DATA_RANGE] target_read_data;
+  output [PCI_BUS_DATA_RANGE:0] target_read_data;
   begin
-    Read_Test_Device_SRAM (hold_target_address[7:2], target_read_data[`PCI_BUS_DATA_RANGE]);
+    Read_Test_Device_SRAM (hold_target_address[7:2], target_read_data[PCI_BUS_DATA_RANGE:0]);
     hold_target_address[7:2] = hold_target_address[7:2] + 6'h01;  // addr++
   end
 endtask
@@ -582,9 +584,9 @@ endtask
 // If the region of memory is prefetchable and always returns all
 //   bytes, it is OK to disregard the Byte Enables.
   reg     Delayed_Read_Started, Delayed_Read_Pending, Delayed_Read_Finished;
-  reg    [`PCI_BUS_DATA_RANGE] Delayed_Read_Address;
-  reg    [`PCI_BUS_CBE_RANGE] Delayed_Read_Command;
-  reg    [`PCI_BUS_CBE_RANGE] Delayed_Read_Mask_L;
+  reg    [PCI_BUS_DATA_RANGE:0] Delayed_Read_Address;
+  reg    [PCI_BUS_CBE_RANGE:0] Delayed_Read_Command;
+  reg    [PCI_BUS_CBE_RANGE:0] Delayed_Read_Mask_L;
   reg    [14:0] Delayed_Read_Discard_Counter;
   wire   [14:0] Delayed_Read_Discard_Limit = 15'h7FFF;  // change for debugging
   always @(posedge pci_ext_clk or posedge pci_reset_comb)
@@ -708,15 +710,15 @@ task Execute_Target_Retry_Undrive_DEVSEL;
         Assert_STOP;
         if (signal_starting_delayed_read)
         begin
-          Delayed_Read_Address[`PCI_BUS_DATA_RANGE] = hold_target_address[`PCI_BUS_DATA_RANGE];
-          Delayed_Read_Command[`PCI_BUS_CBE_RANGE] =  hold_target_command[`PCI_BUS_CBE_RANGE];
-          Delayed_Read_Mask_L[`PCI_BUS_CBE_RANGE] = cbe_l_now[`PCI_BUS_CBE_RANGE];
+          Delayed_Read_Address[PCI_BUS_DATA_RANGE:0] = hold_target_address[PCI_BUS_DATA_RANGE:0];
+          Delayed_Read_Command[PCI_BUS_CBE_RANGE:0] =  hold_target_command[PCI_BUS_CBE_RANGE:0];
+          Delayed_Read_Mask_L[PCI_BUS_CBE_RANGE:0] = cbe_l_now[PCI_BUS_CBE_RANGE:0];
         end
         `NO_ELSE;
       end
       else
       begin
-        target_ad_out[`PCI_BUS_DATA_RANGE] <= `BUS_IMPOSSIBLE_VALUE;
+        target_ad_out[PCI_BUS_DATA_RANGE:0] <= `BUS_IMPOSSIBLE_VALUE;
         target_ad_oe <= 1'b0;  // unconditionally undrive ad bus
         target_debug_force_bad_par <= 1'b0;
         target_perr_check_next <= 1'b0;
@@ -799,14 +801,14 @@ task Wait_Till_DEVSEL_Possible;
       Deassert_STOP;
       Clock_Wait_Unless_Reset;  // wait for outputs to settle
       if (Delayed_Read_Pending
-            & (   (hold_target_command[3:0] == `PCI_COMMAND_MEMORY_READ)
-                | (hold_target_command[3:0] == `PCI_COMMAND_MEMORY_READ_MULTIPLE)
-                | (hold_target_command[3:0] == `PCI_COMMAND_MEMORY_READ_LINE)
-                | (hold_target_command[3:0] == `PCI_COMMAND_CONFIG_READ) )
-            & (   (    (hold_target_address[`PCI_BUS_DATA_RANGE] & 32'hFF0000FF)  // partial test address match
-                    != (Delayed_Read_Address[`PCI_BUS_DATA_RANGE] & 32'hFF0000FF))
-                | (hold_target_command[`PCI_BUS_CBE_RANGE] != Delayed_Read_Command[`PCI_BUS_CBE_RANGE])
-                | (cbe_l_now[`PCI_BUS_CBE_RANGE] != Delayed_Read_Mask_L[`PCI_BUS_CBE_RANGE]) ) )
+            & (   (hold_target_command[3:0] == PCI_COMMAND_MEMORY_READ)
+                | (hold_target_command[3:0] == PCI_COMMAND_MEMORY_READ_MULTIPLE)
+                | (hold_target_command[3:0] == PCI_COMMAND_MEMORY_READ_LINE)
+                | (hold_target_command[3:0] == PCI_COMMAND_CONFIG_READ) )
+            & (   (    (hold_target_address[PCI_BUS_DATA_RANGE:0] & 32'hFF0000FF)  // partial test address match
+                    != (Delayed_Read_Address[PCI_BUS_DATA_RANGE:0] & 32'hFF0000FF))
+                | (hold_target_command[PCI_BUS_CBE_RANGE:0] != Delayed_Read_Command[PCI_BUS_CBE_RANGE:0])
+                | (cbe_l_now[PCI_BUS_CBE_RANGE:0] != Delayed_Read_Mask_L[PCI_BUS_CBE_RANGE:0]) ) )
       begin
         Execute_Target_Retry_Undrive_DEVSEL (1'b1, 1'b0, 1'b0);
         devsel_asserted = 1'b0;  // tell calling routine to not claim DEVSEL.
@@ -822,10 +824,10 @@ task Wait_Till_DEVSEL_Possible;
           devsel_asserted = 1'b1;  // medium decode
           fast_devsel_asserted = 1'b0;  // medium decode
           signal_satisfied_delayed_read = Delayed_Read_Pending
-                & (   (hold_target_command[3:0] == `PCI_COMMAND_MEMORY_READ)
-                    | (hold_target_command[3:0] == `PCI_COMMAND_MEMORY_READ_MULTIPLE)
-                    | (hold_target_command[3:0] == `PCI_COMMAND_MEMORY_READ_LINE)
-                    | (hold_target_command[3:0] == `PCI_COMMAND_CONFIG_READ) );
+                & (   (hold_target_command[3:0] == PCI_COMMAND_MEMORY_READ)
+                    | (hold_target_command[3:0] == PCI_COMMAND_MEMORY_READ_MULTIPLE)
+                    | (hold_target_command[3:0] == PCI_COMMAND_MEMORY_READ_LINE)
+                    | (hold_target_command[3:0] == PCI_COMMAND_CONFIG_READ) );
         end
         else
         begin
@@ -846,10 +848,10 @@ task Wait_Till_DEVSEL_Possible;
             devsel_asserted = 1'b1;  // slow decode
             fast_devsel_asserted = 1'b0;  // slow decode
             signal_satisfied_delayed_read = Delayed_Read_Pending
-                & (   (hold_target_command[3:0] == `PCI_COMMAND_MEMORY_READ)
-                    | (hold_target_command[3:0] == `PCI_COMMAND_MEMORY_READ_MULTIPLE)
-                    | (hold_target_command[3:0] == `PCI_COMMAND_MEMORY_READ_LINE)
-                    | (hold_target_command[3:0] == `PCI_COMMAND_CONFIG_READ) );
+                & (   (hold_target_command[3:0] == PCI_COMMAND_MEMORY_READ)
+                    | (hold_target_command[3:0] == PCI_COMMAND_MEMORY_READ_MULTIPLE)
+                    | (hold_target_command[3:0] == PCI_COMMAND_MEMORY_READ_LINE)
+                    | (hold_target_command[3:0] == PCI_COMMAND_CONFIG_READ) );
           end
           else
           begin
@@ -870,10 +872,10 @@ task Wait_Till_DEVSEL_Possible;
               devsel_asserted = 1'b1;  // subtractive decode
               fast_devsel_asserted = 1'b0;  // subtractive decode
               signal_satisfied_delayed_read = Delayed_Read_Pending
-                & (   (hold_target_command[3:0] == `PCI_COMMAND_MEMORY_READ)
-                    | (hold_target_command[3:0] == `PCI_COMMAND_MEMORY_READ_MULTIPLE)
-                    | (hold_target_command[3:0] == `PCI_COMMAND_MEMORY_READ_LINE)
-                    | (hold_target_command[3:0] == `PCI_COMMAND_CONFIG_READ) );
+                & (   (hold_target_command[3:0] == PCI_COMMAND_MEMORY_READ)
+                    | (hold_target_command[3:0] == PCI_COMMAND_MEMORY_READ_MULTIPLE)
+                    | (hold_target_command[3:0] == PCI_COMMAND_MEMORY_READ_LINE)
+                    | (hold_target_command[3:0] == PCI_COMMAND_CONFIG_READ) );
 
             end
             else
@@ -940,14 +942,14 @@ endtask
   integer ii;
 task Linger_Until_Master_Waitstates_Done;
   input   drive_ad_bus;
-  input  [`PCI_BUS_DATA_RANGE] target_read_data;
+  input  [PCI_BUS_DATA_RANGE:0] target_read_data;
   input   do_target_disconnect;
   begin
     for (ii = 0; ii < TEST_TARGET_SPINLOOP_MAX; ii = ii + 1)
     begin
       if (frame_now & ~irdy_now)  // master executing wait states
       begin
-        target_ad_out[`PCI_BUS_DATA_RANGE] <= target_read_data[`PCI_BUS_DATA_RANGE];
+        target_ad_out[PCI_BUS_DATA_RANGE:0] <= target_read_data[PCI_BUS_DATA_RANGE:0];
         target_ad_oe <= drive_ad_bus;
         target_debug_force_bad_par <= hold_target_data_par_err;
         target_perr_check_next <= ~drive_ad_bus;
@@ -1001,7 +1003,7 @@ task Execute_Target_Abort_Undrive_DEVSEL;
     begin
       if ((iii == 0) | frame_now | ~irdy_now)  // At least one stop, Master Not Finished
       begin
-        target_ad_out[`PCI_BUS_DATA_RANGE] <= `BUS_IMPOSSIBLE_VALUE;
+        target_ad_out[PCI_BUS_DATA_RANGE:0] <= `BUS_IMPOSSIBLE_VALUE;
         target_ad_oe <= 1'b0;  // Should this drive AD when not DEVSEL?
         target_debug_force_bad_par <= 1'b0;
         target_perr_check_next <= 1'b0;
@@ -1014,7 +1016,7 @@ task Execute_Target_Abort_Undrive_DEVSEL;
       end
       else
       begin
-        target_ad_out[`PCI_BUS_DATA_RANGE] <= `BUS_IMPOSSIBLE_VALUE;
+        target_ad_out[PCI_BUS_DATA_RANGE:0] <= `BUS_IMPOSSIBLE_VALUE;
         target_ad_oe <= 1'b0;  // unconditionally undrive ad bus
         target_debug_force_bad_par <= 1'b0;
         target_perr_check_next <= 1'b0;
@@ -1053,12 +1055,12 @@ task Execute_Target_Ref_Undrive_DEVSEL_On_Any_Termination;
   input   drive_ad_bus;
   input   do_target_disconnect;
   input   signal_satisfied_delayed_read;
-  input  [`PCI_BUS_DATA_RANGE] target_read_data;
-  output [`PCI_BUS_DATA_RANGE] master_write_data;
-  output [`PCI_BUS_CBE_RANGE] master_mask_l;
+  input  [PCI_BUS_DATA_RANGE:0] target_read_data;
+  output [PCI_BUS_DATA_RANGE:0] master_write_data;
+  output [PCI_BUS_CBE_RANGE:0] master_mask_l;
   output  target_was_terminated;
   begin
-    target_ad_out[`PCI_BUS_DATA_RANGE] <= target_read_data[`PCI_BUS_DATA_RANGE];
+    target_ad_out[PCI_BUS_DATA_RANGE:0] <= target_read_data[PCI_BUS_DATA_RANGE:0];
     target_ad_oe <= drive_ad_bus;
     target_debug_force_bad_par <= hold_target_data_par_err;
     target_perr_check_next <= ~drive_ad_bus;
@@ -1068,9 +1070,9 @@ task Execute_Target_Ref_Undrive_DEVSEL_On_Any_Termination;
     Assert_Target_Continue_Or_Disconnect (do_target_disconnect);
     Clock_Wait_Unless_Reset;  // wait for outputs to settle
     Linger_Until_Master_Waitstates_Done (drive_ad_bus,
-                       target_read_data[`PCI_BUS_DATA_RANGE], do_target_disconnect);
-    master_write_data[`PCI_BUS_DATA_RANGE] = ad_now[`PCI_BUS_DATA_RANGE];  // unconditionally grab.
-    master_mask_l[`PCI_BUS_CBE_RANGE] = cbe_l_now[`PCI_BUS_CBE_RANGE];
+                       target_read_data[PCI_BUS_DATA_RANGE:0], do_target_disconnect);
+    master_write_data[PCI_BUS_DATA_RANGE:0] = ad_now[PCI_BUS_DATA_RANGE:0];  // unconditionally grab.
+    master_mask_l[PCI_BUS_CBE_RANGE:0] = cbe_l_now[PCI_BUS_CBE_RANGE:0];
     if (frame_now & irdy_now & ~do_target_disconnect)
     begin
         target_was_terminated = 1'b0;
@@ -1163,9 +1165,9 @@ endtask
   reg    [3:0] wait_states_this_time;
   reg     do_abort_this_time, do_retry_this_time, do_disconnect_this_time;
   reg     abort_needs_waitstate;
-  reg    [`PCI_BUS_DATA_RANGE] master_write_data;
-  reg    [`PCI_BUS_DATA_RANGE] target_read_data;
-  reg    [`PCI_BUS_CBE_RANGE] master_mask_l;
+  reg    [PCI_BUS_DATA_RANGE:0] master_write_data;
+  reg    [PCI_BUS_DATA_RANGE:0] target_read_data;
+  reg    [PCI_BUS_CBE_RANGE:0] master_mask_l;
   reg     drive_ad_bus;
   reg     signal_satisfied_delayed_read;
 task Execute_Target_PCI_Ref;
@@ -1229,14 +1231,14 @@ task Execute_Target_PCI_Ref;
         begin
           Execute_Target_Retry_Undrive_DEVSEL (drive_ad_bus,
                 (hold_target_termination[2:0] == `Test_Target_Start_Delayed_Read)
-              & (   (hold_target_command[`PCI_BUS_CBE_RANGE] ==
-                                              `PCI_COMMAND_MEMORY_READ)
-                  | (hold_target_command[`PCI_BUS_CBE_RANGE] ==
-                                              `PCI_COMMAND_MEMORY_READ_MULTIPLE)
-                  | (hold_target_command[`PCI_BUS_CBE_RANGE] ==
-                                              `PCI_COMMAND_MEMORY_READ_LINE)
-                  | (hold_target_command[`PCI_BUS_CBE_RANGE] ==
-                                              `PCI_COMMAND_CONFIG_READ) ),
+              & (   (hold_target_command[PCI_BUS_CBE_RANGE:0] ==
+                                              PCI_COMMAND_MEMORY_READ)
+                  | (hold_target_command[PCI_BUS_CBE_RANGE:0] ==
+                                              PCI_COMMAND_MEMORY_READ_MULTIPLE)
+                  | (hold_target_command[PCI_BUS_CBE_RANGE:0] ==
+                                              PCI_COMMAND_MEMORY_READ_LINE)
+                  | (hold_target_command[PCI_BUS_CBE_RANGE:0] ==
+                                              PCI_COMMAND_CONFIG_READ) ),
                                                signal_satisfied_delayed_read);
           target_was_terminated = 1'b1;
         end
@@ -1246,31 +1248,31 @@ task Execute_Target_PCI_Ref;
 //                            | (hold_target_address[7:2] == 6'h3F);
           if (reference_type[1:0] == `TEST_TARGET_DOING_CONFIG_READ)
           begin
-            Fetch_Config_Reg_Data_For_Read_Onto_AD_Bus (target_read_data[`PCI_BUS_DATA_RANGE]);
+            Fetch_Config_Reg_Data_For_Read_Onto_AD_Bus (target_read_data[PCI_BUS_DATA_RANGE:0]);
           end
           `NO_ELSE;
           if (reference_type[1:0] == `TEST_TARGET_DOING_SRAM_READ)
           begin
-            Fetch_SRAM_Data_For_Read_Onto_AD_Bus (target_read_data[`PCI_BUS_DATA_RANGE]);
+            Fetch_SRAM_Data_For_Read_Onto_AD_Bus (target_read_data[PCI_BUS_DATA_RANGE:0]);
           end
           `NO_ELSE;
           Execute_Target_Ref_Undrive_DEVSEL_On_Any_Termination
                            (drive_ad_bus, do_disconnect_this_time,
                             signal_satisfied_delayed_read,
-                            target_read_data[`PCI_BUS_DATA_RANGE],
-                            master_write_data[`PCI_BUS_DATA_RANGE],
-                            master_mask_l[`PCI_BUS_CBE_RANGE],
+                            target_read_data[PCI_BUS_DATA_RANGE:0],
+                            master_write_data[PCI_BUS_DATA_RANGE:0],
+                            master_mask_l[PCI_BUS_CBE_RANGE:0],
                             target_was_terminated); 
           if (reference_type[1:0] == `TEST_TARGET_DOING_CONFIG_WRITE)
           begin
-            Capture_Config_Reg_Data_From_AD_Bus (master_write_data[`PCI_BUS_DATA_RANGE],
-                                                 master_mask_l[`PCI_BUS_CBE_RANGE]);
+            Capture_Config_Reg_Data_From_AD_Bus (master_write_data[PCI_BUS_DATA_RANGE:0],
+                                                 master_mask_l[PCI_BUS_CBE_RANGE:0]);
           end
           `NO_ELSE;
           if (reference_type[1:0] == `TEST_TARGET_DOING_SRAM_WRITE)
           begin
-            Capture_SRAM_Data_From_AD_Bus (master_write_data[`PCI_BUS_DATA_RANGE],
-                                           master_mask_l[`PCI_BUS_CBE_RANGE]);
+            Capture_SRAM_Data_From_AD_Bus (master_write_data[PCI_BUS_DATA_RANGE:0],
+                                           master_mask_l[PCI_BUS_CBE_RANGE:0]);
           end
           `NO_ELSE;
 // set up for the next transfer                                                        
@@ -1351,8 +1353,8 @@ endtask
       saw_fast_back_to_back = 1'b1;
       while (saw_fast_back_to_back == 1'b1)  // whats the value of this loop?  Does it reset correctly?
       begin
-        hold_target_address[`PCI_BUS_DATA_RANGE] = ad_now[`PCI_BUS_DATA_RANGE];  // intentionally use "="
-        hold_target_command[`PCI_BUS_CBE_RANGE]  = cbe_l_now[`PCI_BUS_CBE_RANGE];
+        hold_target_address[PCI_BUS_DATA_RANGE:0] = ad_now[PCI_BUS_DATA_RANGE:0];  // intentionally use "="
+        hold_target_command[PCI_BUS_CBE_RANGE:0]  = cbe_l_now[PCI_BUS_CBE_RANGE:0];
         if (ad_now[`TARGET_ENCODED_PARAMATERS_ENABLE] != 1'b0)
         begin
           hold_target_initial_waitstates    = ad_now[`TARGET_ENCODED_INIT_WAITSTATES];
@@ -1378,8 +1380,8 @@ endtask
 `else // SIMULTANEOUS_MASTER_TARGET
 // check for, and don't respond to, reads to self
 `endif //SIMULTANEOUS_MASTER_TARGET
-            & (   (cbe_l_now[`PCI_BUS_CBE_RANGE] == `PCI_COMMAND_MEMORY_WRITE)
-                | (cbe_l_now[`PCI_BUS_CBE_RANGE] == `PCI_COMMAND_MEMORY_WRITE_INVALIDATE) )
+            & (   (cbe_l_now[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_WRITE)
+                | (cbe_l_now[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_WRITE_INVALIDATE) )
             & (   (ad_now[`PCI_BASE_ADDR0_MATCH_RANGE] == BAR0[`PCI_BASE_ADDR0_MATCH_RANGE])
 `ifdef PCI_BASE_ADDR1_MATCH_ENABLE
                 | (ad_now[`PCI_BASE_ADDR1_MATCH_RANGE] == BAR1[`PCI_BASE_ADDR1_MATCH_RANGE])
@@ -1390,7 +1392,7 @@ endtask
                                                  saw_fast_back_to_back);
         end
         else if (~frame_prev & frame_now & (idsel_now == 1'b1)
-               & (cbe_l_now[`PCI_BUS_CBE_RANGE] == `PCI_COMMAND_CONFIG_WRITE)
+               & (cbe_l_now[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_CONFIG_WRITE)
                & (ad_now[1:0]  == 2'b00) )
         begin
           Execute_Target_PCI_Ref (`TEST_TARGET_DOING_CONFIG_WRITE,
@@ -1402,9 +1404,9 @@ endtask
 `else // SIMULTANEOUS_MASTER_TARGET
 // Check for, and don't respond to, reads to self
 `endif //SIMULTANEOUS_MASTER_TARGET
-            & (   (cbe_l_now[`PCI_BUS_CBE_RANGE] == `PCI_COMMAND_MEMORY_READ)
-                | (cbe_l_now[`PCI_BUS_CBE_RANGE] == `PCI_COMMAND_MEMORY_READ_MULTIPLE)
-                | (cbe_l_now[`PCI_BUS_CBE_RANGE] == `PCI_COMMAND_MEMORY_READ_LINE) )
+            & (   (cbe_l_now[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_READ)
+                | (cbe_l_now[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_READ_MULTIPLE)
+                | (cbe_l_now[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_READ_LINE) )
             & (   (ad_now[`PCI_BASE_ADDR0_MATCH_RANGE] == BAR0[`PCI_BASE_ADDR0_MATCH_RANGE])
 `ifdef PCI_BASE_ADDR1_MATCH_ENABLE
                 | (ad_now[`PCI_BASE_ADDR1_MATCH_RANGE] == BAR1[`PCI_BASE_ADDR1_MATCH_RANGE])
@@ -1415,7 +1417,7 @@ endtask
                                                  saw_fast_back_to_back);
         end
         else if (~frame_prev & frame_now & (idsel_now == 1'b1)
-               & (cbe_l_now[`PCI_BUS_CBE_RANGE] == `PCI_COMMAND_CONFIG_READ)
+               & (cbe_l_now[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_CONFIG_READ)
                & (ad_now[1:0]  == 2'b00) )
         begin
           Execute_Target_PCI_Ref (`TEST_TARGET_DOING_CONFIG_READ,

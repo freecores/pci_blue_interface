@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_config_regs.v,v 1.4 2001-07-03 09:21:21 bbeaver Exp $
+// $Id: pci_blue_config_regs.v,v 1.5 2001-07-06 10:51:22 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -68,8 +68,6 @@
 //
 //===========================================================================
 
-`include "pci_blue_options.vh"
-`include "pci_blue_constants.vh"
 `timescale 1ns/10ps
 
 module pci_blue_config_regs (
@@ -101,6 +99,9 @@ module pci_blue_config_regs (
   pci_clk,
   pci_reset_comb
 );
+
+`include "pci_blue_options.vh"
+`include "pci_blue_constants.vh"
 
 // Signals driven to control the external PCI interface
   input  [31:0] pci_config_write_data;
@@ -220,53 +221,53 @@ module pci_blue_config_regs (
 // Words 0 and 2 are not writable.  Only certain bits in word 1 are writable.
         FB2B_En <=
                ((pci_config_address[7:2] == 6'h01) & pci_config_byte_enables[1])
-             ? ((pci_config_write_data[31:0] & `CONFIG_CMD_FB2B_EN) != 32'h00000000)
+             ? ((pci_config_write_data[31:0] & CONFIG_CMD_FB2B_EN) != 32'h00000000)
              : FB2B_En;
         SERR_En <=
                ((pci_config_address[7:2] == 6'h01) & pci_config_byte_enables[1])
-             ? ((pci_config_write_data[31:0] & `CONFIG_CMD_SERR_EN) != 32'h00000000)
+             ? ((pci_config_write_data[31:0] & CONFIG_CMD_SERR_EN) != 32'h00000000)
              : SERR_En;
         Par_Err_En <=
                ((pci_config_address[7:2] == 6'h01) & pci_config_byte_enables[0])
-             ? ((pci_config_write_data[31:0] & `CONFIG_CMD_PAR_ERR_EN) != 32'h00000000)
+             ? ((pci_config_write_data[31:0] & CONFIG_CMD_PAR_ERR_EN) != 32'h00000000)
              : Par_Err_En;
         Master_En <=
                ((pci_config_address[7:2] == 6'h01) &~pci_config_byte_enables[0])
-             ? ((pci_config_write_data[31:0] & `CONFIG_CMD_MASTER_EN) != 32'h00000000)
+             ? ((pci_config_write_data[31:0] & CONFIG_CMD_MASTER_EN) != 32'h00000000)
              : Master_En;
         Target_Mem_En <=
                ((pci_config_address[7:2] == 6'h01) & pci_config_byte_enables[0])
-             ? ((pci_config_write_data[31:0] & `CONFIG_CMD_TARGET_EN) != 32'h00000000)
+             ? ((pci_config_write_data[31:0] & CONFIG_CMD_TARGET_EN) != 32'h00000000)
              : Target_Mem_En;
 // Certain bits in word 1 are only clearable, not writable.
         Detected_PERR <=
                ((pci_config_address[7:2] == 6'h01) & pci_config_byte_enables[3]
-                 & ((pci_config_write_data[31:0] & `CONFIG_STAT_DETECTED_PERR) != 32'h00000000))
+                 & ((pci_config_write_data[31:0] & CONFIG_STAT_DETECTED_PERR) != 32'h00000000))
              ? 1'b0
              : Detected_PERR | either_got_parity_error;
         Signaled_SERR <=
                ((pci_config_address[7:2] == 6'h01) & pci_config_byte_enables[3]
-                 & ((pci_config_write_data[31:0] & `CONFIG_STAT_DETECTED_SERR) != 32'h00000000))
+                 & ((pci_config_write_data[31:0] & CONFIG_STAT_DETECTED_SERR) != 32'h00000000))
              ? 1'b0
              : Signaled_SERR | either_caused_serr;
         Received_Master_Abort <=
                ((pci_config_address[7:2] == 6'h01) & pci_config_byte_enables[3]
-                 & ((pci_config_write_data[31:0] & `CONFIG_STAT_GOT_MABORT) != 32'h00000000))
+                 & ((pci_config_write_data[31:0] & CONFIG_STAT_GOT_MABORT) != 32'h00000000))
              ? 1'b0
              : Received_Master_Abort | master_caused_master_abort;
         Received_Target_Abort <=
                ((pci_config_address[7:2] == 6'h01) & pci_config_byte_enables[3]
-                 & ((pci_config_write_data[31:0] & `CONFIG_STAT_GOT_TABORT) != 32'h00000000))
+                 & ((pci_config_write_data[31:0] & CONFIG_STAT_GOT_TABORT) != 32'h00000000))
              ? 1'b0
              : Received_Target_Abort | master_got_target_abort;
         Signaled_Target_Abort <=
                ((pci_config_address[7:2] == 6'h01) & pci_config_byte_enables[3]
-                 & ((pci_config_write_data[31:0] & `CONFIG_STAT_CAUSED_TABORT) != 32'h00000000))
+                 & ((pci_config_write_data[31:0] & CONFIG_STAT_CAUSED_TABORT) != 32'h00000000))
              ? 1'b0
              : Signaled_Target_Abort | target_caused_abort;
         Master_Caused_PERR <=
                ((pci_config_address[7:2] == 6'h01) & pci_config_byte_enables[3]
-                 & ((pci_config_write_data[31:0] & `CONFIG_STAT_CAUSED_PERR) != 32'h00000000))
+                 & ((pci_config_write_data[31:0] & CONFIG_STAT_CAUSED_PERR) != 32'h00000000))
              ? 1'b0
              : Master_Caused_PERR | master_caused_parity_error;
 // Certain bytes in higher words are writable
@@ -342,11 +343,11 @@ module pci_blue_config_regs (
 // don't trust synthesis to do anything rational.
   wire   [31:0] config_read_data_4_0 = pci_config_address[2]
                   ? {Target_Status[15:0], Target_Command[15:0]}       // 4
-                  : {`PCI_DEVICE_ID, `PCI_VENDOR_ID};                 // 0
+                  : {PCI_DEVICE_ID, PCI_VENDOR_ID};                   // 0
   wire   [31:0] config_read_data_C_8 = pci_config_address[2]
-                  ? {8'h00, `PCI_HEAD_TYPE,
+                  ? {8'h00, PCI_HEAD_TYPE,
                       Latency_Timer[7:0], Cache_Line_Size[7:0]}       // C
-                  : {`PCI_CLASS_CODE, `PCI_REV_NUM};                  // 8
+                  : {PCI_CLASS_CODE, PCI_REV_NUM};                    // 8
   wire   [31:0] config_read_data_14_10 = pci_config_address[2]
 `ifdef PCI_BASE_ADDR1_MATCH_ENABLE
                   ? {BAR1[`PCI_BASE_ADDR1_MATCH_RANGE],
@@ -357,7 +358,7 @@ module pci_blue_config_regs (
                   : {BAR0[`PCI_BASE_ADDR0_MATCH_RANGE],
                      `PCI_BASE_ADDR0_FILL, `PCI_BASE_ADDR0_MAP_QUAL}; // 10
   wire   [31:0] config_read_data_3C_38 = pci_config_address[2]
-                  ? {`PCI_MAX_LATENCY, `PCI_MIN_GRANT,
+                  ? {PCI_MAX_LATENCY, PCI_MIN_GRANT,
                       8'h01, Interrupt_Line[7:0]}                     // 3C
                   : 32'h00000000;                                     // 38
 

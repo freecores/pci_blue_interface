@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_constants.vh,v 1.10 2001-07-05 02:42:43 bbeaver Exp $
+// $Id: pci_blue_constants.vh,v 1.11 2001-07-06 10:51:04 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -56,30 +56,24 @@
 //
 //===========================================================================
 
-`ifdef PCI_CONSTANTS_FILE_ALREADY_INCLUDED
-`else // PCI_CONSTANTS_FILE_ALREADY_INCLUDED
-// only include this file once to avoid redeclaring macros
-`define PCI_CONSTANTS_FILE_ALREADY_INCLUDED
-
-
 // define the PCI BUS Command Values so that they can be referred to symbolically
-`define PCI_COMMAND_INTERRUPT_ACKNOWLEDGE      (4'b0000)
-`define PCI_COMMAND_SPECIAL_CYCLE              (4'b0001)
-`define PCI_COMMAND_IO_READ                    (4'b0010)
-`define PCI_COMMAND_IO_WRITE                   (4'b0011)
-`define PCI_COMMAND_RESERVED_4                 (4'b0100)
-`define PCI_COMMAND_RESERVED_5                 (4'b0101)
-`define PCI_COMMAND_MEMORY_READ                (4'b0110)
-`define PCI_COMMAND_MEMORY_WRITE               (4'b0111)
-`define PCI_COMMAND_RESERVED_8                 (4'b1000)
-`define PCI_COMMAND_RESERVED_9                 (4'b1001)
-`define PCI_COMMAND_CONFIG_READ                (4'b1010)
-`define PCI_COMMAND_CONFIG_WRITE               (4'b1011)
-`define PCI_COMMAND_MEMORY_READ_MULTIPLE       (4'b1100)
-`define PCI_COMMAND_DUAL_ADDRESS_CYCLE         (4'b1101)
-`define PCI_COMMAND_MEMORY_READ_LINE           (4'b1110)
-`define PCI_COMMAND_MEMORY_WRITE_INVALIDATE    (4'b1111)
-`define PCI_COMMAND_ANY_WRITE_MASK             (4'b0001)
+  parameter PCI_COMMAND_INTERRUPT_ACKNOWLEDGE   = 4'b0000;
+  parameter PCI_COMMAND_SPECIAL_CYCLE           = 4'b0001;
+  parameter PCI_COMMAND_IO_READ                 = 4'b0010;
+  parameter PCI_COMMAND_IO_WRITE                = 4'b0011;
+  parameter PCI_COMMAND_RESERVED_4              = 4'b0100;
+  parameter PCI_COMMAND_RESERVED_5              = 4'b0101;
+  parameter PCI_COMMAND_MEMORY_READ             = 4'b0110;
+  parameter PCI_COMMAND_MEMORY_WRITE            = 4'b0111;
+  parameter PCI_COMMAND_RESERVED_8              = 4'b1000;
+  parameter PCI_COMMAND_RESERVED_9              = 4'b1001;
+  parameter PCI_COMMAND_CONFIG_READ             = 4'b1010;
+  parameter PCI_COMMAND_CONFIG_WRITE            = 4'b1011;
+  parameter PCI_COMMAND_MEMORY_READ_MULTIPLE    = 4'b1100;
+  parameter PCI_COMMAND_DUAL_ADDRESS_CYCLE      = 4'b1101;
+  parameter PCI_COMMAND_MEMORY_READ_LINE        = 4'b1110;
+  parameter PCI_COMMAND_MEMORY_WRITE_INVALIDATE = 4'b1111;
+  parameter PCI_COMMAND_ANY_WRITE_MASK          = 4'b0001;
 
 
 // Config Register Area consists of:
@@ -117,21 +111,21 @@
 // All clearable bits in this register are cleared whenever the
 //   register is written with the corresponding bit being 1'b1.
 // See the PCI Local Bus Spec Revision 2.2 section 6.2.3.
-`define CONFIG_CMD_FB2B_EN                     (32'h00000200)
-`define CONFIG_CMD_SERR_EN                     (32'h00000100)
-`define CONFIG_CMD_PAR_ERR_EN                  (32'h00000040)
-`define CONFIG_CMD_MASTER_EN                   (32'h00000004)
-`define CONFIG_CMD_TARGET_EN                   (32'h00000002)
+  parameter  CONFIG_CMD_FB2B_EN             = 32'h00000200;
+  parameter  CONFIG_CMD_SERR_EN             = 32'h00000100;
+  parameter  CONFIG_CMD_PAR_ERR_EN          = 32'h00000040;
+  parameter  CONFIG_CMD_MASTER_EN           = 32'h00000004;
+  parameter  CONFIG_CMD_TARGET_EN           = 32'h00000002;
 
-`define CONFIG_STAT_DETECTED_PERR              (32'h80000000)
-`define CONFIG_STAT_DETECTED_SERR              (32'h40000000)
-`define CONFIG_STAT_GOT_MABORT                 (32'h20000000)
-`define CONFIG_STAT_GOT_TABORT                 (32'h10000000)
-`define CONFIG_STAT_CAUSED_TABORT              (32'h08000000)
-`define CONFIG_STAT_CAUSED_PERR                (32'h01000000)
-`define CONFIG_STAT_CLEAR_ALL                  (32'hF9000000)
+  parameter  CONFIG_STAT_DETECTED_PERR      = 32'h80000000;
+  parameter  CONFIG_STAT_DETECTED_SERR      = 32'h40000000;
+  parameter  CONFIG_STAT_GOT_MABORT         = 32'h20000000;
+  parameter  CONFIG_STAT_GOT_TABORT         = 32'h10000000;
+  parameter  CONFIG_STAT_CAUSED_TABORT      = 32'h08000000;
+  parameter  CONFIG_STAT_CAUSED_PERR        = 32'h01000000;
+  parameter  CONFIG_STAT_CLEAR_ALL          = 32'hF9000000;
 
-`define CONFIG_REG_CMD_STAT_CONSTANTS          (32'h02A00080)
+  parameter  CONFIG_REG_CMD_STAT_CONSTANTS  = 32'h02A00080;
 
 
 // The Host sends Requests over the Host Request Bus to initiate PCI activity.
@@ -139,10 +133,10 @@
 //   Address, optionally several Data's, Data_Last.  Sequences of Address-Address,
 //   Data-Address, Data_Last-Data, or Data_Last-Data_Last are all illegal.
 // First, the Request which indicates that nothing should be put in the FIFO.
-`define PCI_HOST_REQUEST_SPARE                           (3'h0)
+  parameter PCI_HOST_REQUEST_SPARE                           = 3'h0;
 // Second, a Request used during Delayed Reads to mark the Write Command FIFO empty.
 // This Request must be issued with Data Bits 16 and 17 both set to 1'b0.
-`define PCI_HOST_REQUEST_INSERT_WRITE_FENCE              (3'h1)
+  parameter PCI_HOST_REQUEST_INSERT_WRITE_FENCE              = 3'h1;
 // Third, a Request used to read and write the local PCI Controller's Config Registers.
 // This Request shares it's tags with the WRITE_FENCE Command.  Config References
 //   can be identified by noticing that Bits 16 or 17 are non-zero.
@@ -154,13 +148,13 @@
 // `define PCI_HOST_REQUEST_READ_WRITE_CONFIG_REGISTER   (3'h1)
 // Fourth, the Requests which start a Read or a Write.  Writes can be started
 //   before previous Writes complete, but only one Read can be issued at a time.
-`define PCI_HOST_REQUEST_ADDRESS_COMMAND                 (3'h2)
-`define PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR            (3'h3)
+  parameter PCI_HOST_REQUEST_ADDRESS_COMMAND                 = 3'h2;
+  parameter PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR            = 3'h3;
 // Fifth, Requests saying Write Data, Read or Write Byte Masks, and End Burst.
-`define PCI_HOST_REQUEST_W_DATA_RW_MASK                  (3'h4)
-`define PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST             (3'h5)
-`define PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR             (3'h6)
-`define PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR        (3'h7)
+  parameter PCI_HOST_REQUEST_W_DATA_RW_MASK                  = 3'h4;
+  parameter PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR             = 3'h5;
+  parameter PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST             = 3'h6;
+  parameter PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR        = 3'h7;
 // These Address and Data Requests always are acknowledged by either a Master Abort,
 //   a Target Abort, or a Status Data Last.  Each data item which is delivered over
 //   the PCI Bus gets acknowledged by the PCI interface, and each data item not used
@@ -170,14 +164,14 @@
 // Responses the PCI Controller sends over the Host Response Bus to indicate that
 //   progress has been made on transfers initiated over the Request Bus by the Host.
 // First, the Response which indicates that nothing should be put in the FIFO.
-`define PCI_HOST_RESPONSE_SPARE                          (4'h0)
+  parameter PCI_HOST_RESPONSE_SPARE                          = 4'h0;
 // Second, a Response saying when the Write Fence has been disposed of.  After this
 //   is received, and the Delayed Read done, it is OK to queue more Write Requests.
 // This command will be returned in response to a Request issued with Data
 //   Bits 16 and 17 both set to 1'b0.
-`define PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE          (4'h1)
+  parameter PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE          = 4'h1;
 // Third, a Response repeating the Host Request the PCI Bus is presently servicing.
-`define PCI_HOST_RESPONSE_EXECUTED_ADDRESS_COMMAND       (4'h2)
+  parameter PCI_HOST_RESPONSE_EXECUTED_ADDRESS_COMMAND       = 4'h2;
 // Fourth, a Response which gives commentary about what is happening on the PCI bus.
 // These bits follow the layout of the PCI Config Register Status Half-word.
 // When this Response is received, bits in the data field indicate the following:
@@ -191,7 +185,7 @@
 // Bit 18: Discarded a Delayed Read due to timeout
 // Bit 17: Target Retry or Disconnect (document that a Master Retry is requested)
 // Bit 16: Got Illegal sequence of commands over Host Request Bus.
-`define PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT     (4'h3)
+  parameter PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT     = 4'h3;
 // Fifth, a Response used to read and write the local PCI Controller's Config Registers.
 // This Response shares it's tags with the WRITE_FENCE Command.  Config References
 //   can be identified by noticing that Bits 16 or 17 are non-zero.
@@ -200,37 +194,37 @@
 // Data Bit  [16] indicates that a Config Write has been done.
 // Data Bit  [17] indicates that a Config Read has been done.
 // This Response will be issued with either Data Bits 16 or 17 set to 1'b1.
-// `define PCI_HOST_RESPONSE_READ_WRITE_CONFIG_REGISTER     (4'h3)
+// parameter PCI_HOST_RESPONSE_READ_WRITE_CONFIG_REGISTER    = 4'h3;
 // Sixth, Responses indicating that Write Data was delivered, Read Data is available,
 //   End Of Burst, and that a Parity Error occurred the previous data cycle.
 // NOTE:  If a Master or Target Abort happens, the contents of the Request
 //   FIFO will be flushed until the DATA_LAST is removed.  The Response FIFO
 //   will have a FLUSH entry for each data item flushed by the Master.
-`define PCI_HOST_RESPONSE_R_DATA_W_SENT                  (4'h4)
-`define PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST             (4'h5)
-`define PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR             (4'h6)
-`define PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR        (4'h7)
+  parameter PCI_HOST_RESPONSE_R_DATA_W_SENT                  = 4'h4;
+  parameter PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR             = 4'h6;
+  parameter PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST             = 4'h5;
+  parameter PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR        = 4'h7;
 
 
 // Responses the PCI Controller sends over the Host Response Bus to indicate
 //   that an external PCI Master has started a reference.
 // The PCI Controller will do a Target Disconnect on each data phase of a Read
 //   in which the Byte Strobes command less than a full 4-byte read.
-`define PCI_HOST_RESPONSE_EXTERNAL_SPARE                 (4'h8)
-// First, the Responses which indicate that an External PCI Master has requested
-//   a Read or a Write, depending on the Command.
-`define PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE (4'h9)
-// Second, the Response which indicates that a Delayed Read must be restarted
+// First, the Response which indicates that a Delayed Read must be restarted
 //   because a Write by an external PCI Master overlapped the read window.
-`define PCI_HOST_RESPONSE_EXT_DELAYED_READ_RESTART       (4'hA)
-// Third, the Response which says that all Writes are finished, and the
+  parameter PCI_HOST_RESPONSE_EXT_DELAYED_READ_RESTART       = 4'h8;
+// Second, the Response which says that all Writes are finished, and the
 //   Delayed Read is finally being serviced on the PCI Bus.
-`define PCI_HOST_RESPONSE_EXT_READ_UNSUSPENDING          (4'hB)
+  parameter PCI_HOST_RESPONSE_EXT_READ_UNSUSPENDING          = 4'h9;
+// Third, the Responses which indicate that an External PCI Master has requested
+//   a Read or a Write, depending on the Command.
+  parameter PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE = 4'hA;
+  parameter PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE_SERR = 4'hB;
 // Fourth, the Responses saying Write Data, Read or Write Byte Masks, and End Burst.
-`define PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK             (4'hC)
-`define PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST        (4'hD)
-`define PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_PERR        (4'hE)
-`define PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST_PERR   (4'hF)
+  parameter PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK             = 4'hC;
+  parameter PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_PERR        = 4'hD;
+  parameter PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST        = 4'hE;
+  parameter PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST_PERR   = 4'hF;
 
 
 // Writes from an External PCI Master can be completed immediately based on
@@ -254,12 +248,14 @@
 //   be waited for to satisfy the Delayed Read Request.
 // Tags the Host Controller sends across the Delayed_Read_Data FIFO to indicate
 //   progress made on transfers initiated by the external PCI Bus Master.
-`define PCI_HOST_DELAYED_READ_DATA_SPARE               (3'b000)
-`define PCI_HOST_DELAYED_READ_DATA_VALID               (3'b001)
-`define PCI_HOST_DELAYED_READ_DATA_VALID_LAST          (3'b010)
-`define PCI_HOST_DELAYED_READ_DATA_VALID_PERR          (3'b101)
-`define PCI_HOST_DELAYED_READ_DATA_VALID_LAST_PERR     (3'b110)
-`define PCI_HOST_DELAYED_READ_DATA_TARGET_ABORT        (3'b011)
+  parameter PCI_HOST_DELAYED_READ_DATA_SPARE               = 3'b000;
+  parameter PCI_HOST_DELAYED_READ_DATA_TARGET_ABORT        = 3'b001;
+  parameter PCI_HOST_DELAYED_READ_DATA_SPARE_2             = 3'b010;
+  parameter PCI_HOST_DELAYED_READ_DATA_SPARE_3             = 3'b011;
+  parameter PCI_HOST_DELAYED_READ_DATA_VALID               = 3'b100;
+  parameter PCI_HOST_DELAYED_READ_DATA_VALID_PERR          = 3'b101;
+  parameter PCI_HOST_DELAYED_READ_DATA_VALID_LAST          = 3'b110;
+  parameter PCI_HOST_DELAYED_READ_DATA_VALID_LAST_PERR     = 3'b111;
 
 
 // Macros which are used as paramaters in the Test Device code
@@ -357,5 +353,5 @@
 
 // macro used for documentation purposes when an "if" really should have no "else"
 `define NO_ELSE                                else
-`endif // PCI_CONSTANTS_FILE_ALREADY_INCLUDED
+
 

@@ -1,10 +1,9 @@
 <!DOCTYPE Desktop SYSTEM "hdl-prj.dtd">
 <Desktop>
   <ProjectWindow X="53" Y="33" W="861" H="571">
-    <Column>498</Column>
+    <Column>459</Column>
     <Column>60</Column>
     <Column>50</Column>
     <Column>50</Column>
   </ProjectWindow>
-  <SourceWindow X="177" Y="182" W="913" H="436" File="pci_blue_submodule_test\test_pci_master.v" Line="202"></SourceWindow>
 </Desktop>

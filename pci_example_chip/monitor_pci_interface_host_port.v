@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: monitor_pci_interface_host_port.v,v 1.8 2001-07-03 09:21:30 bbeaver Exp $
+// $Id: monitor_pci_interface_host_port.v,v 1.9 2001-07-06 10:51:23 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -54,8 +54,6 @@
 //
 //===========================================================================
 
-`include "pci_blue_options.vh"
-`include "pci_blue_constants.vh"
 `timescale 1ns/1ps
 
 module monitor_pci_interface_host_port (
@@ -72,22 +70,26 @@ module monitor_pci_interface_host_port (
 // Generic host interface wires
   host_clk
 );
+
+`include "pci_blue_options.vh"
+`include "pci_blue_constants.vh"
+
 // Wires used by the host controller to request action by the pci interface
-  input  [`PCI_FIFO_DATA_RANGE] pci_host_request_data;
-  input  [`PCI_FIFO_CBE_RANGE] pci_host_request_cbe;
+  input  [PCI_FIFO_DATA_RANGE:0] pci_host_request_data;
+  input  [PCI_FIFO_CBE_RANGE:0] pci_host_request_cbe;
   input  [2:0] pci_host_request_type;
   input   pci_host_request_room_available_meta;
   input   pci_host_request_submit;
   input   pci_host_request_error;
 // Wires used by the pci interface to request action by the host controller
-  input  [`PCI_FIFO_DATA_RANGE] pci_host_response_data;
-  input  [`PCI_FIFO_CBE_RANGE] pci_host_response_cbe;
+  input  [PCI_FIFO_DATA_RANGE:0] pci_host_response_data;
+  input  [PCI_FIFO_CBE_RANGE:0] pci_host_response_cbe;
   input  [3:0] pci_host_response_type;
   input   pci_host_response_data_available_meta;
   input   pci_host_response_unload;
   input   pci_host_response_error;
 // Wires used by the host controller to send delayed read data by the pci interface
-  input  [`PCI_FIFO_DATA_RANGE] pci_host_delayed_read_data;
+  input  [PCI_FIFO_DATA_RANGE:0] pci_host_delayed_read_data;
   input  [2:0] pci_host_delayed_read_type;
   input   pci_host_delayed_read_room_available_meta;
   input   pci_host_delayed_read_data_submit;
@@ -102,18 +104,18 @@ module monitor_pci_interface_host_port (
       if (pci_host_request_submit)
       begin
         case (pci_host_request_type[2:0])
-        `PCI_HOST_REQUEST_SPARE:
+        PCI_HOST_REQUEST_SPARE:
           $display ("Putting Spare Data into Host Request FIFO, at time %t", $time);
-        `PCI_HOST_REQUEST_ADDRESS_COMMAND:
+        PCI_HOST_REQUEST_ADDRESS_COMMAND:
           $display ("Putting Command %h and Address 'h%h into Host Request FIFO, at time %t",
-                     pci_host_request_cbe[`PCI_FIFO_CBE_RANGE],
-                     pci_host_request_data[`PCI_FIFO_DATA_RANGE], $time);
-        `PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR:
+                     pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0],
+                     pci_host_request_data[PCI_FIFO_DATA_RANGE:0], $time);
+        PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR:
           $display ("Putting Command %h and Address 'h%h with Parity Error into Host Request FIFO, at time %t",
-                     pci_host_request_cbe[`PCI_FIFO_CBE_RANGE],
-                     pci_host_request_data[`PCI_FIFO_DATA_RANGE], $time);
-        `PCI_HOST_REQUEST_INSERT_WRITE_FENCE:
-//      `PCI_HOST_REQUEST_READ_WRITE_CONFIG_REGISTER:
+                     pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0],
+                     pci_host_request_data[PCI_FIFO_DATA_RANGE:0], $time);
+        PCI_HOST_REQUEST_INSERT_WRITE_FENCE:
+//      PCI_HOST_REQUEST_READ_WRITE_CONFIG_REGISTER:
           if (pci_host_request_data[17:16] == 2'b00)
           begin
             $display ("Putting Write Fence into Host Request FIFO, at time %t", $time);
@@ -124,22 +126,22 @@ module monitor_pci_interface_host_port (
                        pci_host_request_data[17], pci_host_request_data[16],
                        pci_host_request_data[15:8], pci_host_request_data[7:0], $time);
           end
-        `PCI_HOST_REQUEST_W_DATA_RW_MASK:
+        PCI_HOST_REQUEST_W_DATA_RW_MASK:
           $display ("Putting Data 'h%h and Mask %h into Host Request FIFO, at time %t",
-                     pci_host_request_data[`PCI_FIFO_DATA_RANGE],
-                     pci_host_request_cbe[`PCI_FIFO_CBE_RANGE], $time);
-        `PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST:
+                     pci_host_request_data[PCI_FIFO_DATA_RANGE:0],
+                     pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0], $time);
+        PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST:
           $display ("Putting Data 'h%h and Mask %h Last into Host Request FIFO, at time %t",
-                     pci_host_request_data[`PCI_FIFO_DATA_RANGE],
-                     pci_host_request_cbe[`PCI_FIFO_CBE_RANGE], $time);
-        `PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR:
+                     pci_host_request_data[PCI_FIFO_DATA_RANGE:0],
+                     pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0], $time);
+        PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR:
           $display ("Putting Data 'h%h and Mask %h with Parity Error into Host Request FIFO, at time %t",
-                     pci_host_request_data[`PCI_FIFO_DATA_RANGE],
-                     pci_host_request_cbe[`PCI_FIFO_CBE_RANGE], $time);
-        `PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR:
+                     pci_host_request_data[PCI_FIFO_DATA_RANGE:0],
+                     pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0], $time);
+        PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR:
           $display ("Putting Data 'h%h and Mask %h Last with Parity Error into Host Request FIFO, at time %t",
-                     pci_host_request_data[`PCI_FIFO_DATA_RANGE],
-                     pci_host_request_cbe[`PCI_FIFO_CBE_RANGE], $time);
+                     pci_host_request_data[PCI_FIFO_DATA_RANGE:0],
+                     pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0], $time);
         default:
           $display ("Putting Illegal Type %h into Host Request FIFO, at time %t",
                      pci_host_request_type[2:0], $time);
@@ -150,13 +152,13 @@ module monitor_pci_interface_host_port (
       if (pci_host_response_unload)
       begin
         case (pci_host_response_type[3:0])
-        `PCI_HOST_RESPONSE_SPARE:
+        PCI_HOST_RESPONSE_SPARE:
           $display ("Reading Spare Data from Host Response FIFO, at time %t", $time);
-        `PCI_HOST_RESPONSE_EXECUTED_ADDRESS_COMMAND:
+        PCI_HOST_RESPONSE_EXECUTED_ADDRESS_COMMAND:
           $display ("Reading that Command %h and Address 'h%h are complete from Host Response FIFO, at time %t",
-                     pci_host_response_cbe[`PCI_FIFO_CBE_RANGE],
-                     pci_host_response_data[`PCI_FIFO_DATA_RANGE], $time);
-        `PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT:
+                     pci_host_response_cbe[PCI_FIFO_CBE_RANGE:0],
+                     pci_host_response_data[PCI_FIFO_DATA_RANGE:0], $time);
+        PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT:
           begin
             if (pci_host_response_data[31])
             begin
@@ -209,8 +211,8 @@ module monitor_pci_interface_host_port (
             end
             `NO_ELSE;
           end
-        `PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE:
-//      `PCI_HOST_RESPONSE_READ_WRITE_CONFIG_REGISTER:
+        PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE:
+//      PCI_HOST_RESPONSE_READ_WRITE_CONFIG_REGISTER:
           begin
             if (pci_host_response_data[17:16] == 2'b00)
             begin
@@ -223,53 +225,53 @@ module monitor_pci_interface_host_port (
                          pci_host_response_data[15:8], pci_host_response_data[7:0], $time);
             end
           end
-        `PCI_HOST_RESPONSE_R_DATA_W_SENT:
+        PCI_HOST_RESPONSE_R_DATA_W_SENT:
           $display ("Reading that Data 'h%h and Mask %h is complete from Host Response FIFO, at time %t",
-                     pci_host_response_data[`PCI_FIFO_DATA_RANGE],
-                     pci_host_response_cbe[`PCI_FIFO_CBE_RANGE], $time);
-        `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST:
+                     pci_host_response_data[PCI_FIFO_DATA_RANGE:0],
+                     pci_host_response_cbe[PCI_FIFO_CBE_RANGE:0], $time);
+        PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST:
           $display ("Reading that Data 'h%h and Mask %h Last is complete from Host Response FIFO, at time %t",
-                     pci_host_response_data[`PCI_FIFO_DATA_RANGE],
-                     pci_host_response_cbe[`PCI_FIFO_CBE_RANGE], $time);
-        `PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR:
+                     pci_host_response_data[PCI_FIFO_DATA_RANGE:0],
+                     pci_host_response_cbe[PCI_FIFO_CBE_RANGE:0], $time);
+        PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR:
           $display ("Reading that Data 'h%h and Mask %h PERR is complete from Host Response FIFO, at time %t",
-                     pci_host_response_data[`PCI_FIFO_DATA_RANGE],
-                     pci_host_response_cbe[`PCI_FIFO_CBE_RANGE], $time);
-        `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR:
+                     pci_host_response_data[PCI_FIFO_DATA_RANGE:0],
+                     pci_host_response_cbe[PCI_FIFO_CBE_RANGE:0], $time);
+        PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR:
           $display ("Reading that Data 'h%h and Mask %h Last PERR is complete from Host Response FIFO, at time %t",
-                     pci_host_response_data[`PCI_FIFO_DATA_RANGE],
-                     pci_host_response_cbe[`PCI_FIFO_CBE_RANGE], $time);
-        `PCI_HOST_RESPONSE_EXTERNAL_SPARE:
-          $display ("Reading that External Master queued a Spare 'h%h, %h, from Host Response FIFO, at time %t",
-                     pci_host_response_data[`PCI_FIFO_DATA_RANGE],
-                     pci_host_response_cbe[`PCI_FIFO_CBE_RANGE], $time);
-        `PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE:
+                     pci_host_response_data[PCI_FIFO_DATA_RANGE:0],
+                     pci_host_response_cbe[PCI_FIFO_CBE_RANGE:0], $time);
+        PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE:
           $display ("Reading that External Master queued Command %h, Address 'h%h, from Host Response FIFO, at time %t",
-                     pci_host_response_cbe[`PCI_FIFO_CBE_RANGE],
-                     pci_host_response_data[`PCI_FIFO_DATA_RANGE], $time);
-        `PCI_HOST_RESPONSE_EXT_DELAYED_READ_RESTART:
+                     pci_host_response_cbe[PCI_FIFO_CBE_RANGE:0],
+                     pci_host_response_data[PCI_FIFO_DATA_RANGE:0], $time);
+        PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE_SERR:
+          $display ("Reading that External Master queued Command %h, Address 'h%h, from Host Response FIFO, at time %t",
+                     pci_host_response_cbe[PCI_FIFO_CBE_RANGE:0],
+                     pci_host_response_data[PCI_FIFO_DATA_RANGE:0], $time);
+        PCI_HOST_RESPONSE_EXT_DELAYED_READ_RESTART:
           $display ("Reading that External Master queued Delayed Read Restart, Command %h, Address 'h%h, from Host Response FIFO, at time %t",
-                     pci_host_response_cbe[`PCI_FIFO_CBE_RANGE],
-                     pci_host_response_data[`PCI_FIFO_DATA_RANGE], $time);
-        `PCI_HOST_RESPONSE_EXT_READ_UNSUSPENDING:
+                     pci_host_response_cbe[PCI_FIFO_CBE_RANGE:0],
+                     pci_host_response_data[PCI_FIFO_DATA_RANGE:0], $time);
+        PCI_HOST_RESPONSE_EXT_READ_UNSUSPENDING:
           $display ("Reading that External Master Read unsuspending with Mask %h from Host Response FIFO, at time %t",
-                     pci_host_response_cbe[`PCI_FIFO_CBE_RANGE], $time);
-        `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK:
+                     pci_host_response_cbe[PCI_FIFO_CBE_RANGE:0], $time);
+        PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK:
           $display ("Reading that External Master queued Write Data 'h%h, Mask %h, from Host Response FIFO, at time %t",
-                     pci_host_response_data[`PCI_FIFO_DATA_RANGE],
-                     pci_host_response_cbe[`PCI_FIFO_CBE_RANGE], $time);
-        `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST:
+                     pci_host_response_data[PCI_FIFO_DATA_RANGE:0],
+                     pci_host_response_cbe[PCI_FIFO_CBE_RANGE:0], $time);
+        PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST:
           $display ("Reading that External Master queued Write Data 'h%h, Mask %h, Last, from Host Response FIFO, at time %t",
-                     pci_host_response_data[`PCI_FIFO_DATA_RANGE],
-                     pci_host_response_cbe[`PCI_FIFO_CBE_RANGE], $time);
-        `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_PERR:
+                     pci_host_response_data[PCI_FIFO_DATA_RANGE:0],
+                     pci_host_response_cbe[PCI_FIFO_CBE_RANGE:0], $time);
+        PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_PERR:
           $display ("Reading that External Master queued Write Data 'h%h, Mask %h, Previous PERR, from Host Response FIFO, at time %t",
-                     pci_host_response_data[`PCI_FIFO_DATA_RANGE],
-                     pci_host_response_cbe[`PCI_FIFO_CBE_RANGE], $time);
-        `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST_PERR:
+                     pci_host_response_data[PCI_FIFO_DATA_RANGE:0],
+                     pci_host_response_cbe[PCI_FIFO_CBE_RANGE:0], $time);
+        PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST_PERR:
           $display ("Reading that External Master queued Write Data 'h%h, Mask %h, Last, Previous PERR, from Host Response FIFO, at time %t",
-                     pci_host_response_data[`PCI_FIFO_DATA_RANGE],
-                     pci_host_response_cbe[`PCI_FIFO_CBE_RANGE], $time);
+                     pci_host_response_data[PCI_FIFO_DATA_RANGE:0],
+                     pci_host_response_cbe[PCI_FIFO_CBE_RANGE:0], $time);
         default:
           $display ("Reading Illegal Type %h from Host Response FIFO, at time %t",
                      pci_host_response_type[3:0], $time);
@@ -280,21 +282,21 @@ module monitor_pci_interface_host_port (
       if (pci_host_delayed_read_data_submit)
       begin
         case (pci_host_delayed_read_type[2:0])
-        `PCI_HOST_DELAYED_READ_DATA_SPARE:
+        PCI_HOST_DELAYED_READ_DATA_SPARE:
           $display ("Putting Spare Data into Delayed Read FIFO, at time %t", $time);
-        `PCI_HOST_DELAYED_READ_DATA_VALID:
+        PCI_HOST_DELAYED_READ_DATA_VALID:
           $display ("Putting Valid Data into Delayed Read FIFO, at time %t",
-                     pci_host_delayed_read_data[`PCI_FIFO_DATA_RANGE], $time);
-        `PCI_HOST_DELAYED_READ_DATA_VALID_LAST:
+                     pci_host_delayed_read_data[PCI_FIFO_DATA_RANGE:0], $time);
+        PCI_HOST_DELAYED_READ_DATA_VALID_LAST:
           $display ("Putting Valid Last Data into Delayed Read FIFO, at time %t",
-                     pci_host_delayed_read_data[`PCI_FIFO_DATA_RANGE], $time);
-        `PCI_HOST_DELAYED_READ_DATA_VALID_PERR:
+                     pci_host_delayed_read_data[PCI_FIFO_DATA_RANGE:0], $time);
+        PCI_HOST_DELAYED_READ_DATA_VALID_PERR:
           $display ("Putting Valid PERR Data into Delayed Read FIFO, at time %t",
-                     pci_host_delayed_read_data[`PCI_FIFO_DATA_RANGE], $time);
-        `PCI_HOST_DELAYED_READ_DATA_VALID_LAST_PERR:
+                     pci_host_delayed_read_data[PCI_FIFO_DATA_RANGE:0], $time);
+        PCI_HOST_DELAYED_READ_DATA_VALID_LAST_PERR:
           $display ("Putting Valid Last PERR Data into Delayed Read FIFO, at time %t",
-                     pci_host_delayed_read_data[`PCI_FIFO_DATA_RANGE], $time);
-        `PCI_HOST_DELAYED_READ_DATA_TARGET_ABORT:
+                     pci_host_delayed_read_data[PCI_FIFO_DATA_RANGE:0], $time);
+        PCI_HOST_DELAYED_READ_DATA_TARGET_ABORT:
           $display ("Putting Target Abort into Delayed Read FIFO, at time %t", $time);
         default:
           $display ("Putting Illegal Type %h into Delayed Read FIFO, at time %t",

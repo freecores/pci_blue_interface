@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_vendor_lib.v,v 1.8 2001-07-05 08:00:10 bbeaver Exp $
+// $Id: pci_vendor_lib.v,v 1.9 2001-07-06 10:51:24 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -81,8 +81,6 @@
 //
 //===========================================================================
 
-`include "pci_blue_options.vh"
-`include "pci_blue_constants.vh"
 `timescale 1ns/1ps
 
 // special IO pad which leads directly to the PCI Clock Distribution PLL
@@ -127,6 +125,10 @@ module pci_registered_io_pad (
   pci_ad_out_oe_comb,
   pci_ad_ext
 );
+
+`include "pci_blue_options.vh"
+`include "pci_blue_constants.vh"
+
   input   pci_clk;
   output  pci_ad_in_comb;
   output  pci_ad_in_prev;
@@ -266,52 +268,55 @@ endmodule
 // NOTE: Logic which might need to be carefully placed to satisfy timing
 // constraints.
 module pci_critical_next_frame (
+  PCI_Next_FRAME_Force_1,
   PCI_Next_FRAME_Code,
   pci_trdy_in_comb, pci_stop_in_comb,
   pci_frame_out_next
 );
-  input  [2:0] PCI_Next_FRAME_Code;
+  input   PCI_Next_FRAME_Force_1;
+  input  [1:0] PCI_Next_FRAME_Code;
   input   pci_trdy_in_comb, pci_stop_in_comb;
   output  pci_frame_out_next;
 
 // See pci_blue_master.v for encoding
   wire    Output_If_Idle =
-                    (PCI_Next_FRAME_Code[2:0] == 3'b000) ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b001) ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b010) ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b011) ? 1'b1
-                 : 1'b1)));
+                    (PCI_Next_FRAME_Code[1:0] == 2'b00) ? 1'b0
+                 : ((PCI_Next_FRAME_Code[1:0] == 2'b01) ? 1'b1
+                 : ((PCI_Next_FRAME_Code[1:0] == 2'b10) ? 1'b1
+                 : ((PCI_Next_FRAME_Code[1:0] == 2'b11) ? 1'b1
+                 : 1'bX)));
   wire    Output_If_Disconnect_Retry_Abort =
-                    (PCI_Next_FRAME_Code[2:0] == 3'b000) ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b001) ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b010) ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b011) ? 1'b0
-                 : 1'b1)));
+                    (PCI_Next_FRAME_Code[1:0] == 2'b00) ? 1'b0
+                 : ((PCI_Next_FRAME_Code[1:0] == 2'b01) ? 1'b0
+                 : ((PCI_Next_FRAME_Code[1:0] == 2'b10) ? 1'b0
+                 : ((PCI_Next_FRAME_Code[1:0] == 2'b11) ? 1'b0
+                 : 1'bX)));
   wire    Output_If_Data_More =
-                    (PCI_Next_FRAME_Code[2:0] == 3'b000) ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b001) ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b010) ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b011) ? 1'b0
-                 : 1'b1)));
+                    (PCI_Next_FRAME_Code[1:0] == 2'b00) ? 1'b0
+                 : ((PCI_Next_FRAME_Code[1:0] == 2'b01) ? 1'b1
+                 : ((PCI_Next_FRAME_Code[1:0] == 2'b10) ? 1'b1
+                 : ((PCI_Next_FRAME_Code[1:0] == 2'b11) ? 1'b0
+                 : 1'bX)));
   wire    Output_If_Data_Last =
-                    (PCI_Next_FRAME_Code[2:0] == 3'b000) ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b001) ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b010) ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == 3'b011) ? 1'b0
-                 : 1'b1)));
+                    (PCI_Next_FRAME_Code[1:0] == 2'b00) ? 1'b0
+                 : ((PCI_Next_FRAME_Code[1:0] == 2'b01) ? 1'b1
+                 : ((PCI_Next_FRAME_Code[1:0] == 2'b10) ? 1'b0
+                 : ((PCI_Next_FRAME_Code[1:0] == 2'b11) ? 1'b0
+                 : 1'bX)));
 
 // Implement as 4-1 MUX, using pci_trdy_in_comb and pci_stop_in_comb as
 // the VERY LATE selection wires.  The cases are:
 // {trdy, stop} {00} Idle, {01} Abort, {10} Data, {11} Data_Last
-  wire    Abort_Idle         = pci_stop_in_comb
+  wire    Abort_Idle         = pci_stop_in_comb  // This is VERY LATE
                              ? Output_If_Disconnect_Retry_Abort
                              : Output_If_Idle;
-  wire    Data_Last_Data     = pci_stop_in_comb
+  wire    Data_Last_Data     = pci_stop_in_comb  // This is VERY LATE
                              ? Output_If_Data_Last
                              : Output_If_Data_More;
-  assign  pci_frame_out_next = pci_trdy_in_comb
-                             ? Data_Last_Data
-                             : Abort_Idle;
+  assign  pci_frame_out_next = PCI_Next_FRAME_Force_1  // This is VERY LATE
+                             | (   pci_trdy_in_comb  // This is VERY LATE
+                                 ? Data_Last_Data
+                                 : Abort_Idle);
 endmodule
 
 // Enable IRDY to change based on TRDY and STOP.
@@ -544,8 +549,6 @@ module pci_synchronizer_flop (
   end
 endmodule
 
-`ifdef HOST_FIFOS_ARE_MADE_FROM_FLOPS
-`else  // HOST_FIFOS_ARE_MADE_FROM_FLOPS
 // A dual-port SRAM.  This SRAM must latch the address for both the read
 //   port and the write port on the rising edge of the corresponding clock.
 // Enables must also be latched on the rising edge.
@@ -560,12 +563,19 @@ module pci_2port_sram_16x1 (
   read_clk, read_enable,
   read_address, read_data
 );
+
+`include "pci_blue_options.vh"
+`include "pci_blue_constants.vh"
+
   input   write_clk, write_capture_data;
   input  [3:0] write_address;
   input   write_data;
   input   read_clk, read_enable;
   input  [3:0] read_address;
   output  read_data;
+
+`ifdef HOST_FIFOS_ARE_MADE_FROM_FLOPS
+`else  // HOST_FIFOS_ARE_MADE_FROM_FLOPS
 
 // store 16 bits of state
   reg     PCI_Fifo_Mem [0:15];  // address limits, not bits in address
@@ -592,8 +602,9 @@ module pci_2port_sram_16x1 (
 
   assign  read_data = (latched_read_enable)
                     ? PCI_Fifo_Mem[latched_read_address[3:0]] : 1'bX;
-endmodule
 `endif  // HOST_FIFOS_ARE_MADE_FROM_FLOPS
+endmodule
+
 
 `ifdef UNUSED
 // IO pads contain NO internal flip-flop on output data, output OE

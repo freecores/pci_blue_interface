@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_example_chip.v,v 1.9 2001-07-04 08:19:52 bbeaver Exp $
+// $Id: pci_example_chip.v,v 1.10 2001-07-06 10:51:23 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -82,8 +82,6 @@
 //
 //===========================================================================
 
-`include "pci_blue_options.vh"
-`include "pci_blue_constants.vh"
 `timescale 1ns/1ps
 
 module pci_example_chip (
@@ -116,8 +114,12 @@ module pci_example_chip (
   test_start, test_accepted_l, test_error_event,
   test_device_id
 );
-  inout  [`PCI_BUS_DATA_RANGE] pci_ext_ad;
-  inout  [`PCI_BUS_CBE_RANGE] pci_ext_cbe_l;
+
+`include "pci_blue_options.vh"
+`include "pci_blue_constants.vh"
+
+  inout  [PCI_BUS_DATA_RANGE:0] pci_ext_ad;
+  inout  [PCI_BUS_CBE_RANGE:0] pci_ext_cbe_l;
   inout   pci_ext_par;
   inout   pci_ext_frame_l, pci_ext_irdy_l;
   inout   pci_ext_devsel_l, pci_ext_trdy_l, pci_ext_stop_l;
@@ -140,10 +142,10 @@ module pci_example_chip (
 // signals used by the test bench instead of using "." notation
   output [5:0] test_observe_oe_sigs;
   input  [2:0] test_master_number;
-  input  [`PCI_FIFO_DATA_RANGE] test_address;
-  input  [`PCI_FIFO_CBE_RANGE] test_command;
-  input  [`PCI_FIFO_DATA_RANGE] test_data;
-  input  [`PCI_FIFO_CBE_RANGE] test_byte_enables_l;
+  input  [PCI_FIFO_DATA_RANGE:0] test_address;
+  input  [PCI_FIFO_CBE_RANGE:0] test_command;
+  input  [PCI_FIFO_DATA_RANGE:0] test_data;
+  input  [PCI_FIFO_CBE_RANGE:0] test_byte_enables_l;
   input  [3:0] test_size;
   input   test_make_addr_par_error, test_make_data_par_error;
   input  [3:0] test_master_initial_wait_states;
@@ -166,9 +168,9 @@ module pci_example_chip (
   wire    pci_clk, pci_reset_raw;
 
 // input wires reporting the value of the external PCI bus
-  wire   [`PCI_BUS_DATA_RANGE] pci_ad_in_prev;
-  wire   [`PCI_BUS_CBE_RANGE] pci_cbe_l_in_comb;
-  wire   [`PCI_BUS_CBE_RANGE] pci_cbe_l_in_prev;
+  wire   [PCI_BUS_DATA_RANGE:0] pci_ad_in_prev;
+  wire   [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_comb;
+  wire   [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_prev;
   wire    pci_par_in_prev;
   wire    pci_frame_in_prev, pci_irdy_in_prev;
   wire    pci_devsel_in_prev, pci_trdy_in_prev, pci_stop_in_prev;
@@ -177,9 +179,9 @@ module pci_example_chip (
   wire    pci_trdy_in_comb, pci_stop_in_comb;  // critical high-speed wires
 
 // wires to drive the external PCI bus
-  wire   [`PCI_BUS_DATA_RANGE] pci_ad_out_next;
+  wire   [PCI_BUS_DATA_RANGE:0] pci_ad_out_next;
   wire    pci_ad_out_en_next, pci_ad_out_oe_comb;
-  wire   [`PCI_BUS_CBE_RANGE] pci_cbe_l_out_next;
+  wire   [PCI_BUS_CBE_RANGE:0] pci_cbe_l_out_next;
   wire    pci_cbe_out_en_next;
   wire    pci_cbe_out_oe_comb;
   wire    pci_par_out_next, pci_par_out_oe_comb;
@@ -265,8 +267,8 @@ pci_master_pads pci_master_pads (
 
 // Connect to the external PCI pads
 pci_target_pads pci_target_pads (
-  .pci_ext_ad                 (pci_ext_ad[`PCI_BUS_DATA_RANGE]),
-  .pci_ext_cbe_l              (pci_ext_cbe_l[`PCI_BUS_CBE_RANGE]),
+  .pci_ext_ad                 (pci_ext_ad[PCI_BUS_DATA_RANGE:0]),
+  .pci_ext_cbe_l              (pci_ext_cbe_l[PCI_BUS_CBE_RANGE:0]),
   .pci_ext_par                (pci_ext_par),
   .pci_ext_frame_l            (pci_ext_frame_l),
   .pci_ext_irdy_l             (pci_ext_irdy_l),
@@ -279,13 +281,13 @@ pci_target_pads pci_target_pads (
   .pci_ext_idsel              (pci_ext_idsel),
 `endif // PCI_EXTERNAL_IDSEL
 // wires used by the PCI State Machine and buffers to drive the PCI bus
-  .pci_ad_in_prev             (pci_ad_in_prev[`PCI_BUS_DATA_RANGE]),
-  .pci_ad_out_next            (pci_ad_out_next[`PCI_BUS_DATA_RANGE]),
+  .pci_ad_in_prev             (pci_ad_in_prev[PCI_BUS_DATA_RANGE:0]),
+  .pci_ad_out_next            (pci_ad_out_next[PCI_BUS_DATA_RANGE:0]),
   .pci_ad_out_en_next         (pci_ad_out_en_next),
   .pci_ad_out_oe_comb         (pci_ad_out_oe_comb),
-  .pci_cbe_l_in_comb          (pci_cbe_l_in_comb[`PCI_BUS_CBE_RANGE]),
-  .pci_cbe_l_in_prev          (pci_cbe_l_in_prev[`PCI_BUS_CBE_RANGE]),
-  .pci_cbe_l_out_next         (pci_cbe_l_out_next[`PCI_BUS_CBE_RANGE]),
+  .pci_cbe_l_in_comb          (pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0]),
+  .pci_cbe_l_in_prev          (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0]),
+  .pci_cbe_l_out_next         (pci_cbe_l_out_next[PCI_BUS_CBE_RANGE:0]),
   .pci_cbe_out_en_next        (pci_cbe_out_en_next),
   .pci_cbe_out_oe_comb        (pci_cbe_out_oe_comb),
   .pci_par_in_prev            (pci_par_in_prev),
@@ -343,9 +345,9 @@ pci_target_pads pci_target_pads (
 //   PCI Local Bus Spec Revision 2.2 section 3.3.3.2.2 for a reminder of this.
 
 // wires to connect to the first, or only, pci controller on chip
-  wire    [`PCI_BUS_DATA_RANGE] pci_ad_out_next_a;
+  wire    [PCI_BUS_DATA_RANGE:0] pci_ad_out_next_a;
   wire     pci_ad_out_en_next_a, pci_ad_out_oe_comb_a;
-  wire    [`PCI_BUS_CBE_RANGE] pci_cbe_l_out_next_a;
+  wire    [PCI_BUS_CBE_RANGE:0] pci_cbe_l_out_next_a;
   wire     pci_cbe_out_en_next_a, pci_cbe_out_oe_comb_a;
   wire     pci_par_out_next_a, pci_par_out_oe_comb_a;
   wire     pci_frame_out_next_a, pci_frame_out_oe_comb_a;
@@ -365,9 +367,9 @@ XXXX  whenever the SUPPORT_MULTIPLE_ONCHIP_INTERFACES option is selected.
 `endif // SIMULTANEOUS_MASTER_TARGET
 
 // wires from the second interface to drive the external PCI bus
-  wire    [`PCI_BUS_DATA_RANGE] pci_ad_out_next_b;
+  wire    [PCI_BUS_DATA_RANGE:0] pci_ad_out_next_b;
   wire     pci_ad_out_en_next_b, pci_ad_out_oe_comb_b;
-  wire    [`PCI_BUS_CBE_RANGE] pci_cbe_l_out_next_b;
+  wire    [PCI_BUS_CBE_RANGE:0] pci_cbe_l_out_next_b;
   wire     pci_cbe_out_en_next_b, pci_cbe_out_oe_comb_b;
   wire     pci_par_out_next_b, pci_par_out_oe_comb_b;
   wire     pci_frame_out_next_b, pci_frame_out_oe_comb_b;
@@ -392,10 +394,10 @@ XXXX  whenever the SUPPORT_MULTIPLE_ONCHIP_INTERFACES option is selected.
 // a time, and the other interface is don't care at that time.
 
 pci_pad_sharer pci_pad_sharer (
-  .pci_ad_out_next_a          (pci_ad_out_next_a[`PCI_BUS_DATA_RANGE),
+  .pci_ad_out_next_a          (pci_ad_out_next_a[PCI_BUS_DATA_RANGE:0),
   .pci_ad_out_en_next_a       (pci_ad_out_en_next_a),
   .pci_ad_out_oe_comb_a       (pci_ad_out_oe_comb_a),
-  .pci_cbe_l_out_next_a       (pci_cbe_l_out_next_a[`PCI_BUS_CBE_RANGE]),
+  .pci_cbe_l_out_next_a       (pci_cbe_l_out_next_a[PCI_BUS_CBE_RANGE:0]),
   .pci_cbe_out_en_next_a      (pci_cbe_out_en_next_a),
   .pci_cbe_out_oe_comb_a      (pci_cbe_out_oe_comb_a),
   .pci_par_out_next_a         (pci_par_out_next_a),
@@ -412,10 +414,10 @@ pci_pad_sharer pci_pad_sharer (
   .pci_perr_out_oe_comb_a     (pci_perr_out_oe_comb_a),
   .pci_serr_out_oe_comb_a     (pci_serr_out_oe_comb_a),
 
-  .pci_ad_out_next_b          (pci_ad_out_next_b[`PCI_BUS_DATA_RANGE]),
+  .pci_ad_out_next_b          (pci_ad_out_next_b[PCI_BUS_DATA_RANGE:0]),
   .pci_ad_out_en_next_b       (pci_ad_out_en_next_b),
   .pci_ad_out_oe_comb_b       (pci_ad_out_oe_comb_b),
-  .pci_cbe_l_out_next_b       (pci_cbe_l_out_next_b[`PCI_BUS_CBE_RANGE]),
+  .pci_cbe_l_out_next_b       (pci_cbe_l_out_next_b[PCI_BUS_CBE_RANGE:0]),
   .pci_cbe_out_en_next_b      (pci_cbe_out_en_next_b),
   .pci_cbe_out_oe_comb_b      (pci_cbe_out_oe_comb_b),
   .pci_par_out_next_b         (pci_par_out_next_b),
@@ -432,10 +434,10 @@ pci_pad_sharer pci_pad_sharer (
   .pci_perr_out_oe_comb_b     (pci_perr_out_oe_comb_b),
   .pci_serr_out_oe_comb_b     (pci_serr_out_oe_comb_b),
 
-  .pci_ad_out_next            (pci_ad_out_next[`PCI_BUS_DATA_RANGE]),
+  .pci_ad_out_next            (pci_ad_out_next[PCI_BUS_DATA_RANGE:0]),
   .pci_ad_out_en_next         (pci_ad_out_en_next),
   .pci_ad_out_oe_comb         (pci_ad_out_oe_comb),
-  .pci_cbe_l_out_next         (pci_cbe_l_out_next[`PCI_BUS_CBE_RANGE]),
+  .pci_cbe_l_out_next         (pci_cbe_l_out_next[PCI_BUS_CBE_RANGE:0]),
   .pci_cbe_out_en_next        (pci_cbe_out_en_next),
   .pci_cbe_out_oe_comb        (pci_cbe_out_oe_comb),
   .pci_par_out_next           (pci_par_out_next),
@@ -456,10 +458,10 @@ pci_pad_sharer pci_pad_sharer (
 // If more than 1 internal PCI controllers are needed, they will share
 // IO pads.  This module asserts constants to act like an idle interface.
 pci_null_interface pci_null_interface (
-  .pci_ad_out_next            (pci_ad_out_next_b[`PCI_BUS_DATA_RANGE]),
+  .pci_ad_out_next            (pci_ad_out_next_b[PCI_BUS_DATA_RANGE:0]),
   .pci_ad_out_en_next         (pci_ad_out_en_next_b),
   .pci_ad_out_oe_comb         (pci_ad_out_oe_comb_b),
-  .pci_cbe_l_out_next         (pci_cbe_l_out_next_b[`PCI_BUS_CBE_RANGE]),
+  .pci_cbe_l_out_next         (pci_cbe_l_out_next_b[PCI_BUS_CBE_RANGE:0]),
   .pci_cbe_out_en_next        (pci_cbe_out_en_next_b),
   .pci_cbe_out_oe_comb        (pci_cbe_out_oe_comb_b),
   .pci_par_out_next           (pci_par_out_next_b),
@@ -476,8 +478,8 @@ pci_null_interface pci_null_interface (
   .pci_perr_out_oe_comb       (pci_perr_out_oe_comb_b),
   .pci_serr_out_oe_comb       (pci_serr_out_oe_comb_b),
 
-  .pci_ad_in_prev             (pci_ad_in_prev[`PCI_BUS_DATA_RANGE]),
-  .pci_cbe_l_in_prev          (pci_cbe_l_in_prev[`PCI_BUS_CBE_RANGE]),
+  .pci_ad_in_prev             (pci_ad_in_prev[PCI_BUS_DATA_RANGE:0]),
+  .pci_cbe_l_in_prev          (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0]),
   .pci_par_in_prev            (pci_par_in_prev),
   .pci_frame_in_prev          (pci_frame_in_prev),
   .pci_irdy_in_prev           (pci_irdy_in_prev),
@@ -503,10 +505,10 @@ pci_null_interface pci_null_interface (
 );
 
 `else // SUPPORT_MULTIPLE_ONCHIP_INTERFACES
-  assign  pci_ad_out_next[`PCI_BUS_DATA_RANGE] = pci_ad_out_next_a[`PCI_BUS_DATA_RANGE];
+  assign  pci_ad_out_next[PCI_BUS_DATA_RANGE:0] = pci_ad_out_next_a[PCI_BUS_DATA_RANGE:0];
   assign  pci_ad_out_en_next    = pci_ad_out_en_next_a;
   assign  pci_ad_out_oe_comb    = pci_ad_out_oe_comb_a;
-  assign  pci_cbe_l_out_next[`PCI_BUS_CBE_RANGE] = pci_cbe_l_out_next_a[`PCI_BUS_CBE_RANGE];
+  assign  pci_cbe_l_out_next[PCI_BUS_CBE_RANGE:0] = pci_cbe_l_out_next_a[PCI_BUS_CBE_RANGE:0];
   assign  pci_cbe_out_en_next   = pci_cbe_out_en_next_a;
   assign  pci_cbe_out_oe_comb   = pci_cbe_out_oe_comb_a;
   assign  pci_par_out_next      = pci_par_out_next_a;
@@ -529,23 +531,23 @@ pci_null_interface pci_null_interface (
 // Coordinate Write_Fence with CPU
   wire    pci_target_requests_write_fence, host_allows_write_fence;
 // Host uses these wires to request PCI activity.
-  wire   [`PCI_FIFO_DATA_RANGE] pci_master_ref_address;
-  wire   [`PCI_FIFO_CBE_RANGE] pci_master_ref_command;
+  wire   [PCI_FIFO_DATA_RANGE:0] pci_master_ref_address;
+  wire   [PCI_FIFO_CBE_RANGE:0] pci_master_ref_command;
   wire    pci_master_ref_config;
-  wire   [`PCI_FIFO_CBE_RANGE] pci_master_byte_enables_l;
-  wire   [`PCI_FIFO_DATA_RANGE] pci_master_write_data;
-  wire   [`PCI_FIFO_DATA_RANGE] pci_master_read_data;
+  wire   [PCI_FIFO_CBE_RANGE:0] pci_master_byte_enables_l;
+  wire   [PCI_FIFO_DATA_RANGE:0] pci_master_write_data;
+  wire   [PCI_FIFO_DATA_RANGE:0] pci_master_read_data;
   wire    pci_master_addr_valid, pci_master_data_valid;
   wire    pci_master_requests_serr, pci_master_requests_perr;
   wire    pci_master_requests_last;
   wire    pci_master_data_consumed;
   wire    pci_master_ref_error;
 // PCI Interface uses these wires to request local memory activity.   
-  wire   [`PCI_FIFO_DATA_RANGE] pci_target_ref_address;
-  wire   [`PCI_FIFO_CBE_RANGE] pci_target_ref_command;
-  wire   [`PCI_FIFO_CBE_RANGE] pci_target_byte_enables_l;
-  wire   [`PCI_FIFO_DATA_RANGE] pci_target_write_data;
-  wire   [`PCI_FIFO_DATA_RANGE] pci_target_read_data;
+  wire   [PCI_FIFO_DATA_RANGE:0] pci_target_ref_address;
+  wire   [PCI_FIFO_CBE_RANGE:0] pci_target_ref_command;
+  wire   [PCI_FIFO_CBE_RANGE:0] pci_target_byte_enables_l;
+  wire   [PCI_FIFO_DATA_RANGE:0] pci_target_write_data;
+  wire   [PCI_FIFO_DATA_RANGE:0] pci_target_read_data;
   wire    pci_target_busy;
   wire    pci_target_ref_start;
   wire    pci_target_requests_abort, pci_target_requests_perr;
@@ -561,12 +563,12 @@ pci_blue_interface pci_blue_interface (
   .pci_target_requests_write_fence (pci_target_requests_write_fence),
   .host_allows_write_fence    (host_allows_write_fence),
 // Host uses these wires to request PCI activity.
-  .pci_master_ref_address     (pci_master_ref_address[`PCI_FIFO_DATA_RANGE]),
+  .pci_master_ref_address     (pci_master_ref_address[PCI_FIFO_DATA_RANGE:0]),
   .pci_master_ref_command     (pci_master_ref_command[3:0]),
   .pci_master_ref_config      (pci_master_ref_config),
-  .pci_master_byte_enables_l  (pci_master_byte_enables_l[`PCI_FIFO_CBE_RANGE]),
-  .pci_master_write_data      (pci_master_write_data[`PCI_FIFO_DATA_RANGE]),
-  .pci_master_read_data       (pci_master_read_data[`PCI_FIFO_DATA_RANGE]),
+  .pci_master_byte_enables_l  (pci_master_byte_enables_l[PCI_FIFO_CBE_RANGE:0]),
+  .pci_master_write_data      (pci_master_write_data[PCI_FIFO_DATA_RANGE:0]),
+  .pci_master_read_data       (pci_master_read_data[PCI_FIFO_DATA_RANGE:0]),
   .pci_master_addr_valid      (pci_master_addr_valid),
   .pci_master_data_valid      (pci_master_data_valid),
   .pci_master_requests_serr   (pci_master_requests_serr),
@@ -575,11 +577,11 @@ pci_blue_interface pci_blue_interface (
   .pci_master_data_consumed   (pci_master_data_consumed),
   .pci_master_ref_error       (pci_master_ref_error),
 // PCI Interface uses these wires to request local memory activity.   
-  .pci_target_ref_address     (pci_target_ref_address[`PCI_FIFO_DATA_RANGE]),
+  .pci_target_ref_address     (pci_target_ref_address[PCI_FIFO_DATA_RANGE:0]),
   .pci_target_ref_command     (pci_target_ref_command[3:0]),
-  .pci_target_byte_enables_l  (pci_target_byte_enables_l[`PCI_FIFO_CBE_RANGE]),
-  .pci_target_write_data      (pci_target_write_data[`PCI_FIFO_DATA_RANGE]),
-  .pci_target_read_data       (pci_target_read_data[`PCI_FIFO_DATA_RANGE]),
+  .pci_target_byte_enables_l  (pci_target_byte_enables_l[PCI_FIFO_CBE_RANGE:0]),
+  .pci_target_write_data      (pci_target_write_data[PCI_FIFO_DATA_RANGE:0]),
+  .pci_target_read_data       (pci_target_read_data[PCI_FIFO_DATA_RANGE:0]),
   .pci_target_busy            (pci_target_busy),
   .pci_target_ref_start       (pci_target_ref_start),
   .pci_target_requests_abort  (pci_target_requests_abort),
@@ -599,13 +601,13 @@ pci_blue_interface pci_blue_interface (
   .pci_req_out_oe_comb        (pci_req_out_oe_comb),
   .pci_gnt_in_prev            (pci_gnt_in_prev),
   .pci_gnt_in_comb            (pci_gnt_in_comb),
-  .pci_ad_in_prev             (pci_ad_in_prev[`PCI_BUS_DATA_RANGE]),
-  .pci_ad_out_next            (pci_ad_out_next_a[`PCI_BUS_DATA_RANGE]),
+  .pci_ad_in_prev             (pci_ad_in_prev[PCI_BUS_DATA_RANGE:0]),
+  .pci_ad_out_next            (pci_ad_out_next_a[PCI_BUS_DATA_RANGE:0]),
   .pci_ad_out_en_next         (pci_ad_out_en_next_a),
   .pci_ad_out_oe_comb         (pci_ad_out_oe_comb_a),
-  .pci_cbe_l_in_comb          (pci_cbe_l_in_comb[`PCI_BUS_CBE_RANGE]),
-  .pci_cbe_l_in_prev          (pci_cbe_l_in_prev[`PCI_BUS_CBE_RANGE]),
-  .pci_cbe_l_out_next         (pci_cbe_l_out_next_a[`PCI_BUS_CBE_RANGE]),
+  .pci_cbe_l_in_comb          (pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0]),
+  .pci_cbe_l_in_prev          (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0]),
+  .pci_cbe_l_out_next         (pci_cbe_l_out_next_a[PCI_BUS_CBE_RANGE:0]),
   .pci_cbe_out_en_next        (pci_cbe_out_en_next_a),
   .pci_cbe_out_oe_comb        (pci_cbe_out_oe_comb_a),
   .pci_par_in_prev            (pci_par_in_prev),
@@ -650,12 +652,12 @@ pci_example_host_controller pci_example_host_controller (
   .pci_target_requests_write_fence (pci_target_requests_write_fence),
   .host_allows_write_fence    (host_allows_write_fence),
 // Host uses these wires to request PCI activity.
-  .pci_master_ref_address     (pci_master_ref_address[`PCI_FIFO_DATA_RANGE]),
+  .pci_master_ref_address     (pci_master_ref_address[PCI_FIFO_DATA_RANGE:0]),
   .pci_master_ref_command     (pci_master_ref_command[3:0]),
   .pci_master_ref_config      (pci_master_ref_config),
-  .pci_master_byte_enables_l  (pci_master_byte_enables_l[`PCI_FIFO_CBE_RANGE]),
-  .pci_master_write_data      (pci_master_write_data[`PCI_FIFO_DATA_RANGE]),
-  .pci_master_read_data       (pci_master_read_data[`PCI_FIFO_DATA_RANGE]),
+  .pci_master_byte_enables_l  (pci_master_byte_enables_l[PCI_FIFO_CBE_RANGE:0]),
+  .pci_master_write_data      (pci_master_write_data[PCI_FIFO_DATA_RANGE:0]),
+  .pci_master_read_data       (pci_master_read_data[PCI_FIFO_DATA_RANGE:0]),
   .pci_master_addr_valid      (pci_master_addr_valid),
   .pci_master_data_valid      (pci_master_data_valid),
   .pci_master_requests_serr   (pci_master_requests_serr),
@@ -664,11 +666,11 @@ pci_example_host_controller pci_example_host_controller (
   .pci_master_data_consumed   (pci_master_data_consumed),
   .pci_master_ref_error       (pci_master_ref_error),
 // PCI Interface uses these wires to request local memory activity.   
-  .pci_target_ref_address     (pci_target_ref_address[`PCI_FIFO_DATA_RANGE]),
+  .pci_target_ref_address     (pci_target_ref_address[PCI_FIFO_DATA_RANGE:0]),
   .pci_target_ref_command     (pci_target_ref_command[3:0]),
-  .pci_target_byte_enables_l  (pci_target_byte_enables_l[`PCI_FIFO_CBE_RANGE]),
-  .pci_target_write_data      (pci_target_write_data[`PCI_FIFO_DATA_RANGE]),
-  .pci_target_read_data       (pci_target_read_data[`PCI_FIFO_DATA_RANGE]),
+  .pci_target_byte_enables_l  (pci_target_byte_enables_l[PCI_FIFO_CBE_RANGE:0]),
+  .pci_target_write_data      (pci_target_write_data[PCI_FIFO_DATA_RANGE:0]),
+  .pci_target_read_data       (pci_target_read_data[PCI_FIFO_DATA_RANGE:0]),
   .pci_target_busy            (pci_target_busy),
   .pci_target_ref_start       (pci_target_ref_start),
   .pci_target_requests_abort  (pci_target_requests_abort),
@@ -684,10 +686,10 @@ pci_example_host_controller pci_example_host_controller (
   .host_clk                   (host_clk),
 // signals used by the test bench instead of using "." notation
   .test_master_number         (test_master_number[2:0]),
-  .test_address               (test_address[`PCI_FIFO_DATA_RANGE]),
+  .test_address               (test_address[PCI_FIFO_DATA_RANGE:0]),
   .test_command               (test_command[3:0]),
-  .test_data                  (test_data[`PCI_FIFO_DATA_RANGE]),
-  .test_byte_enables_l        (test_byte_enables_l[`PCI_FIFO_CBE_RANGE]),
+  .test_data                  (test_data[PCI_FIFO_DATA_RANGE:0]),
+  .test_byte_enables_l        (test_byte_enables_l[PCI_FIFO_CBE_RANGE:0]),
   .test_size                  (test_size[3:0]),
   .test_make_addr_par_error   (test_make_addr_par_error),
   .test_make_data_par_error   (test_make_data_par_error),

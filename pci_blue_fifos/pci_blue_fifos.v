@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_fifos.v,v 1.9 2001-07-03 09:20:53 bbeaver Exp $
+// $Id: pci_blue_fifos.v,v 1.10 2001-07-06 10:51:02 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -158,8 +158,6 @@
 //
 //===========================================================================
 
-`include "pci_blue_options.vh"
-`include "pci_blue_constants.vh"
 `timescale 1ns/1ps
 
 // Verilog module used to implement the 39-bit-wide Host Request FIFO
@@ -180,6 +178,10 @@ module pci_fifo_storage_request (
   read_data,
   read_error
 );
+
+`include "pci_blue_options.vh"
+`include "pci_blue_constants.vh"
+
   input   reset_flags_async;
   input  [1:0] fifo_mode;
   input   write_clk, write_sync_clk;

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_target.v,v 1.15 2001-07-05 02:42:59 bbeaver Exp $
+// $Id: pci_blue_target.v,v 1.16 2001-07-06 10:51:22 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -110,8 +110,6 @@
 //
 //===========================================================================
 
-`include "pci_blue_options.vh"
-`include "pci_blue_constants.vh"
 `timescale 1ns/10ps
 
 module pci_blue_target (
@@ -183,13 +181,16 @@ module pci_blue_target (
   pci_reset_comb
 );
 
+`include "pci_blue_options.vh"
+`include "pci_blue_constants.vh"
+
 // Signals driven to control the external PCI interface
-  input  [`PCI_BUS_DATA_RANGE] pci_ad_in_prev;
-  output [`PCI_BUS_DATA_RANGE] pci_target_ad_out_next;
+  input  [PCI_BUS_DATA_RANGE:0] pci_ad_in_prev;
+  output [PCI_BUS_DATA_RANGE:0] pci_target_ad_out_next;
   output  pci_target_ad_en_next;
   output  pci_target_ad_out_oe_comb;
   input   pci_idsel_in_prev;
-  input  [`PCI_BUS_CBE_RANGE] pci_cbe_l_in_prev;
+  input  [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_prev;
   input   pci_par_in_prev;
   input   pci_par_in_comb;
   output  pci_target_par_out_next;
@@ -217,23 +218,23 @@ module pci_blue_target (
 //   PCI References initiated by an external PCI Master.
 // This FIFO also sends status info back from the master about PCI
 //   References this interface acts as the PCI Master for.
-  output [`PCI_BUS_CBE_RANGE] pci_response_fifo_type;
-  output [`PCI_BUS_CBE_RANGE] pci_response_fifo_cbe;
-  output [`PCI_BUS_DATA_RANGE] pci_response_fifo_data;
+  output [PCI_FIFO_CBE_RANGE:0] pci_response_fifo_type;
+  output [PCI_FIFO_CBE_RANGE:0] pci_response_fifo_cbe;
+  output [PCI_FIFO_DATA_RANGE:0] pci_response_fifo_data;
   input   pci_response_fifo_room_available_meta;
   output  pci_response_fifo_data_load;
   input   pci_response_fifo_error;
 // Host Interface Delayed Read Data FIFO used to pass the results of a
 //   Delayed Read on to the external PCI Master which started it.
   input  [2:0] pci_delayed_read_fifo_type;
-  input  [`PCI_BUS_DATA_RANGE] pci_delayed_read_fifo_data;
+  input  [PCI_FIFO_DATA_RANGE:0] pci_delayed_read_fifo_data;
   input   pci_delayed_read_fifo_data_available_meta;
   output  pci_delayed_read_fifo_data_unload;
   input   pci_delayed_read_fifo_error;
 // Signals from the Master to the Target to insert Status Info into the Response FIFO.
   input  [2:0] master_to_target_status_type;
-  input  [`PCI_BUS_CBE_RANGE] master_to_target_status_cbe;
-  input  [`PCI_BUS_DATA_RANGE] master_to_target_status_data;
+  input  [PCI_BUS_CBE_RANGE:0] master_to_target_status_cbe;
+  input  [PCI_BUS_DATA_RANGE:0] master_to_target_status_data;
   input   master_to_target_status_flush;
   input   master_to_target_status_available;
   output  master_to_target_status_unload;
@@ -257,10 +258,10 @@ module pci_blue_target (
   input   pci_reset_comb;
 
 // Signals driven to control the external PCI interface
-  wire   [`PCI_BUS_DATA_RANGE] pci_config_write_data;
-  wire   [`PCI_BUS_DATA_RANGE] pci_config_read_data;
+  wire   [PCI_BUS_DATA_RANGE:0] pci_config_write_data;
+  wire   [PCI_BUS_DATA_RANGE:0] pci_config_read_data;
   wire   [7:2] pci_config_address;
-  wire   [`PCI_BUS_CBE_RANGE] pci_config_byte_enables;
+  wire   [PCI_BUS_CBE_RANGE:0] pci_config_byte_enables;
   wire    pci_config_write_req;
 
 // Signals from the Config Registers to enable features in the Master and Target
@@ -500,9 +501,9 @@ module pci_blue_target (
 // PCI Master and PCI Target.  See the PCI Local Bus Spec
 // Revision 2.2 section 3.2.2.1 and 3.2.2.2 for details.
 
-  reg    [`PCI_BUS_DATA_RANGE] Target_Delayed_Read_Address;
-  reg    [`PCI_BUS_CBE_RANGE] Target_Delayed_Read_Command;
-  reg    [`PCI_BUS_CBE_RANGE] Target_Delayed_Read_Byte_Strobes;
+  reg    [PCI_BUS_DATA_RANGE:0] Target_Delayed_Read_Address;
+  reg    [PCI_BUS_CBE_RANGE:0] Target_Delayed_Read_Command;
+  reg    [PCI_BUS_CBE_RANGE:0] Target_Delayed_Read_Byte_Strobes;
   reg     Target_Delayed_Read_Address_Parity;
   reg     Grab_Target_Address, Prev_Grab_Target_Address, Inc_Target_Address;
 
@@ -510,36 +511,36 @@ module pci_blue_target (
   begin
     if (Grab_Target_Address == 1'b1)
     begin
-      Target_Delayed_Read_Address[`PCI_BUS_DATA_RANGE] <= pci_ad_in_prev[`PCI_BUS_DATA_RANGE];
-      Target_Delayed_Read_Command[`PCI_BUS_CBE_RANGE] <= pci_cbe_l_in_prev[`PCI_BUS_CBE_RANGE];
+      Target_Delayed_Read_Address[PCI_BUS_DATA_RANGE:0] <= pci_ad_in_prev[PCI_BUS_DATA_RANGE:0];
+      Target_Delayed_Read_Command[PCI_BUS_CBE_RANGE:0] <= pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0];
       Target_Delayed_Read_Address_Parity <= 1'b0;  // NOTE WORKING
     end
     else
     begin
       if (Inc_Target_Address == 1'b1)
       begin
-        Target_Delayed_Read_Address[`PCI_BUS_DATA_RANGE] <=
-                          Target_Delayed_Read_Address[`PCI_BUS_DATA_RANGE]
-                        + 32'h00000004;
+        Target_Delayed_Read_Address[PCI_BUS_DATA_RANGE:0] <=
+                          Target_Delayed_Read_Address[PCI_BUS_DATA_RANGE:0]
+                        + `PCI_BUS_Address_Step;
       end
       else
       begin
-        Target_Delayed_Read_Address[`PCI_BUS_DATA_RANGE] <=
-                               Target_Delayed_Read_Address[`PCI_BUS_DATA_RANGE];
+        Target_Delayed_Read_Address[PCI_BUS_DATA_RANGE:0] <=
+                               Target_Delayed_Read_Address[PCI_BUS_DATA_RANGE:0];
       end
-      Target_Delayed_Read_Command[`PCI_BUS_CBE_RANGE] <=
-                               Target_Delayed_Read_Command[`PCI_BUS_CBE_RANGE];
+      Target_Delayed_Read_Command[PCI_BUS_CBE_RANGE:0] <=
+                               Target_Delayed_Read_Command[PCI_BUS_CBE_RANGE:0];
     end
     Prev_Grab_Target_Address <= Grab_Target_Address;
     if ((Prev_Grab_Target_Address == 1'b1) || (Inc_Target_Address == 1'b1))
     begin
-      Target_Delayed_Read_Byte_Strobes[`PCI_BUS_CBE_RANGE] <=
-                               pci_cbe_l_in_prev[`PCI_BUS_CBE_RANGE];
+      Target_Delayed_Read_Byte_Strobes[PCI_BUS_CBE_RANGE:0] <=
+                               pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0];
     end
     else
     begin
-      Target_Delayed_Read_Byte_Strobes[`PCI_BUS_CBE_RANGE] <=
-                               Target_Delayed_Read_Byte_Strobes[`PCI_BUS_CBE_RANGE];
+      Target_Delayed_Read_Byte_Strobes[PCI_BUS_CBE_RANGE:0] <=
+                               Target_Delayed_Read_Byte_Strobes[PCI_BUS_CBE_RANGE:0];
     end
   end
 
@@ -605,13 +606,13 @@ module pci_blue_target (
 // address with the same command and Byte Strobes as the present Delayed Read.
 
   wire    Delayed_Read_Address_Match = Delayed_Read_In_Progress
-             & (Target_Delayed_Read_Address[`PCI_BUS_DATA_RANGE] ==
-                                      pci_ad_in_prev[`PCI_BUS_DATA_RANGE])
-             & (Target_Delayed_Read_Command[`PCI_BUS_CBE_RANGE] ==
-                                      pci_cbe_l_in_prev[`PCI_BUS_CBE_RANGE])
+             & (Target_Delayed_Read_Address[PCI_BUS_DATA_RANGE:0] ==
+                                      pci_ad_in_prev[PCI_BUS_DATA_RANGE:0])
+             & (Target_Delayed_Read_Command[PCI_BUS_CBE_RANGE:0] ==
+                                      pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0])
              & (Target_Delayed_Read_Address_Parity == 1'b0)  // NOTE: WORKING
-             & (Target_Delayed_Read_Byte_Strobes[`PCI_BUS_CBE_RANGE] ==
-                                      pci_cbe_l_in_prev[`PCI_BUS_CBE_RANGE]);
+             & (Target_Delayed_Read_Byte_Strobes[PCI_BUS_CBE_RANGE:0] ==
+                                      pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0]);
 
 // Address Compare logic to discover whether a Write has been done to data
 // which is in the Delayed Read Prefetch Buffer.
@@ -886,9 +887,9 @@ module pci_blue_target (
 
   assign  pci_delayed_read_fifo_data_unload = 1'b0;  // NOTE: WORKING
 
-  assign  pci_config_write_data[`PCI_BUS_DATA_RANGE] = `PCI_BUS_DATA_ZERO;  // NOTE: WORKING
+  assign  pci_config_write_data[PCI_BUS_DATA_RANGE:0] = `PCI_BUS_DATA_ZERO;  // NOTE: WORKING
   assign  pci_config_address[7:2] = 6'h00;  // NOTE: WORKING
-  assign  pci_config_byte_enables[`PCI_BUS_CBE_RANGE] = `PCI_BUS_CBE_ZERO;  // NOTE: WORKING
+  assign  pci_config_byte_enables[PCI_BUS_CBE_RANGE:0] = `PCI_BUS_CBE_ZERO;  // NOTE: WORKING
   assign  pci_config_write_req = 1'b0;  // NOTE: WORKING
 
   assign  pci_target_ad_out_oe_comb = 1'b0;  // NOTE: WORKING
@@ -920,10 +921,10 @@ pci_critical_next_stop pci_critical_next_stop (
 
 // Instantiate Configuration Registers.
 pci_blue_config_regs pci_blue_config_regs (
-  .pci_config_write_data      (pci_config_write_data[`PCI_BUS_DATA_RANGE]),
-  .pci_config_read_data       (pci_config_read_data[`PCI_BUS_DATA_RANGE]),
+  .pci_config_write_data      (pci_config_write_data[PCI_BUS_DATA_RANGE:0]),
+  .pci_config_read_data       (pci_config_read_data[PCI_BUS_DATA_RANGE:0]),
   .pci_config_address         (pci_config_address[7:2]),
-  .pci_config_byte_enables    (pci_config_byte_enables[`PCI_BUS_CBE_RANGE]),
+  .pci_config_byte_enables    (pci_config_byte_enables[PCI_BUS_CBE_RANGE:0]),
   .pci_config_write_req       (pci_config_write_req),
 // Signals from the Config Registers to enable features in the Master and Target
   .target_memory_enable       (target_memory_enable),

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_clk_reset_pads.v,v 1.7 2001-07-03 09:21:30 bbeaver Exp $
+// $Id: pci_clk_reset_pads.v,v 1.8 2001-07-06 10:51:23 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -58,8 +58,6 @@
 //
 //===========================================================================
 
-`include "pci_blue_options.vh"
-`include "pci_blue_constants.vh"
 `timescale 1ns/10ps
 
 module pci_clk_reset_pads (
@@ -68,6 +66,10 @@ module pci_clk_reset_pads (
   pci_reset_out_oe_comb,
   pci_clk, pci_reset_raw
 );
+
+`include "pci_blue_options.vh"
+`include "pci_blue_constants.vh"
+
   input   pci_ext_clk;
   inout   pci_ext_reset_l;
   input   pci_pll_bypass;

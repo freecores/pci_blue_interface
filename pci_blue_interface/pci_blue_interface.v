@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_interface.v,v 1.16 2001-07-04 08:19:23 bbeaver Exp $
+// $Id: pci_blue_interface.v,v 1.17 2001-07-06 10:51:08 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -110,8 +110,6 @@
 //
 //===========================================================================
 
-`include "pci_blue_options.vh"
-`include "pci_blue_constants.vh"
 `timescale 1ns/10ps
 
 module pci_blue_interface (
@@ -165,16 +163,20 @@ module pci_blue_interface (
   pci_reset_comb,
   pci_clk, pci_sync_clk
 );
+
+`include "pci_blue_options.vh"
+`include "pci_blue_constants.vh"
+
 // Coordinate Write_Fence with CPU
   output  pci_target_requests_write_fence;
   input   host_allows_write_fence;
 // Host uses these wires to request PCI activity.
-  input  [`PCI_FIFO_DATA_RANGE] pci_master_ref_address;
+  input  [PCI_FIFO_DATA_RANGE:0] pci_master_ref_address;
   input  [3:0] pci_master_ref_command;
   input   pci_master_ref_config;
-  input  [`PCI_FIFO_CBE_RANGE] pci_master_byte_enables_l;
-  input  [`PCI_FIFO_DATA_RANGE] pci_master_write_data;
-  output [`PCI_FIFO_DATA_RANGE] pci_master_read_data;
+  input  [PCI_FIFO_CBE_RANGE:0] pci_master_byte_enables_l;
+  input  [PCI_FIFO_DATA_RANGE:0] pci_master_write_data;
+  output [PCI_FIFO_DATA_RANGE:0] pci_master_read_data;
   input   pci_master_addr_valid, pci_master_data_valid;
   input   pci_master_requests_serr, pci_master_requests_perr;
   input   pci_master_requests_last;
@@ -182,11 +184,11 @@ module pci_blue_interface (
                                      // used when data_valid and data_consumed
   output  pci_master_ref_error;
 // PCI Interface uses these wires to request local memory activity.   
-  output [`PCI_FIFO_DATA_RANGE] pci_target_ref_address;
+  output [PCI_FIFO_DATA_RANGE:0] pci_target_ref_address;
   output [3:0] pci_target_ref_command;
-  output [`PCI_FIFO_CBE_RANGE] pci_target_byte_enables_l;
-  output [`PCI_FIFO_DATA_RANGE] pci_target_write_data;
-  input  [`PCI_FIFO_DATA_RANGE] pci_target_read_data;
+  output [PCI_FIFO_CBE_RANGE:0] pci_target_byte_enables_l;
+  output [PCI_FIFO_DATA_RANGE:0] pci_target_write_data;
+  input  [PCI_FIFO_DATA_RANGE:0] pci_target_read_data;
   input   pci_target_busy;
   output  pci_target_ref_start;
   input   pci_target_requests_abort, pci_target_requests_perr;
@@ -205,13 +207,13 @@ module pci_blue_interface (
   output  pci_req_out_oe_comb;
   input   pci_gnt_in_prev;
   input   pci_gnt_in_comb;
-  input  [`PCI_BUS_DATA_RANGE] pci_ad_in_prev;
-  output [`PCI_BUS_DATA_RANGE] pci_ad_out_next;
+  input  [PCI_BUS_DATA_RANGE:0] pci_ad_in_prev;
+  output [PCI_BUS_DATA_RANGE:0] pci_ad_out_next;
   output  pci_ad_out_en_next;
   output  pci_ad_out_oe_comb;
-  input  [`PCI_BUS_CBE_RANGE] pci_cbe_l_in_comb;
-  input  [`PCI_BUS_CBE_RANGE] pci_cbe_l_in_prev;
-  output [`PCI_BUS_CBE_RANGE] pci_cbe_l_out_next;
+  input  [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_comb;
+  input  [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_prev;
+  output [PCI_BUS_CBE_RANGE:0] pci_cbe_l_out_next;
   output  pci_cbe_out_en_next;
   output  pci_cbe_out_oe_comb;
   input   pci_par_in_prev, pci_par_in_comb;
@@ -286,21 +288,21 @@ pci_synchronizer_flop sync_error_flop (
 
 // Wires communicating between state machines here and FIFOs
 // Wires used by the host controller to request action by the pci interface
-  wire   [`PCI_FIFO_DATA_RANGE] pci_host_request_data;
-  wire   [`PCI_FIFO_CBE_RANGE] pci_host_request_cbe;
+  wire   [PCI_FIFO_DATA_RANGE:0] pci_host_request_data;
+  wire   [PCI_FIFO_CBE_RANGE:0] pci_host_request_cbe;
   wire   [2:0] pci_host_request_type;
   wire    pci_host_request_room_available_meta;
   wire    pci_host_request_submit;
   wire    pci_host_request_error;
 // Wires used by the pci interface to request action by the host controller
-  wire   [`PCI_FIFO_DATA_RANGE] pci_host_response_data;
-  wire   [`PCI_FIFO_CBE_RANGE] pci_host_response_cbe;
+  wire   [PCI_FIFO_DATA_RANGE:0] pci_host_response_data;
+  wire   [PCI_FIFO_CBE_RANGE:0] pci_host_response_cbe;
   wire   [3:0] pci_host_response_type;
   wire    pci_host_response_data_available_meta;
   wire    pci_host_response_unload;
   wire    pci_host_response_error;
 // Wires used by the host controller to send delayed read data by the pci interface
-  wire   [`PCI_FIFO_DATA_RANGE] pci_host_delayed_read_data;
+  wire   [PCI_FIFO_DATA_RANGE:0] pci_host_delayed_read_data;
   wire   [2:0] pci_host_delayed_read_type;
   wire    pci_host_delayed_read_room_available_meta;
   wire    pci_host_delayed_read_data_submit;
@@ -359,7 +361,7 @@ pci_synchronizer_flop sync_error_flop (
 
   wire    present_command_is_read =
             ((   pci_master_ref_command[3:0]
-               & `PCI_COMMAND_ANY_WRITE_MASK) == `PCI_FIFO_CBE_ZERO);
+               & PCI_COMMAND_ANY_WRITE_MASK) == `PCI_FIFO_CBE_ZERO);
   wire    present_command_is_write = ~present_command_is_read;
 
   reg     target_sees_read_end;
@@ -504,7 +506,7 @@ $display ("Got Last Read Data");  // NOTE WORKING
 // Data for either a Write Fence, a Config Reference, the PCI Address, or the PCI Data.
 // This is actually an if-then-else, done in combinational logic.  Would it be clearer as a function?
 // A slower Host Interface could do this as sequential logic in an always block.
-  assign  pci_host_request_data[`PCI_FIFO_DATA_RANGE] =
+  assign  pci_host_request_data[PCI_FIFO_DATA_RANGE:0] =
                 (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
                    & pci_target_requests_write_fence & host_allows_write_fence)
               ? {pci_master_ref_address[31:18], 2'b00, config_ref_data[7:0],
@@ -515,14 +517,14 @@ $display ("Got Last Read Data");  // NOTE WORKING
                  present_command_is_write, config_ref_data[7:0],
                  pci_master_ref_address[7:2], config_ref_addr_lsb[1:0]}
               : ((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
-              ? pci_master_ref_address[`PCI_FIFO_DATA_RANGE]
-              : pci_master_write_data[`PCI_FIFO_DATA_RANGE])));  // Data advanced by host interface during burst
+              ? pci_master_ref_address[PCI_FIFO_DATA_RANGE:0]
+              : pci_master_write_data[PCI_FIFO_DATA_RANGE:0])));  // Data advanced by host interface during burst
 
 // Either the Host PCI Command or the Host Byte Enables.
-  assign  pci_host_request_cbe[`PCI_FIFO_CBE_RANGE] =
+  assign  pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0] =
              (Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
-             ? pci_master_ref_command[`PCI_FIFO_CBE_RANGE]
-             : pci_master_byte_enables_l[`PCI_FIFO_CBE_RANGE];  // Byte Enables advanced by host interface during burst
+             ? pci_master_ref_command[PCI_FIFO_CBE_RANGE:0]
+             : pci_master_byte_enables_l[PCI_FIFO_CBE_RANGE:0];  // Byte Enables advanced by host interface during burst
 
 // Either Write Fence, Read/Write Config Register, Read/Write Address, Read/Write Data, Spare.
 // This is actually an if-then-else, done in combinational logic.  Would it be clearer as a function?
@@ -530,29 +532,29 @@ $display ("Got Last Read Data");  // NOTE WORKING
   assign  pci_host_request_type[2:0] =
                 (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
                    & pci_target_requests_write_fence & host_allows_write_fence)
-              ? `PCI_HOST_REQUEST_INSERT_WRITE_FENCE
+              ? PCI_HOST_REQUEST_INSERT_WRITE_FENCE
               : (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
                    & pci_master_ref_config)
-              ? `PCI_HOST_REQUEST_INSERT_WRITE_FENCE  // `PCI_HOST_REQUEST_READ_WRITE_CONFIG_REGISTER
+              ? PCI_HOST_REQUEST_INSERT_WRITE_FENCE  // `PCI_HOST_REQUEST_READ_WRITE_CONFIG_REGISTER
               : (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
                    & ~pci_master_requests_serr)
-              ? `PCI_HOST_REQUEST_ADDRESS_COMMAND
+              ? PCI_HOST_REQUEST_ADDRESS_COMMAND
               : (((Example_Host_Master_State[2:0] == Example_Host_Master_Idle)
                    & pci_master_requests_serr)
-              ? `PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR
+              ? PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR
               : (((Example_Host_Master_State[2:0] == Example_Host_Master_Transfer_Data)
                    & ~pci_master_requests_last & ~pci_master_requests_perr)
-              ? `PCI_HOST_REQUEST_W_DATA_RW_MASK
+              ? PCI_HOST_REQUEST_W_DATA_RW_MASK
               : (((Example_Host_Master_State[2:0] == Example_Host_Master_Transfer_Data)
                    & pci_master_requests_last & ~pci_master_requests_perr)
-              ? `PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST
+              ? PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST
               : (((Example_Host_Master_State[2:0] == Example_Host_Master_Transfer_Data)
                    & ~pci_master_requests_last & pci_master_requests_perr)
-              ? `PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR
+              ? PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR
               : (((Example_Host_Master_State[2:0] == Example_Host_Master_Transfer_Data)
                    & pci_master_requests_last & pci_master_requests_perr)
-              ? `PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR
-              : `PCI_HOST_REQUEST_SPARE))))))));
+              ? PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR
+              : PCI_HOST_REQUEST_SPARE))))))));
 
 // Only write the FIFO when data is available and the FIFO has room for more data
 // This is actually an if-then-else, done in combinational logic.  Would it be clearer as a function?
@@ -586,14 +588,14 @@ $display ("Got Last Read Data");  // NOTE WORKING
         error_detected <= ~error_detected;
       end
       `NO_ELSE;
-      if (  (pci_master_byte_enables_l[`PCI_BUS_CBE_RANGE] != 4'hE)
-          & (pci_master_byte_enables_l[`PCI_BUS_CBE_RANGE] != 4'hD)
-          & (pci_master_byte_enables_l[`PCI_BUS_CBE_RANGE] != 4'hB)
-          & (pci_master_byte_enables_l[`PCI_BUS_CBE_RANGE] != 4'h7) )
+      if (  (pci_master_byte_enables_l[PCI_BUS_CBE_RANGE:0] != 4'hE)
+          & (pci_master_byte_enables_l[PCI_BUS_CBE_RANGE:0] != 4'hD)
+          & (pci_master_byte_enables_l[PCI_BUS_CBE_RANGE:0] != 4'hB)
+          & (pci_master_byte_enables_l[PCI_BUS_CBE_RANGE:0] != 4'h7) )
       begin
         $display ("*** %m %h - Local Config Reg Refs must have exactly 1 Byte Enable %h, at %t",
                     test_device_id[2:0],
-                    pci_master_byte_enables_l[`PCI_BUS_CBE_RANGE], $time);
+                    pci_master_byte_enables_l[PCI_BUS_CBE_RANGE:0], $time);
         error_detected <= ~error_detected;
       end
       `NO_ELSE;
@@ -665,15 +667,15 @@ $display ("Got Last Read Data");  // NOTE WORKING
     else if (pci_host_response_data_available_meta)
     begin
       if (   (pci_host_response_type[3:0] ==
-                  `PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE)
-           & ((   pci_host_response_cbe[`PCI_FIFO_CBE_RANGE]
-                & `PCI_COMMAND_ANY_WRITE_MASK) == `PCI_FIFO_CBE_ZERO) )  // it's a read!
+                  PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE)
+           & ((   pci_host_response_cbe[PCI_FIFO_CBE_RANGE:0]
+                & PCI_COMMAND_ANY_WRITE_MASK) == `PCI_FIFO_CBE_ZERO) )  // it's a read!
       begin
         pci_target_requests_write_fence <= 1'b1;
         target_sees_write_fence_end <= 1'b0;
       end
       else if (    (pci_host_response_type[3:0] ==
-                                    `PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE)
+                                    PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE)
                  & (pci_host_response_data[17:16] == 2'b00) )
       begin
         pci_target_requests_write_fence <= 1'b0;
@@ -709,16 +711,16 @@ $display ("Got Last Read Data");  // NOTE WORKING
     else if (pci_host_response_data_available_meta)
     begin
       if (pci_host_response_type[3:0] ==
-                                   `PCI_HOST_RESPONSE_EXECUTED_ADDRESS_COMMAND)
+                                   PCI_HOST_RESPONSE_EXECUTED_ADDRESS_COMMAND)
       begin
         master_read_returning_data_now <=
-          ((   pci_host_response_cbe[`PCI_FIFO_CBE_RANGE]
-             & `PCI_COMMAND_ANY_WRITE_MASK) == `PCI_FIFO_CBE_ZERO);  // it's a read!
+          ((   pci_host_response_cbe[PCI_FIFO_CBE_RANGE:0]
+             & PCI_COMMAND_ANY_WRITE_MASK) == `PCI_FIFO_CBE_ZERO);  // it's a read!
         target_sees_read_end <= 1'b0;
       end
       else if (master_read_returning_data_now
                 & (pci_host_response_type[3:0] ==
-                                 `PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT) )
+                                 PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT) )
       begin
         if (   pci_host_response_data[29]    // Master_Abort_Received
              | pci_host_response_data[28] )  // Target_Abort_Received
@@ -734,11 +736,11 @@ $display ("Got Last Read Data");  // NOTE WORKING
       end
       else if (master_read_returning_data_now
                 & (   (pci_host_response_type[3:0] ==
-                                 `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST)
+                                 PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST)
                     | (pci_host_response_type[3:0] ==
-                                 `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR)
+                                 PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR)
                     | (   (pci_host_response_type[3:0] ==
-                                 `PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE)
+                                 PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE)
                         & pci_host_response_data[17]) ) )  // Config Read done
       begin
         master_read_returning_data_now <= 1'b0;
@@ -773,9 +775,9 @@ $display ("Got Last Read Data");  // NOTE WORKING
     else if (pci_host_response_data_available_meta)
     begin
       if (   (pci_host_response_type[3:0] ==
-                      `PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE)
-           & ((   pci_host_response_cbe[`PCI_FIFO_CBE_RANGE]
-                & `PCI_COMMAND_ANY_WRITE_MASK) == `PCI_FIFO_CBE_ZERO) )  // it's a read!
+                      PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE)
+           & ((   pci_host_response_cbe[PCI_FIFO_CBE_RANGE:0]
+                & PCI_COMMAND_ANY_WRITE_MASK) == `PCI_FIFO_CBE_ZERO) )  // it's a read!
       begin
         delayed_read_start_requested <= 1'b1;
         delayed_read_stop_seen <= 1'b0;
@@ -784,7 +786,7 @@ $display ("Got Last Read Data");  // NOTE WORKING
       end
       else if (delayed_read_start_requested
                 & (pci_host_response_type[3:0] ==
-                      `PCI_HOST_RESPONSE_EXT_DELAYED_READ_RESTART) )
+                      PCI_HOST_RESPONSE_EXT_DELAYED_READ_RESTART) )
       begin
         delayed_read_start_requested <= delayed_read_start_requested
                                       & ~delayed_read_start_granted;
@@ -793,9 +795,9 @@ $display ("Got Last Read Data");  // NOTE WORKING
       end
       else if (delayed_read_start_requested
                 & (   (pci_host_response_type[3:0] ==
-                             `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST)
+                             PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST)
                     | (pci_host_response_type[3:0] ==
-                             `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST_PERR) ) )
+                             PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST_PERR) ) )
       begin
         delayed_read_start_requested <= delayed_read_start_requested
                                       & ~delayed_read_start_granted;
@@ -823,7 +825,7 @@ $display ("Got Last Read Data");  // NOTE WORKING
   end
 
 // Capture signals needed to do local SRAM references
-  reg    [`PCI_FIFO_DATA_RANGE] Captured_Target_Address;
+  reg    [PCI_FIFO_DATA_RANGE:0] Captured_Target_Address;
   reg    [3:0] Captured_Target_Type;
   reg     target_request_being_serviced;
 
@@ -831,64 +833,64 @@ $display ("Got Last Read Data");  // NOTE WORKING
   begin
     if (host_reset_to_PCI_interface)
     begin
-      Captured_Target_Address[`PCI_FIFO_DATA_RANGE] <=
-                       Captured_Target_Address[`PCI_FIFO_DATA_RANGE];
-      Captured_Target_Type[`PCI_FIFO_CBE_RANGE] <=
-                       Captured_Target_Type[`PCI_FIFO_CBE_RANGE];
+      Captured_Target_Address[PCI_FIFO_DATA_RANGE:0] <=
+                       Captured_Target_Address[PCI_FIFO_DATA_RANGE:0];
+      Captured_Target_Type[PCI_FIFO_CBE_RANGE:0] <=
+                       Captured_Target_Type[PCI_FIFO_CBE_RANGE:0];
       target_request_being_serviced <= target_request_being_serviced;
     end
     else
     begin
       if (pci_host_response_data_available_meta)
       begin  // NOTE WORKING
-        Captured_Target_Address[`PCI_FIFO_DATA_RANGE] <=
-                         Captured_Target_Address[`PCI_FIFO_DATA_RANGE];
-        Captured_Target_Type[`PCI_FIFO_CBE_RANGE] <=
-                         Captured_Target_Type[`PCI_FIFO_CBE_RANGE];
+        Captured_Target_Address[PCI_FIFO_DATA_RANGE:0] <=
+                         Captured_Target_Address[PCI_FIFO_DATA_RANGE:0];
+        Captured_Target_Type[PCI_FIFO_CBE_RANGE:0] <=
+                         Captured_Target_Type[PCI_FIFO_CBE_RANGE:0];
         target_request_being_serviced <= target_request_being_serviced;
       end
       else
       begin
-        Captured_Target_Address[`PCI_FIFO_DATA_RANGE] <=
-                         Captured_Target_Address[`PCI_FIFO_DATA_RANGE];
-        Captured_Target_Type[`PCI_FIFO_CBE_RANGE] <=
-                         Captured_Target_Type[`PCI_FIFO_CBE_RANGE];
+        Captured_Target_Address[PCI_FIFO_DATA_RANGE:0] <=
+                         Captured_Target_Address[PCI_FIFO_DATA_RANGE:0];
+        Captured_Target_Type[PCI_FIFO_CBE_RANGE:0] <=
+                         Captured_Target_Type[PCI_FIFO_CBE_RANGE:0];
         target_request_being_serviced <= target_request_being_serviced;
       end
     end
   end
 
 // Capture signals needed to check Master reference results.
-  reg    [`PCI_FIFO_DATA_RANGE] Captured_Master_Address_Check;
-  reg    [`PCI_FIFO_CBE_RANGE] Captured_Master_Type_Check;
+  reg    [PCI_FIFO_DATA_RANGE:0] Captured_Master_Address_Check;
+  reg    [PCI_FIFO_CBE_RANGE:0] Captured_Master_Type_Check;
   reg     master_results_being_returned;
 
   always @(posedge host_clk)
   begin
     if (host_reset_to_PCI_interface)
     begin
-      Captured_Master_Address_Check[`PCI_FIFO_DATA_RANGE] <=
-                          Captured_Master_Address_Check[`PCI_FIFO_DATA_RANGE];
-      Captured_Master_Type_Check[`PCI_FIFO_CBE_RANGE] <=
-                          Captured_Master_Type_Check[`PCI_FIFO_CBE_RANGE];
+      Captured_Master_Address_Check[PCI_FIFO_DATA_RANGE:0] <=
+                          Captured_Master_Address_Check[PCI_FIFO_DATA_RANGE:0];
+      Captured_Master_Type_Check[PCI_FIFO_CBE_RANGE:0] <=
+                          Captured_Master_Type_Check[PCI_FIFO_CBE_RANGE:0];
       master_results_being_returned <= 1'b0;
     end
     else
     begin
       if (pci_host_response_data_available_meta)
       begin  // NOTE WORKING
-        Captured_Master_Address_Check[`PCI_FIFO_DATA_RANGE] <=
-                            Captured_Master_Address_Check[`PCI_FIFO_DATA_RANGE];
-        Captured_Master_Type_Check[`PCI_FIFO_CBE_RANGE] <=
-                            Captured_Master_Type_Check[`PCI_FIFO_CBE_RANGE];
+        Captured_Master_Address_Check[PCI_FIFO_DATA_RANGE:0] <=
+                            Captured_Master_Address_Check[PCI_FIFO_DATA_RANGE:0];
+        Captured_Master_Type_Check[PCI_FIFO_CBE_RANGE:0] <=
+                            Captured_Master_Type_Check[PCI_FIFO_CBE_RANGE:0];
         master_results_being_returned <= master_results_being_returned;
       end
       else
       begin
-        Captured_Master_Address_Check[`PCI_FIFO_DATA_RANGE] <=
-                         Captured_Master_Address_Check[`PCI_FIFO_DATA_RANGE];
-        Captured_Master_Type_Check[`PCI_FIFO_CBE_RANGE] <=
-                         Captured_Master_Type_Check[`PCI_FIFO_CBE_RANGE];
+        Captured_Master_Address_Check[PCI_FIFO_DATA_RANGE:0] <=
+                         Captured_Master_Address_Check[PCI_FIFO_DATA_RANGE:0];
+        Captured_Master_Type_Check[PCI_FIFO_CBE_RANGE:0] <=
+                         Captured_Master_Type_Check[PCI_FIFO_CBE_RANGE:0];
         master_results_being_returned <= master_results_being_returned;
       end
     end
@@ -901,16 +903,16 @@ $display ("Got Last Read Data");  // NOTE WORKING
     if (pci_host_response_data_available_meta)
     begin
       if (   ((pci_host_response_type[3:0] ==
-                            `PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT)
+                            PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT)
                 & pci_host_response_data[31])
            | (pci_host_response_type[3:0] ==
-                            `PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR)
+                            PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR)
            | (pci_host_response_type[3:0] ==
-                            `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR)
+                            PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR)
            | (pci_host_response_type[3:0] ==
-                            `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_PERR)
+                            PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_PERR)
            | (pci_host_response_type[3:0] ==
-                            `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST_PERR) )
+                            PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST_PERR) )
       begin
         pci_interface_reports_errors[9] <= 1'b1;  // PERR_Detected
       end
@@ -920,7 +922,7 @@ $display ("Got Last Read Data");  // NOTE WORKING
       end
 
       if (pci_host_response_type[3:0] ==
-                         `PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT)
+                         PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT)
       begin
         pci_interface_reports_errors[8] <= pci_host_response_data[30];  // SERR_Detected
         pci_interface_reports_errors[7] <= pci_host_response_data[29];  // Master_Abort_Received
@@ -936,8 +938,7 @@ $display ("Got Last Read Data");  // NOTE WORKING
         pci_interface_reports_errors[8:1] <= 8'h00;
       end
       pci_interface_reports_errors[0] <=  // Illegal_Command_Detected_In_Response_FIFO
-         (   (pci_host_response_type[3:0] == `PCI_HOST_RESPONSE_SPARE)
-           | (pci_host_response_type[3:0] == `PCI_HOST_RESPONSE_EXTERNAL_SPARE) );
+         (pci_host_response_type[3:0] == PCI_HOST_RESPONSE_SPARE);
     end
     else
     begin
@@ -948,37 +949,35 @@ $display ("Got Last Read Data");  // NOTE WORKING
 // NOTE WORKING Need to get rid of that 1'b0
 // Unload Response FIFO when it is possible to pass its contents to all interested parties.
   assign  pci_host_response_unload = 1'b0 & (pci_host_response_data_available_meta
-             & (   ((pci_host_response_type[3:0] == `PCI_HOST_RESPONSE_SPARE))
+             & (   ((pci_host_response_type[3:0] == PCI_HOST_RESPONSE_SPARE))
                  | ((pci_host_response_type[3:0] ==
-                                   `PCI_HOST_RESPONSE_EXECUTED_ADDRESS_COMMAND))
+                                   PCI_HOST_RESPONSE_EXECUTED_ADDRESS_COMMAND))
                  | ((pci_host_response_type[3:0] ==
-                                   `PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT))
+                                   PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT))
                  | ((pci_host_response_type[3:0] ==// PCI_HOST_RESPONSE_READ_WRITE_CONFIG_REGISTER
-                                   `PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE))
+                                   PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE))
                  | ((pci_host_response_type[3:0] ==
-                                   `PCI_HOST_RESPONSE_R_DATA_W_SENT))
+                                   PCI_HOST_RESPONSE_R_DATA_W_SENT))
                  | ((pci_host_response_type[3:0] ==
-                                   `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST))
+                                   PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST))
                  | ((pci_host_response_type[3:0] ==
-                                   `PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR))
+                                   PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR))
                  | ((pci_host_response_type[3:0] ==
-                                   `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR))
+                                   PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR))
                  | ((pci_host_response_type[3:0] ==
-                                   `PCI_HOST_RESPONSE_EXTERNAL_SPARE))
+                        PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE))  // wait!
                  | ((pci_host_response_type[3:0] ==
-                        `PCI_HOST_RESPONSE_EXTERNAL_ADDRESS_COMMAND_READ_WRITE))  // wait!
+                                   PCI_HOST_RESPONSE_EXT_DELAYED_READ_RESTART))  // wait!
                  | ((pci_host_response_type[3:0] ==
-                                   `PCI_HOST_RESPONSE_EXT_DELAYED_READ_RESTART))  // wait!
+                                   PCI_HOST_RESPONSE_EXT_READ_UNSUSPENDING))
                  | ((pci_host_response_type[3:0] ==
-                                   `PCI_HOST_RESPONSE_EXT_READ_UNSUSPENDING))
+                                   PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK))  // wait!
                  | ((pci_host_response_type[3:0] ==
-                                   `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK))  // wait!
+                                   PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST))  // wait!
                  | ((pci_host_response_type[3:0] ==
-                                   `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST))  // wait!
+                                   PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_PERR))  // wait!
                  | ((pci_host_response_type[3:0] ==
-                                   `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_PERR))  // wait!
-                 | ((pci_host_response_type[3:0] ==
-                               `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST_PERR))   // wait!
+                               PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST_PERR))   // wait!
                ) );
 
 
@@ -1004,7 +1003,7 @@ $display ("Got Last Read Data");  // NOTE WORKING
         `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_LAST_PERR:
 */
 
-// NOTE WORKING
+// NOTE: WORKING
 // Get the next Host Data during a Burst.  In this example Host Interface,
 //   data always increments by 32'h01010101 during a burst.
 // The Write side increments it during writes, and the Read side increments
@@ -1062,19 +1061,19 @@ $display ("Got Last Read Data");  // NOTE WORKING
 
   reg     target_ref_start;
   reg     target_ref_size;
-  reg    [`PCI_FIFO_DATA_RANGE] target_ref_address;
+  reg    [PCI_FIFO_DATA_RANGE:0] target_ref_address;
   reg    [3:0] target_ref_command;
-  reg    [`PCI_FIFO_CBE_RANGE] target_byte_enables_l;
-  reg    [`PCI_FIFO_DATA_RANGE] target_write_data;
+  reg    [PCI_FIFO_CBE_RANGE:0] target_byte_enables_l;
+  reg    [PCI_FIFO_DATA_RANGE:0] target_write_data;
 
   always @(posedge host_clk)
   begin
     if (host_reset_to_PCI_interface)
     begin
       target_ref_start <= 1'b0;
-      target_write_data[`PCI_FIFO_DATA_RANGE] <= 32'h00000000;
+      target_write_data[PCI_FIFO_DATA_RANGE:0] <= `PCI_FIFO_DATA_ZERO;
       target_ref_address[5:0] <= 6'h00;
-      target_byte_enables_l[`PCI_FIFO_CBE_RANGE] <= 4'hF;
+      target_byte_enables_l[PCI_FIFO_CBE_RANGE:0] <= `PCI_FIFO_CBE_F;
     end
     else
     begin
@@ -1085,17 +1084,8 @@ $display ("Got Last Read Data");  // NOTE WORKING
   end
 
 // NOTE WORKING
-// Things to tag the outgoing data stream with
-//`define PCI_HOST_DELAYED_READ_DATA_SPARE               (3'b000)
-//`define PCI_HOST_DELAYED_READ_DATA_VALID               (3'b001)
-//`define PCI_HOST_DELAYED_READ_DATA_VALID_LAST          (3'b010)
-//`define PCI_HOST_DELAYED_READ_DATA_VALID_PERR          (3'b101)
-//`define PCI_HOST_DELAYED_READ_DATA_VALID_LAST_PERR     (3'b110)
-//`define PCI_HOST_DELAYED_READ_DATA_TARGET_ABORT        (3'b011)
-
-// NOTE WORKING
-  assign  pci_host_delayed_read_data[`PCI_FIFO_DATA_RANGE] = 32'h00000000;
-  assign  pci_host_delayed_read_type[2:0] = `PCI_HOST_DELAYED_READ_DATA_SPARE;
+  assign  pci_host_delayed_read_data[PCI_FIFO_DATA_RANGE:0] = `PCI_FIFO_DATA_ZERO;
+  assign  pci_host_delayed_read_type[2:0] = PCI_HOST_DELAYED_READ_DATA_SPARE;
   assign  pci_host_delayed_read_data_submit = 1'b0;
 
 // Check for errors in the Host_Target_State_Machine
@@ -1114,21 +1104,21 @@ $display ("Got Last Read Data");  // NOTE WORKING
 // Monitor the activity on the Host Interface of the PCI_Blue_Interface.
 monitor_pci_interface_host_port monitor_pci_interface_host_port (
 // Wires used by the host controller to request action by the pci interface
-  .pci_host_request_data      (pci_host_request_data[`PCI_FIFO_DATA_RANGE]),
-  .pci_host_request_cbe       (pci_host_request_cbe[`PCI_FIFO_CBE_RANGE]),
+  .pci_host_request_data      (pci_host_request_data[PCI_FIFO_DATA_RANGE:0]),
+  .pci_host_request_cbe       (pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0]),
   .pci_host_request_type      (pci_host_request_type[2:0]),
   .pci_host_request_room_available_meta  (pci_host_request_room_available_meta),
   .pci_host_request_submit    (pci_host_request_submit),
   .pci_host_request_error     (pci_host_request_error),
 // Wires used by the pci interface to request action by the host controller
-  .pci_host_response_data     (pci_host_response_data[`PCI_FIFO_DATA_RANGE]),
-  .pci_host_response_cbe      (pci_host_response_cbe[`PCI_FIFO_CBE_RANGE]),
+  .pci_host_response_data     (pci_host_response_data[PCI_FIFO_DATA_RANGE:0]),
+  .pci_host_response_cbe      (pci_host_response_cbe[PCI_FIFO_CBE_RANGE:0]),
   .pci_host_response_type     (pci_host_response_type[3:0]),
   .pci_host_response_data_available_meta  (pci_host_response_data_available_meta),
   .pci_host_response_unload   (pci_host_response_unload),
   .pci_host_response_error    (pci_host_response_error),
 // Wires used by the host controller to send delayed read data by the pci interface
-  .pci_host_delayed_read_data (pci_host_delayed_read_data[`PCI_FIFO_DATA_RANGE]),
+  .pci_host_delayed_read_data (pci_host_delayed_read_data[PCI_FIFO_DATA_RANGE:0]),
   .pci_host_delayed_read_type (pci_host_delayed_read_type[2:0]),
   .pci_host_delayed_read_room_available_meta  (pci_host_delayed_read_room_available_meta),
   .pci_host_delayed_read_data_submit          (pci_host_delayed_read_data_submit),
@@ -1139,19 +1129,19 @@ monitor_pci_interface_host_port monitor_pci_interface_host_port (
 
 // Wires connecting the Host FIFOs to the PCI Interface
   wire   [2:0] pci_request_fifo_type;
-  wire   [`PCI_FIFO_CBE_RANGE] pci_request_fifo_cbe;
-  wire   [`PCI_FIFO_DATA_RANGE] pci_request_fifo_data;
+  wire   [PCI_FIFO_CBE_RANGE:0] pci_request_fifo_cbe;
+  wire   [PCI_FIFO_DATA_RANGE:0] pci_request_fifo_data;
   wire    pci_request_fifo_data_available_meta;
   wire    pci_request_fifo_two_words_available_meta;
   wire    pci_request_fifo_data_unload;
   wire    pci_request_fifo_error;
   wire   [3:0] pci_response_fifo_type;
-  wire   [`PCI_FIFO_CBE_RANGE] pci_response_fifo_cbe;
-  wire   [`PCI_FIFO_DATA_RANGE] pci_response_fifo_data;
+  wire   [PCI_FIFO_CBE_RANGE:0] pci_response_fifo_cbe;
+  wire   [PCI_FIFO_DATA_RANGE:0] pci_response_fifo_data;
   wire    pci_response_fifo_room_available_meta;
   wire    pci_response_fifo_data_load, pci_response_fifo_error;
   wire   [2:0] pci_delayed_read_fifo_type;
-  wire   [`PCI_FIFO_DATA_RANGE] pci_delayed_read_fifo_data;
+  wire   [PCI_FIFO_DATA_RANGE:0] pci_delayed_read_fifo_data;
   wire    pci_delayed_read_fifo_data_available_meta;
   wire    pci_delayed_read_fifo_data_unload, pci_delayed_read_fifo_error;
  
@@ -1166,8 +1156,8 @@ pci_fifo_storage_request pci_fifo_storage_request (
 // NOTE Needs extra settling time to avoid metastability
   .write_room_available_meta  (pci_host_request_room_available_meta),
   .write_data                 ({pci_host_request_type[2:0],
-                                pci_host_request_cbe[`PCI_FIFO_CBE_RANGE],
-                                pci_host_request_data[`PCI_FIFO_DATA_RANGE]}),
+                                pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0],
+                                pci_host_request_data[PCI_FIFO_DATA_RANGE:0]}),
   .write_error                (pci_host_request_error),
   .read_clk                   (pci_clk),
   .read_sync_clk              (pci_sync_clk),
@@ -1177,8 +1167,8 @@ pci_fifo_storage_request pci_fifo_storage_request (
 // NOTE Needs extra settling time to avoid metastability
   .read_two_words_available_meta (pci_request_fifo_two_words_available_meta),
   .read_data                  ({pci_request_fifo_type[2:0],
-                                pci_request_fifo_cbe[`PCI_FIFO_CBE_RANGE],
-                                pci_request_fifo_data[`PCI_FIFO_DATA_RANGE]}),
+                                pci_request_fifo_cbe[PCI_FIFO_CBE_RANGE:0],
+                                pci_request_fifo_data[PCI_FIFO_DATA_RANGE:0]}),
   .read_error                 (pci_request_fifo_error)
 );
 
@@ -1193,8 +1183,8 @@ pci_fifo_storage_response pci_fifo_storage_response (
 // NOTE Needs extra settling time to avoid metastability
   .write_room_available_meta  (pci_response_fifo_room_available_meta),
   .write_data                 ({pci_response_fifo_type[3:0],
-                                pci_response_fifo_cbe[`PCI_FIFO_CBE_RANGE],
-                                pci_response_fifo_data[`PCI_FIFO_DATA_RANGE]}),
+                                pci_response_fifo_cbe[PCI_FIFO_CBE_RANGE:0],
+                                pci_response_fifo_data[PCI_FIFO_DATA_RANGE:0]}),
   .write_error                (pci_response_fifo_error),
   .read_clk                   (host_clk),
   .read_sync_clk              (host_sync_clk),
@@ -1204,8 +1194,8 @@ pci_fifo_storage_response pci_fifo_storage_response (
 // NOTE Needs extra settling time to avoid metastability
   .read_two_words_available_meta (),  // NOTE: WORKING
   .read_data                  ({pci_host_response_type[3:0],
-                                pci_host_response_cbe[`PCI_FIFO_CBE_RANGE],
-                                pci_host_response_data[`PCI_FIFO_DATA_RANGE]}),
+                                pci_host_response_cbe[PCI_FIFO_CBE_RANGE:0],
+                                pci_host_response_data[PCI_FIFO_DATA_RANGE:0]}),
   .read_error                 (pci_host_response_error)
 );
 
@@ -1220,7 +1210,7 @@ pci_fifo_storage_delayed_read pci_fifo_storage_delayed_read (
 // NOTE Needs extra settling time to avoid metastability
   .write_room_available_meta  (pci_host_delayed_read_room_available_meta),
   .write_data                 ({pci_host_delayed_read_type[2:0],
-                                pci_host_delayed_read_data[`PCI_FIFO_DATA_RANGE]}), 
+                                pci_host_delayed_read_data[PCI_FIFO_DATA_RANGE:0]}), 
   .write_error                (pci_host_delayed_read_data_error),
   .read_clk                   (pci_clk),
   .read_sync_clk              (pci_sync_clk),
@@ -1230,12 +1220,12 @@ pci_fifo_storage_delayed_read pci_fifo_storage_delayed_read (
 // NOTE Needs extra settling time to avoid metastability
   .read_two_words_available_meta (),  // NOTE: WORKING
   .read_data                  ({pci_delayed_read_fifo_type[2:0],
-                                pci_delayed_read_fifo_data[`PCI_FIFO_DATA_RANGE]}), 
+                                pci_delayed_read_fifo_data[PCI_FIFO_DATA_RANGE:0]}), 
   .read_error                 (pci_delayed_read_fifo_error)
 );
 
 // Target signals to be combined with Master signals on the way to the PCI IO Pads.
-  wire   [`PCI_BUS_DATA_RANGE] pci_target_ad_out_next;
+  wire   [PCI_BUS_DATA_RANGE:0] pci_target_ad_out_next;
   wire    pcu_target_ad_en_next,    pci_target_ad_out_oe_comb;
   wire    pci_target_par_out_next,  pci_target_par_out_oe_comb;
   wire    pci_target_perr_out_next, pci_target_perr_out_oe_comb;
@@ -1249,8 +1239,8 @@ pci_fifo_storage_delayed_read pci_fifo_storage_delayed_read (
 
 // Signals from the Master to the Target to insert Status Info into the Response FIFO.
   wire   [2:0] master_to_target_status_type;
-  wire   [`PCI_FIFO_CBE_RANGE] master_to_target_status_cbe;
-  wire   [`PCI_FIFO_DATA_RANGE] master_to_target_status_data;
+  wire   [PCI_FIFO_CBE_RANGE:0] master_to_target_status_cbe;
+  wire   [PCI_FIFO_DATA_RANGE:0] master_to_target_status_data;
   wire    master_to_target_status_flush;
   wire    master_to_target_status_available, master_to_target_status_unload;
 
@@ -1268,12 +1258,12 @@ pci_fifo_storage_delayed_read pci_fifo_storage_delayed_read (
 // Instantiate the Target Interface, which contains the Config Registers
 pci_blue_target pci_blue_target (
 // Signals driven to control the external PCI interface
-  .pci_ad_in_prev             (pci_ad_in_prev[`PCI_BUS_DATA_RANGE]),
-  .pci_target_ad_out_next     (pci_target_ad_out_next[`PCI_BUS_DATA_RANGE]),
+  .pci_ad_in_prev             (pci_ad_in_prev[PCI_BUS_DATA_RANGE:0]),
+  .pci_target_ad_out_next     (pci_target_ad_out_next[PCI_BUS_DATA_RANGE:0]),
   .pci_target_ad_en_next      (pci_target_ad_en_next),
   .pci_target_ad_out_oe_comb  (pci_target_ad_out_oe_comb),
   .pci_idsel_in_prev          (pci_idsel_in_prev),
-  .pci_cbe_l_in_prev          (pci_cbe_l_in_prev[`PCI_BUS_CBE_RANGE]),
+  .pci_cbe_l_in_prev          (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0]),
   .pci_par_in_prev            (pci_par_in_prev),
   .pci_par_in_comb            (pci_par_in_comb),
   .pci_target_par_out_next    (pci_target_par_out_next),
@@ -1302,22 +1292,22 @@ pci_blue_target pci_blue_target (
 // This FIFO also sends status info back from the master about PCI
 //   References this interface acts as the PCI Master for.
   .pci_response_fifo_type     (pci_response_fifo_type[3:0]),
-  .pci_response_fifo_cbe      (pci_response_fifo_cbe[`PCI_FIFO_CBE_RANGE]),
-  .pci_response_fifo_data     (pci_response_fifo_data[`PCI_FIFO_DATA_RANGE]),
+  .pci_response_fifo_cbe      (pci_response_fifo_cbe[PCI_FIFO_CBE_RANGE:0]),
+  .pci_response_fifo_data     (pci_response_fifo_data[PCI_FIFO_DATA_RANGE:0]),
   .pci_response_fifo_room_available_meta (pci_response_fifo_room_available_meta),
   .pci_response_fifo_data_load (pci_response_fifo_data_load),
   .pci_response_fifo_error    (pci_response_fifo_error),
 // Host Interface Delayed Read Data FIFO used to pass the results of a
 //   Delayed Read on to the external PCI Master which started it.
   .pci_delayed_read_fifo_type (pci_delayed_read_fifo_type[2:0]),
-  .pci_delayed_read_fifo_data (pci_delayed_read_fifo_data[`PCI_FIFO_DATA_RANGE]),
+  .pci_delayed_read_fifo_data (pci_delayed_read_fifo_data[PCI_FIFO_DATA_RANGE:0]),
   .pci_delayed_read_fifo_data_available_meta (pci_delayed_read_fifo_data_available_meta),
   .pci_delayed_read_fifo_data_unload (pci_delayed_read_fifo_data_unload),
   .pci_delayed_read_fifo_error (pci_delayed_read_fifo_error),
 // Signals from the Master to the Target to insert Status Info into the Response FIFO.
   .master_to_target_status_type   (master_to_target_status_type[2:0]),
-  .master_to_target_status_cbe    (master_to_target_status_cbe[`PCI_FIFO_CBE_RANGE]),
-  .master_to_target_status_data   (master_to_target_status_data[`PCI_FIFO_DATA_RANGE]),
+  .master_to_target_status_cbe    (master_to_target_status_cbe[PCI_FIFO_CBE_RANGE:0]),
+  .master_to_target_status_data   (master_to_target_status_data[PCI_FIFO_DATA_RANGE:0]),
   .master_to_target_status_flush  (master_to_target_status_flush),
   .master_to_target_status_available (master_to_target_status_available),
   .master_to_target_status_unload (master_to_target_status_unload),
@@ -1341,7 +1331,7 @@ pci_blue_target pci_blue_target (
 );
 
 // Master signals to be combined with Target signals on the way to the PCI IO Pads.
-  wire   [`PCI_BUS_DATA_RANGE] pci_master_ad_out_next;
+  wire   [PCI_BUS_DATA_RANGE:0] pci_master_ad_out_next;
   wire    pci_master_ad_en_next,    pci_master_ad_out_oe_comb;
   wire    pci_master_par_out_next,  pci_master_par_out_oe_comb;
   wire    pci_master_perr_out_next, pci_master_perr_out_oe_comb;
@@ -1360,9 +1350,9 @@ pci_blue_master pci_blue_master (
   .pci_req_out_oe_comb        (pci_req_out_oe_comb),
   .pci_gnt_in_prev            (pci_gnt_in_prev),
   .pci_gnt_in_comb            (pci_gnt_in_comb),
-  .pci_master_ad_out_next     (pci_master_ad_out_next[`PCI_BUS_DATA_RANGE]),
+  .pci_master_ad_out_next     (pci_master_ad_out_next[PCI_BUS_DATA_RANGE:0]),
   .pci_master_ad_out_oe_comb  (pci_master_ad_out_oe_comb),
-  .pci_cbe_l_out_next         (pci_cbe_l_out_next[`PCI_BUS_CBE_RANGE]),
+  .pci_cbe_l_out_next         (pci_cbe_l_out_next[PCI_BUS_CBE_RANGE:0]),
   .pci_cbe_out_oe_comb        (pci_cbe_out_oe_comb),
   .pci_frame_in_comb          (pci_frame_in_comb),
   .pci_frame_out_next         (pci_frame_out_next),
@@ -1389,16 +1379,16 @@ pci_blue_master pci_blue_master (
 // Host Interface Request FIFO used to ask the PCI Interface to initiate
 //   PCI References to an external PCI Target.
   .pci_request_fifo_type      (pci_request_fifo_type[2:0]),
-  .pci_request_fifo_cbe       (pci_request_fifo_cbe[`PCI_FIFO_CBE_RANGE]),
-  .pci_request_fifo_data      (pci_request_fifo_data[`PCI_FIFO_DATA_RANGE]),
+  .pci_request_fifo_cbe       (pci_request_fifo_cbe[PCI_FIFO_CBE_RANGE:0]),
+  .pci_request_fifo_data      (pci_request_fifo_data[PCI_FIFO_DATA_RANGE:0]),
   .pci_request_fifo_data_available_meta (pci_request_fifo_data_available_meta),
   .pci_request_fifo_two_words_available_meta (pci_request_fifo_two_words_available_meta),
   .pci_request_fifo_data_unload (pci_request_fifo_data_unload),
   .pci_request_fifo_error     (pci_request_fifo_error),
 // Signals from the Master to the Target to insert Status Info into the Response FIFO.
   .master_to_target_status_type   (master_to_target_status_type[2:0]),
-  .master_to_target_status_cbe    (master_to_target_status_cbe[`PCI_FIFO_CBE_RANGE]),
-  .master_to_target_status_data   (master_to_target_status_data[`PCI_FIFO_DATA_RANGE]),
+  .master_to_target_status_cbe    (master_to_target_status_cbe[PCI_FIFO_CBE_RANGE:0]),
+  .master_to_target_status_data   (master_to_target_status_data[PCI_FIFO_DATA_RANGE:0]),
   .master_to_target_status_flush  (master_to_target_status_flush),
   .master_to_target_status_available (master_to_target_status_available),
   .master_to_target_status_unload (master_to_target_status_unload),
@@ -1423,9 +1413,9 @@ pci_blue_master pci_blue_master (
   wire    Present_Reference_Is_Master;
 
 // Either present the next Master Address or Write Data or the next Target Data
-  assign  pci_ad_out_next[`PCI_BUS_DATA_RANGE] = Present_Reference_Is_Master
-                                ? pci_master_ad_out_next[`PCI_BUS_DATA_RANGE]
-                                : pci_target_ad_out_next[`PCI_BUS_DATA_RANGE];
+  assign  pci_ad_out_next[PCI_BUS_DATA_RANGE:0] = Present_Reference_Is_Master
+                                ? pci_master_ad_out_next[PCI_BUS_DATA_RANGE:0]
+                                : pci_target_ad_out_next[PCI_BUS_DATA_RANGE:0];
 
 // As quickly as possible, decide whether to present new data on AD bus or
 // to continue sending old data.  The state machines need to know what
@@ -1455,13 +1445,13 @@ pci_critical_data_latch_enable pci_critical_data_latch_enable (
 //       CBE signals, driven by Master.
 // NOTE: very timing critical.  3 nSec setup on CBE signals.
 // See the PCI Local Bus Spec Revision 2.2 section 3.7.1 for details.
-  wire    outgoing_data_parity = (^ pci_ad_out_next[`PCI_BUS_DATA_RANGE]);
-  wire    outgoing_cbe_parity = (^ pci_cbe_l_out_next[`PCI_BUS_CBE_RANGE]);
+  wire    outgoing_data_parity = (^ pci_ad_out_next[PCI_BUS_DATA_RANGE:0]);
+  wire    outgoing_cbe_parity = (^ pci_cbe_l_out_next[PCI_BUS_CBE_RANGE:0]);
 
-  wire    incoming_data_parity = (^ pci_ad_in_prev[`PCI_BUS_DATA_RANGE]);
-  wire    incoming_cbe_parity = (^ pci_cbe_l_in_prev[`PCI_BUS_CBE_RANGE]);
+  wire    incoming_data_parity = (^ pci_ad_in_prev[PCI_BUS_DATA_RANGE:0]);
+  wire    incoming_cbe_parity = (^ pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0]);
 
-  wire    current_cbe_parity = (^ pci_cbe_l_in_comb[`PCI_BUS_CBE_RANGE]);
+  wire    current_cbe_parity = (^ pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0]);
 
 // NOTE NOT DONE YET.  Decide what parity to drive
   assign  pci_par_out_next = 1'b0;

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_behaviorial_master.v,v 1.7 2001-07-03 09:20:44 bbeaver Exp $
+// $Id: pci_behaviorial_master.v,v 1.8 2001-07-06 10:51:01 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -77,8 +77,6 @@
 //
 //===========================================================================
 
-`include "pci_blue_options.vh"
-`include "pci_blue_constants.vh"
 `timescale 1ns/1ps
 
 module pci_behaviorial_master (
@@ -110,11 +108,15 @@ module pci_behaviorial_master (
   test_start, test_accepted_l, test_error_event,
   test_device_id
 );
-  input  [`PCI_BUS_DATA_RANGE] ad_now;
-  input  [`PCI_BUS_DATA_RANGE] ad_prev;
-  output [`PCI_BUS_DATA_RANGE] master_ad_out;
+
+`include "pci_blue_options.vh"
+`include "pci_blue_constants.vh"
+
+  input  [PCI_BUS_DATA_RANGE:0] ad_now;
+  input  [PCI_BUS_DATA_RANGE:0] ad_prev;
+  output [PCI_BUS_DATA_RANGE:0] master_ad_out;
   output  master_ad_oe;
-  output [`PCI_BUS_CBE_RANGE] master_cbe_l_out;
+  output [PCI_BUS_CBE_RANGE:0] master_cbe_l_out;
   output  master_cbe_oe;
   input   calc_input_parity_prev;
   input   par_now, par_prev;
@@ -136,10 +138,10 @@ module pci_behaviorial_master (
 // Signals used by the test bench instead of using "." notation
   output  master_debug_force_bad_par;
   input  [2:0] test_master_number;
-  input  [`PCI_BUS_DATA_RANGE] test_address;
-  input  [`PCI_BUS_CBE_RANGE] test_command;
-  input  [`PCI_BUS_DATA_RANGE] test_data;
-  input  [`PCI_BUS_CBE_RANGE] test_byte_enables_l;
+  input  [PCI_BUS_DATA_RANGE:0] test_address;
+  input  [PCI_BUS_CBE_RANGE:0] test_command;
+  input  [PCI_BUS_DATA_RANGE:0] test_data;
+  input  [PCI_BUS_CBE_RANGE:0] test_byte_enables_l;
   input  [3:0] test_size;
   input   test_make_addr_par_error, test_make_data_par_error;
   input  [3:0] test_master_initial_wait_states;
@@ -155,9 +157,9 @@ module pci_behaviorial_master (
   output  test_error_event;
   input  [2:0] test_device_id;
 
-  reg    [`PCI_BUS_DATA_RANGE] master_ad_out;
+  reg    [PCI_BUS_DATA_RANGE:0] master_ad_out;
   reg     master_ad_oe;
-  reg    [`PCI_BUS_CBE_RANGE] master_cbe_l_out;
+  reg    [PCI_BUS_CBE_RANGE:0] master_cbe_l_out;
   reg     master_cbe_oe;
   reg     master_frame_out, master_irdy_out;
   wire    master_frame_oe, master_irdy_oe, master_perr_oe, master_serr_oe;
@@ -268,14 +270,14 @@ module pci_behaviorial_master (
 
 // Model of a Master Source of Data, which writes whatever it wants on bursts
 task Compare_Read_Data_With_Expected_Data;
-  input  [`PCI_BUS_DATA_RANGE] target_read_data;
-  input  [`PCI_BUS_DATA_RANGE] master_check_data;
+  input  [PCI_BUS_DATA_RANGE:0] target_read_data;
+  input  [PCI_BUS_DATA_RANGE:0] master_check_data;
   begin
     if (~pci_reset_comb & (target_read_data != master_check_data))
     begin
       $display ("*** test master %h - Master Read Data 'h%x not as expected 'h%x, at %t",
-                  test_device_id[2:0], target_read_data[`PCI_BUS_DATA_RANGE],
-                  master_check_data[`PCI_BUS_DATA_RANGE], $time);
+                  test_device_id[2:0], target_read_data[PCI_BUS_DATA_RANGE:0],
+                  master_check_data[PCI_BUS_DATA_RANGE:0], $time);
       error_detected <= ~error_detected;
     end
     `NO_ELSE;
@@ -283,20 +285,20 @@ task Compare_Read_Data_With_Expected_Data;
 endtask
 
 // Tasks can't have local storage!  have to be module global
-  reg    [`PCI_BUS_DATA_RANGE] up_temp;
+  reg    [PCI_BUS_DATA_RANGE:0] up_temp;
 task Update_Write_Data;
-  input  [`PCI_BUS_DATA_RANGE] master_write_data;
-  input  [`PCI_BUS_CBE_RANGE] master_mask_l;
-  output [`PCI_BUS_DATA_RANGE] master_write_data_next;
-  output [`PCI_BUS_CBE_RANGE] master_mask_l_next;
+  input  [PCI_BUS_DATA_RANGE:0] master_write_data;
+  input  [PCI_BUS_CBE_RANGE:0] master_mask_l;
+  output [PCI_BUS_DATA_RANGE:0] master_write_data_next;
+  output [PCI_BUS_CBE_RANGE:0] master_mask_l_next;
   begin
     up_temp[31:24] = master_write_data[31:24] + 8'h01;
     up_temp[23:16] = master_write_data[23:16] + 8'h01;
     up_temp[15: 8] = master_write_data[15: 8] + 8'h01;
     up_temp[ 7: 0] = master_write_data[ 7: 0] + 8'h01;
 // Wrap adds so that things repeat in the 256 Byte (64 Word) Target SRAM
-    master_write_data_next[`PCI_BUS_DATA_RANGE] = up_temp[`PCI_BUS_DATA_RANGE] & 32'h3F3F3F3F;
-    master_mask_l_next[`PCI_BUS_CBE_RANGE] = {master_mask_l[2:0], master_mask_l[3]};
+    master_write_data_next[PCI_BUS_DATA_RANGE:0] = up_temp[PCI_BUS_DATA_RANGE:0] & 32'h3F3F3F3F;
+    master_mask_l_next[PCI_BUS_CBE_RANGE:0] = {master_mask_l[2:0], master_mask_l[3]};
   end
 endtask
 
@@ -328,9 +330,9 @@ endtask
 
 // Signals used by Master test code to apply correct info to the PCI bus
   reg    [23:9] hold_master_address;
-  reg    [`PCI_BUS_CBE_RANGE] hold_master_command;
-  reg    [`PCI_BUS_DATA_RANGE] hold_master_data;
-  reg    [`PCI_BUS_CBE_RANGE] hold_master_byte_enables_l;
+  reg    [PCI_BUS_CBE_RANGE:0] hold_master_command;
+  reg    [PCI_BUS_DATA_RANGE:0] hold_master_data;
+  reg    [PCI_BUS_CBE_RANGE:0] hold_master_byte_enables_l;
   reg    [3:0] hold_master_size;
   reg     hold_master_addr_par_err, hold_master_data_par_err;
   reg    [3:0] hold_master_initial_waitstates;
@@ -341,7 +343,7 @@ endtask
   reg     hold_master_fast_b2b;
   reg    [2:0] hold_master_target_termination;
   reg     hold_master_expect_master_abort;
-  reg    [`PCI_BUS_DATA_RANGE] modified_master_address;
+  reg    [PCI_BUS_DATA_RANGE:0] modified_master_address;
 
 // Tasks to do behaviorial PCI references
 // NOTE all tasks end with an @(posedge pci_ext_clk) statement
@@ -444,14 +446,14 @@ parameter TEST_MASTER_STEP_ADDRESS      = 1'b1;
   integer ii; // sequential code, so OK to use "=" assignment operator
   reg     first_step_delay;
 task Master_Assert_Address;
-  input  [`PCI_BUS_DATA_RANGE] address;
-  input  [`PCI_BUS_CBE_RANGE] command;
+  input  [PCI_BUS_DATA_RANGE:0] address;
+  input  [PCI_BUS_CBE_RANGE:0] command;
   input   address_speed, enable_fast_back_to_back, force_addr_par_error;
   begin
 `ifdef VERBOSE_TEST_DEVICE
     $display (" test %h - Driving Address 'h%x, CBE 'h%x, at %t",
-              test_device_id[2:0], address[`PCI_BUS_DATA_RANGE],
-              command[`PCI_BUS_CBE_RANGE], $time);
+              test_device_id[2:0], address[PCI_BUS_DATA_RANGE:0],
+              command[PCI_BUS_CBE_RANGE:0], $time);
 `endif // VERBOSE_TEST_DEVICE
     first_step_delay = (address_speed == TEST_MASTER_STEP_ADDRESS);
     for (ii = 0; ii < TEST_MASTER_SPINLOOP_MAX; ii = ii + 1)
@@ -465,9 +467,9 @@ task Master_Assert_Address;
       begin
         if (first_step_delay == 1'b1)
         begin  // stepping, so drive address with some unknown bits
-          master_ad_out[`PCI_BUS_DATA_RANGE] <= address[`PCI_BUS_DATA_RANGE] ^ 32'hXX00XX00;
+          master_ad_out[PCI_BUS_DATA_RANGE:0] <= address[PCI_BUS_DATA_RANGE:0] ^ 32'hXX00XX00;
           master_ad_oe <= 1'b1;
-          master_cbe_l_out[`PCI_BUS_CBE_RANGE] <= command[`PCI_BUS_CBE_RANGE] ^ 4'bX0X0;
+          master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= command[PCI_BUS_CBE_RANGE:0] ^ 4'bX0X0;
           master_cbe_oe <= 1'b1;
           master_debug_force_bad_par <= 1'b1;
           master_got_master_abort <= 1'b0;
@@ -480,9 +482,9 @@ task Master_Assert_Address;
         end
         else
         begin  // drive address AND frame
-          master_ad_out[`PCI_BUS_DATA_RANGE] <= address[`PCI_BUS_DATA_RANGE];
+          master_ad_out[PCI_BUS_DATA_RANGE:0] <= address[PCI_BUS_DATA_RANGE:0];
           master_ad_oe <= 1'b1;
-          master_cbe_l_out[`PCI_BUS_CBE_RANGE] <= command[`PCI_BUS_CBE_RANGE];
+          master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= command[PCI_BUS_CBE_RANGE:0];
           master_cbe_oe <= 1'b1;
           master_debug_force_bad_par <= force_addr_par_error;
           master_got_master_abort <= 1'b0;
@@ -498,9 +500,9 @@ task Master_Assert_Address;
       end
       else
       begin  // might have lost things after first step.  Undrive everything.
-        master_ad_out[`PCI_BUS_DATA_RANGE] <= `BUS_IMPOSSIBLE_VALUE;
+        master_ad_out[PCI_BUS_DATA_RANGE:0] <= `BUS_IMPOSSIBLE_VALUE;
         master_ad_oe <= 1'b0;
-        master_cbe_l_out[`PCI_BUS_CBE_RANGE] <= `PCI_COMMAND_RESERVED_4;  // easy to see
+        master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= PCI_COMMAND_RESERVED_4;  // easy to see
         master_cbe_oe <= 1'b0;
         master_debug_force_bad_par <= 1'b0;
         master_got_master_abort <= 1'b0;
@@ -531,7 +533,7 @@ endtask
   reg    [3:0] cnt;
 task Execute_Master_Waitstates_But_Quit_On_Target_Abort;
   input   drive_ad_bus;
-  input  [`PCI_BUS_CBE_RANGE] master_mask_l;
+  input  [PCI_BUS_CBE_RANGE:0] master_mask_l;
   input  [3:0] num_waitstates;
   begin
     for (cnt = 4'h0; cnt < num_waitstates[3:0]; cnt = cnt + 4'h1)
@@ -542,9 +544,9 @@ task Execute_Master_Waitstates_But_Quit_On_Target_Abort;
       end
       else
       begin
-        master_ad_out[`PCI_BUS_DATA_RANGE] <= `BUS_WAIT_STATE_VALUE;
+        master_ad_out[PCI_BUS_DATA_RANGE:0] <= `BUS_WAIT_STATE_VALUE;
         master_ad_oe <= drive_ad_bus;
-        master_cbe_l_out[`PCI_BUS_CBE_RANGE] <= master_mask_l[`PCI_BUS_CBE_RANGE];
+        master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= master_mask_l[PCI_BUS_CBE_RANGE:0];
         master_cbe_oe <= 1'b1;
         master_debug_force_bad_par <= 1'b0;
         master_got_master_abort <= 1'b0;
@@ -746,8 +748,8 @@ endtask
   integer iii;
 task Linger_Until_DEVSEL_Or_Master_Abort_Or_Target_Abort;
   input   drive_ad_bus;
-  input  [`PCI_BUS_DATA_RANGE] master_write_data;
-  input  [`PCI_BUS_CBE_RANGE] master_mask_l;
+  input  [PCI_BUS_DATA_RANGE:0] master_write_data;
+  input  [PCI_BUS_CBE_RANGE:0] master_mask_l;
   input   do_master_terminate;
   output  got_master_abort;
   begin
@@ -773,9 +775,9 @@ task Linger_Until_DEVSEL_Or_Master_Abort_Or_Target_Abort;
           end
           else
           begin
-            master_ad_out[`PCI_BUS_DATA_RANGE] <= master_write_data[`PCI_BUS_DATA_RANGE];
+            master_ad_out[PCI_BUS_DATA_RANGE:0] <= master_write_data[PCI_BUS_DATA_RANGE:0];
             master_ad_oe <= drive_ad_bus;
-            master_cbe_l_out[`PCI_BUS_CBE_RANGE] <= master_mask_l[`PCI_BUS_CBE_RANGE];
+            master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= master_mask_l[PCI_BUS_CBE_RANGE:0];
             master_cbe_oe <= 1'b1;
             master_debug_force_bad_par <= hold_master_data_par_err;
             master_got_master_abort <= 1'b0;
@@ -816,17 +818,17 @@ endtask
   integer iiii;
 task Linger_Until_Target_Waitstates_Done;
   input   drive_ad_bus;
-  input  [`PCI_BUS_DATA_RANGE] master_write_data;
-  input  [`PCI_BUS_CBE_RANGE] master_mask_l;
+  input  [PCI_BUS_DATA_RANGE:0] master_write_data;
+  input  [PCI_BUS_CBE_RANGE:0] master_mask_l;
   input   do_master_terminate;
   begin
     for (iiii = 0; iiii < TEST_MASTER_SPINLOOP_MAX; iiii = iiii + 1)
     begin
       if (~trdy_now & ~stop_now)  // stick in master wait states
       begin
-        master_ad_out[`PCI_BUS_DATA_RANGE] <= master_write_data[`PCI_BUS_DATA_RANGE];
+        master_ad_out[PCI_BUS_DATA_RANGE:0] <= master_write_data[PCI_BUS_DATA_RANGE:0];
         master_ad_oe <= drive_ad_bus;
-        master_cbe_l_out[`PCI_BUS_CBE_RANGE] <= master_mask_l[`PCI_BUS_CBE_RANGE];
+        master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= master_mask_l[PCI_BUS_CBE_RANGE:0];
         master_cbe_oe <= 1'b1;
         master_debug_force_bad_par <= hold_master_data_par_err;
         master_got_master_abort <= 1'b0;
@@ -861,9 +863,9 @@ task Execute_Master_Ref_Undrive_All_In_Any_Termination_Unless_Fast_B2B;
   input   watching_for_master_abort;
   input   do_master_terminate;
   input   enable_fast_back_to_back;
-  input  [`PCI_BUS_DATA_RANGE] master_write_data;
-  input  [`PCI_BUS_CBE_RANGE] master_mask_l;
-  output [`PCI_BUS_DATA_RANGE] target_read_data;
+  input  [PCI_BUS_DATA_RANGE:0] master_write_data;
+  input  [PCI_BUS_CBE_RANGE:0] master_mask_l;
+  output [PCI_BUS_DATA_RANGE:0] target_read_data;
   output  got_master_abort, got_target_retry, got_target_stop, got_target_abort;
   output  want_fast_back_to_back;
   begin
@@ -875,9 +877,9 @@ task Execute_Master_Ref_Undrive_All_In_Any_Termination_Unless_Fast_B2B;
     end
     else
     begin
-      master_ad_out[`PCI_BUS_DATA_RANGE] <= master_write_data[`PCI_BUS_DATA_RANGE];
+      master_ad_out[PCI_BUS_DATA_RANGE:0] <= master_write_data[PCI_BUS_DATA_RANGE:0];
       master_ad_oe <= drive_ad_bus;
-      master_cbe_l_out[`PCI_BUS_CBE_RANGE] <= master_mask_l[`PCI_BUS_CBE_RANGE];
+      master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= master_mask_l[PCI_BUS_CBE_RANGE:0];
       master_cbe_oe <= 1'b1;
       master_debug_force_bad_par <= hold_master_data_par_err;
       master_got_master_abort <= 1'b0;
@@ -890,8 +892,8 @@ task Execute_Master_Ref_Undrive_All_In_Any_Termination_Unless_Fast_B2B;
       if (watching_for_master_abort)
       begin
         Linger_Until_DEVSEL_Or_Master_Abort_Or_Target_Abort (drive_ad_bus,
-                                      master_write_data[`PCI_BUS_DATA_RANGE],
-                                      master_mask_l[`PCI_BUS_CBE_RANGE],
+                                      master_write_data[PCI_BUS_DATA_RANGE:0],
+                                      master_mask_l[PCI_BUS_CBE_RANGE:0],
                                       do_master_terminate, got_master_abort);
       end
       else
@@ -905,10 +907,10 @@ task Execute_Master_Ref_Undrive_All_In_Any_Termination_Unless_Fast_B2B;
       else
       begin
         Linger_Until_Target_Waitstates_Done (drive_ad_bus,
-                                           master_write_data[`PCI_BUS_DATA_RANGE],
-                                           master_mask_l[`PCI_BUS_CBE_RANGE],
+                                           master_write_data[PCI_BUS_DATA_RANGE:0],
+                                           master_mask_l[PCI_BUS_CBE_RANGE:0],
                                            do_master_terminate);
-        target_read_data[`PCI_BUS_DATA_RANGE] = ad_now[`PCI_BUS_DATA_RANGE];  // unconditionally grab.
+        target_read_data[PCI_BUS_DATA_RANGE:0] = ad_now[PCI_BUS_DATA_RANGE:0];  // unconditionally grab.
         if (~devsel_now & stop_now)
         begin
           got_target_retry = 1'b0; got_target_stop = 1'b0; got_target_abort = 1'b1;
@@ -941,9 +943,9 @@ task Execute_Master_Ref_Undrive_All_In_Any_Termination_Unless_Fast_B2B;
     if ((got_master_abort | got_target_retry | got_target_stop | got_target_abort)
           & ~do_master_terminate)  // If not do_master_terminate, FRAME still asserted
     begin  // turn-around cycle on FRAME
-      master_ad_out[`PCI_BUS_DATA_RANGE] <= master_write_data[`PCI_BUS_DATA_RANGE];
+      master_ad_out[PCI_BUS_DATA_RANGE:0] <= master_write_data[PCI_BUS_DATA_RANGE:0];
       master_ad_oe <= drive_ad_bus;
-      master_cbe_l_out[`PCI_BUS_CBE_RANGE] <= master_mask_l[`PCI_BUS_CBE_RANGE];
+      master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= master_mask_l[PCI_BUS_CBE_RANGE:0];
       master_cbe_oe <= 1'b1;
       master_debug_force_bad_par <= hold_master_data_par_err;
       master_got_master_abort <= 1'b0;
@@ -972,8 +974,8 @@ task Execute_Master_Ref_Undrive_All_In_Any_Termination_Unless_Fast_B2B;
              & master_gnt_now & enable_fast_back_to_back & master_fast_b2b_en
              & This_Master_Drove_The_AD_Bus_The_Last_Clock
              & test_start & (test_master_number[2:0] == test_device_id[2:0])
-             & (   (test_command[3:0] != `PCI_COMMAND_CONFIG_READ)
-                 & (test_command[3:0] != `PCI_COMMAND_CONFIG_WRITE) ) )
+             & (   (test_command[3:0] != PCI_COMMAND_CONFIG_READ)
+                 & (test_command[3:0] != PCI_COMMAND_CONFIG_WRITE) ) )
       begin
         want_fast_back_to_back = 1'b1;
 // No clock here to let the next command dispatch quickly.  The dispatcher has a wait
@@ -981,9 +983,9 @@ task Execute_Master_Ref_Undrive_All_In_Any_Termination_Unless_Fast_B2B;
       else
       begin
 // Otherwise enforce an idle state
-        master_ad_out[`PCI_BUS_DATA_RANGE] <= `BUS_IMPOSSIBLE_VALUE;
+        master_ad_out[PCI_BUS_DATA_RANGE:0] <= `BUS_IMPOSSIBLE_VALUE;
         master_ad_oe <= 1'b0;
-        master_cbe_l_out[`PCI_BUS_CBE_RANGE] <= `PCI_COMMAND_RESERVED_4;  // easy to see
+        master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= PCI_COMMAND_RESERVED_4;  // easy to see
         master_cbe_oe <= 1'b0;
         master_debug_force_bad_par <= 1'b0;
         master_got_master_abort <= got_master_abort;
@@ -1084,11 +1086,11 @@ endtask
   reg    [3:0] wait_states_this_time;
   reg    [3:0] words_transferred;
   reg     drive_ad_bus, watching_for_master_abort, do_master_terminate_this_time;
-  reg    [`PCI_BUS_DATA_RANGE] target_read_data;
-  reg    [`PCI_BUS_DATA_RANGE] master_write_data;
-  reg    [`PCI_BUS_CBE_RANGE] master_mask_l;
-  reg    [`PCI_BUS_DATA_RANGE] master_write_data_next;
-  reg    [`PCI_BUS_CBE_RANGE] master_mask_l_next;
+  reg    [PCI_BUS_DATA_RANGE:0] target_read_data;
+  reg    [PCI_BUS_DATA_RANGE:0] master_write_data;
+  reg    [PCI_BUS_CBE_RANGE:0] master_mask_l;
+  reg    [PCI_BUS_DATA_RANGE:0] master_write_data_next;
+  reg    [PCI_BUS_CBE_RANGE:0] master_mask_l_next;
   reg     got_master_abort, got_target_retry, got_target_stop, got_target_abort;
   reg     got_master_terminate;
 task Execute_Master_PCI_Ref;
@@ -1105,8 +1107,8 @@ task Execute_Master_PCI_Ref;
     begin
       step_address = TEST_MASTER_IMMEDIATE_ADDRESS;
     end
-    Master_Assert_Address (modified_master_address[`PCI_BUS_DATA_RANGE],
-                     hold_master_command[`PCI_BUS_CBE_RANGE],
+    Master_Assert_Address (modified_master_address[PCI_BUS_DATA_RANGE:0],
+                     hold_master_command[PCI_BUS_CBE_RANGE:0],
                      step_address, hold_master_fast_b2b, hold_master_addr_par_err);
     Master_Unreq_Bus;  // After FRAME is asserted!
 `ifdef REPORT_TEST_DEVICE
@@ -1120,8 +1122,8 @@ task Execute_Master_PCI_Ref;
     do_master_terminate_this_time =
                  ((words_transferred[3:0] + 4'h1) == hold_master_size[3:0]);
     watching_for_master_abort = 1'b1;
-    master_write_data[`PCI_BUS_DATA_RANGE] = hold_master_data[`PCI_BUS_DATA_RANGE];
-    master_mask_l[`PCI_BUS_CBE_RANGE] = hold_master_byte_enables_l[`PCI_BUS_CBE_RANGE];
+    master_write_data[PCI_BUS_DATA_RANGE:0] = hold_master_data[PCI_BUS_DATA_RANGE:0];
+    master_mask_l[PCI_BUS_CBE_RANGE:0] = hold_master_byte_enables_l[PCI_BUS_CBE_RANGE:0];
     got_master_abort = 1'b0;
     got_target_retry = 1'b0;
     got_target_stop = 1'b0;
@@ -1134,9 +1136,9 @@ task Execute_Master_PCI_Ref;
                            master_mask_l[3:0], wait_states_this_time[3:0]);
       Execute_Master_Ref_Undrive_All_In_Any_Termination_Unless_Fast_B2B (drive_ad_bus,
                             watching_for_master_abort, do_master_terminate_this_time,
-                            hold_master_fast_b2b, master_write_data[`PCI_BUS_DATA_RANGE],
-                            master_mask_l[`PCI_BUS_CBE_RANGE],
-                            target_read_data[`PCI_BUS_DATA_RANGE],
+                            hold_master_fast_b2b, master_write_data[PCI_BUS_DATA_RANGE:0],
+                            master_mask_l[PCI_BUS_CBE_RANGE:0],
+                            target_read_data[PCI_BUS_DATA_RANGE:0],
                             got_master_abort, got_target_retry,
                             got_target_stop, got_target_abort,
                             want_fast_back_to_back);
@@ -1145,8 +1147,8 @@ task Execute_Master_PCI_Ref;
       begin
         if (~drive_ad_bus)
         begin
-          Compare_Read_Data_With_Expected_Data (target_read_data[`PCI_BUS_DATA_RANGE],
-                                                master_write_data[`PCI_BUS_DATA_RANGE]);
+          Compare_Read_Data_With_Expected_Data (target_read_data[PCI_BUS_DATA_RANGE:0],
+                                                master_write_data[PCI_BUS_DATA_RANGE:0]);
         end
         `NO_ELSE;
         wait_states_this_time = hold_master_subsequent_waitstates[3:0];
@@ -1154,12 +1156,12 @@ task Execute_Master_PCI_Ref;
         do_master_terminate_this_time =
                         ((words_transferred[3:0] + 4'h1) == hold_master_size[3:0]);
         watching_for_master_abort = 1'b0;
-        Update_Write_Data (master_write_data[`PCI_BUS_DATA_RANGE],
-                           master_mask_l[`PCI_BUS_CBE_RANGE],
-                           master_write_data_next[`PCI_BUS_DATA_RANGE],
-                           master_mask_l_next[`PCI_BUS_CBE_RANGE]);
-        master_write_data[`PCI_BUS_DATA_RANGE] = master_write_data_next[`PCI_BUS_DATA_RANGE];
-        master_mask_l[`PCI_BUS_CBE_RANGE] = master_mask_l_next[`PCI_BUS_CBE_RANGE];
+        Update_Write_Data (master_write_data[PCI_BUS_DATA_RANGE:0],
+                           master_mask_l[PCI_BUS_CBE_RANGE:0],
+                           master_write_data_next[PCI_BUS_DATA_RANGE:0],
+                           master_mask_l_next[PCI_BUS_CBE_RANGE:0]);
+        master_write_data[PCI_BUS_DATA_RANGE:0] = master_write_data_next[PCI_BUS_DATA_RANGE:0];
+        master_mask_l[PCI_BUS_CBE_RANGE:0] = master_mask_l_next[PCI_BUS_CBE_RANGE:0];
       end
       `NO_ELSE;
     end
@@ -1208,9 +1210,9 @@ task Complain_That_Test_Not_Written;
     $display ("*** test master %h - Diag not written yet: 'h%x, at %t",
                 test_device_id[2:0], hold_master_command[3:0], $time);
     error_detected <= ~error_detected;
-    master_ad_out[`PCI_BUS_DATA_RANGE] <= `BUS_IMPOSSIBLE_VALUE;
+    master_ad_out[PCI_BUS_DATA_RANGE:0] <= `BUS_IMPOSSIBLE_VALUE;
     master_ad_oe <= 1'b0;
-    master_cbe_l_out[`PCI_BUS_CBE_RANGE] <= `PCI_COMMAND_RESERVED_4;  // easy to see
+    master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= PCI_COMMAND_RESERVED_4;  // easy to see
     master_cbe_oe <= 1'b0;
     master_debug_force_bad_par <= 1'b0;
     master_got_master_abort <= 1'b0;
@@ -1228,9 +1230,9 @@ endtask
 task Reset_Master_To_Idle;
   begin
     master_req_out <= 1'b0;
-    master_ad_out[`PCI_BUS_DATA_RANGE]   <= `PCI_BUS_DATA_ZERO;
+    master_ad_out[PCI_BUS_DATA_RANGE:0]   <= `PCI_BUS_DATA_ZERO;
     master_ad_oe <= 1'b0;
-    master_cbe_l_out[`PCI_BUS_CBE_RANGE] <= `PCI_BUS_CBE_ZERO;
+    master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= `PCI_BUS_CBE_ZERO;
     master_cbe_oe <= 1'b0;
     master_frame_out <= 1'b0;      master_irdy_out <= 1'b0;
     master_got_master_abort <= 1'b0;
@@ -1273,9 +1275,9 @@ endtask
 // Intentionally use "=" assignment so these variables are available to tasks
         hold_master_address[23:9] = test_address[23:9];
         hold_master_command[3:0] = test_command[3:0];
-        hold_master_data[`PCI_BUS_DATA_RANGE] = test_data[`PCI_BUS_DATA_RANGE];
-        hold_master_byte_enables_l[`PCI_BUS_CBE_RANGE] =
-                                      test_byte_enables_l[``PCI_BUS_CBE_RANGE];
+        hold_master_data[PCI_BUS_DATA_RANGE:0] = test_data[PCI_BUS_DATA_RANGE:0];
+        hold_master_byte_enables_l[PCI_BUS_CBE_RANGE:0] =
+                                      test_byte_enables_l[PCI_BUS_CBE_RANGE:0];
         hold_master_size[3:0] = test_size[3:0];
         hold_master_addr_par_err = test_make_addr_par_error;
         hold_master_data_par_err = test_make_data_par_error;
@@ -1309,41 +1311,41 @@ endtask
                                           test_make_addr_par_error;
         modified_master_address[7:0] = test_address[7:0];
         case (test_command[3:0])
-        `PCI_COMMAND_INTERRUPT_ACKNOWLEDGE:
+        PCI_COMMAND_INTERRUPT_ACKNOWLEDGE:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
-        `PCI_COMMAND_SPECIAL_CYCLE:
+        PCI_COMMAND_SPECIAL_CYCLE:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
-        `PCI_COMMAND_IO_READ:
+        PCI_COMMAND_IO_READ:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
-        `PCI_COMMAND_IO_WRITE:
+        PCI_COMMAND_IO_WRITE:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
-        `PCI_COMMAND_RESERVED_4:
+        PCI_COMMAND_RESERVED_4:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
-        `PCI_COMMAND_RESERVED_5:
+        PCI_COMMAND_RESERVED_5:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
-        `PCI_COMMAND_MEMORY_READ:
+        PCI_COMMAND_MEMORY_READ:
           Execute_Master_PCI_Ref (TEST_MASTER_DOING_MEM_READ,
                                              want_fast_back_to_back);
-        `PCI_COMMAND_MEMORY_WRITE:
+        PCI_COMMAND_MEMORY_WRITE:
           Execute_Master_PCI_Ref (TEST_MASTER_DOING_MEM_WRITE,
                                              want_fast_back_to_back);
-        `PCI_COMMAND_RESERVED_8:
+        PCI_COMMAND_RESERVED_8:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
-        `PCI_COMMAND_RESERVED_9:
+        PCI_COMMAND_RESERVED_9:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
-        `PCI_COMMAND_CONFIG_READ:
+        PCI_COMMAND_CONFIG_READ:
           Execute_Master_PCI_Ref (TEST_MASTER_DOING_CONFIG_READ,
                                              want_fast_back_to_back);
-        `PCI_COMMAND_CONFIG_WRITE:
+        PCI_COMMAND_CONFIG_WRITE:
           Execute_Master_PCI_Ref (TEST_MASTER_DOING_CONFIG_WRITE,
                                              want_fast_back_to_back);
-        `PCI_COMMAND_MEMORY_READ_MULTIPLE:
+        PCI_COMMAND_MEMORY_READ_MULTIPLE:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
-        `PCI_COMMAND_DUAL_ADDRESS_CYCLE:
+        PCI_COMMAND_DUAL_ADDRESS_CYCLE:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
-        `PCI_COMMAND_MEMORY_READ_LINE:
+        PCI_COMMAND_MEMORY_READ_LINE:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
-        `PCI_COMMAND_MEMORY_WRITE_INVALIDATE:
+        PCI_COMMAND_MEMORY_WRITE_INVALIDATE:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
         default:
           begin
@@ -1361,16 +1363,16 @@ endtask
     end // while want_fast_back_to_back
     else if (~frame_now & ~irdy_now & master_gnt_now)
     begin  // park bus
-      master_ad_out[`PCI_BUS_DATA_RANGE] <= `BUS_PARK_VALUE;
+      master_ad_out[PCI_BUS_DATA_RANGE:0] <= `BUS_PARK_VALUE;
       master_ad_oe <= 1'b1;
-      master_cbe_l_out[`PCI_BUS_CBE_RANGE] <= `PCI_COMMAND_RESERVED_4;
+      master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= PCI_COMMAND_RESERVED_4;
       master_cbe_oe <= 1'b1;
     end
     else
     begin  // unpark if grant is removed
-      master_ad_out[`PCI_BUS_DATA_RANGE] <= `BUS_IMPOSSIBLE_VALUE;
+      master_ad_out[PCI_BUS_DATA_RANGE:0] <= `BUS_IMPOSSIBLE_VALUE;
       master_ad_oe <= 1'b0;
-      master_cbe_l_out[`PCI_BUS_CBE_RANGE] <= `PCI_COMMAND_RESERVED_4;
+      master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= PCI_COMMAND_RESERVED_4;
       master_cbe_oe <= 1'b0;
     end
 // NOTE WORKING need to handle master_got_target_retry here
