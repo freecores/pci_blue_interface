@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_interface.v,v 1.4 2001-03-05 09:54:52 bbeaver Exp $
+// $Id: pci_blue_interface.v,v 1.5 2001-06-08 08:40:37 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -120,7 +120,8 @@ module pci_blue_interface (
 // Wires used by the PCI State Machine and PCI Bus Combiner to drive the PCI bus
   pci_ad_in_prev,     pci_ad_out_next,     pci_ad_out_en_next,
                       pci_ad_out_oe_comb,
-  pci_cbe_l_in_prev,  pci_cbe_l_out_next,  pci_cbe_out_en_next,
+  pci_cbe_l_in_prev,  pci_cbe_l_in_comb,
+                      pci_cbe_l_out_next,  pci_cbe_out_en_next,
                       pci_cbe_out_oe_comb,
   pci_par_in_prev,    pci_par_in_comb,
                       pci_par_out_next,    pci_par_out_oe_comb,
@@ -180,6 +181,7 @@ module pci_blue_interface (
   output [31:0] pci_ad_out_next;
   output  pci_ad_out_en_next;
   output  pci_ad_out_oe_comb;
+  input  [3:0] pci_cbe_l_in_comb;
   input  [3:0] pci_cbe_l_in_prev;
   output [3:0] pci_cbe_l_out_next;
   output  pci_cbe_out_en_next;
@@ -1108,7 +1110,8 @@ monitor_pci_interface_host_port monitor_pci_interface_host_port (
 // Instantiate the Host_Request_FIFO, from the Host to the PCI Interface
 pci_fifo_storage_Nx39 pci_host_request_fifo (
   .reset_flags_async          (host_reset_to_PCI_interface),
-  .fifo_mode                  (2'b01),  // NOTE WORKING need to take into consideration `DOUBLE_SYNC_PCI_HOST_SYNCHRONIZERS
+  .fifo_mode                  (2'b01),  // Mode 2`b01 means write data, then update flag, read together
+// NOTE WORKING need to take into consideration `DOUBLE_SYNC_PCI_HOST_SYNCHRONIZERS
   .write_clk                  (host_clk),
   .write_sync_clk             (host_sync_clk),
   .write_submit               (pci_host_request_submit),
@@ -1130,7 +1133,8 @@ pci_fifo_storage_Nx39 pci_host_request_fifo (
 // Instantiate the Host_Response_FIFO, from the PCI Interface to the Host
 pci_fifo_storage_Nx40 pci_host_response_fifo (
   .reset_flags_async          (host_reset_to_PCI_interface),
-  .fifo_mode                  (2'b10),  // NOTE WORKING need to take into consideration `DOUBLE_SYNC_PCI_HOST_SYNCHRONIZERS
+  .fifo_mode                  (2'b10),  // Mode 2`b10 means write together, read flag, then read data
+// NOTE WORKING need to take into consideration `DOUBLE_SYNC_PCI_HOST_SYNCHRONIZERS
   .write_clk                  (pci_clk),
   .write_sync_clk             (pci_sync_clk),
   .write_submit               (pci_iface_response_data_load),
@@ -1152,7 +1156,8 @@ pci_fifo_storage_Nx40 pci_host_response_fifo (
 // Instantiate the Host_Delayed_Read_Data_FIFO, from the Host to the PCI Interface
 pci_fifo_storage_Nx35 pci_delayed_read_data_fifo (
   .reset_flags_async          (host_reset_to_PCI_interface),
-  .fifo_mode                  (2'b01),  // NOTE WORKING need to take into consideration `DOUBLE_SYNC_PCI_HOST_SYNCHRONIZERS
+  .fifo_mode                  (2'b01),  // Mode 2`b01 means write data, then update flag, read together
+// NOTE WORKING need to take into consideration `DOUBLE_SYNC_PCI_HOST_SYNCHRONIZERS
   .write_clk                  (host_clk),
   .write_sync_clk             (host_sync_clk),
   .write_submit               (pci_host_delayed_read_data_submit),
@@ -1270,7 +1275,7 @@ pci_blue_target pci_blue_target (
 
 // Master signals to be combined with Target signals on the way to the PCI IO Pads.
   wire   [31:0] pci_master_ad_out_next;
-  wire    pcu_master_ad_en_next,    pci_master_ad_out_oe_comb;
+  wire    pci_master_ad_en_next,    pci_master_ad_out_oe_comb;
   wire    pci_master_par_out_next,  pci_master_par_out_oe_comb;
   wire    pci_master_perr_out_next, pci_master_perr_out_oe_comb;
   wire    pci_master_serr_out_oe_comb;
@@ -1344,13 +1349,61 @@ pci_blue_master pci_blue_master (
 );
 
 // Combine signals which are driven by both the Master and the Target
+  wire    Present_Reference_Is_Master;
+  wire    Master_Force_Address_Data, Master_Force_Control, Master_Expects_TRDY;
+  wire    Target_Force_Data, Target_Force_Control, Target_Expects_IRDY;
+
+// Either present the next Master Address or Write Data or the next Target Data
+  assign  pci_ad_out_next[31:0] = Present_Reference_Is_Master
+                                ? pci_master_ad_out_next[31:0]
+                                : pci_target_ad_out_next[31:0];
+
+// As quickly as possible, decide whether to present new data on AD bus or
+// to continue sending old data.  The state machines need to know what
+// happened too, so they can prepare the data for next time.
+// NOTE: IRDY and TRDY are very late.  3 nSec before clock edge!
+// NOTE: pci_ad_out_en_next goes to 36 or 72 inputs (+1?).  Very critical.
+pci_critical_data_latch_enable pci_critical_data_latch_enable (
+  .Master_Expects_TRDY        (Master_Expects_TRDY),
+  .pci_trdy_in_comb           (pci_trdy_in_comb),
+  .Target_Expects_IRDY        (Target_Expects_IRDY),
+  .pci_irdy_in_comb           (pci_irdy_in_comb),
+  .New_Data_Unconditional     (Master_Force_Address_Data | Target_Force_Data),
+  .pci_ad_out_en_next         (pci_ad_out_en_next)
+);
+
+// At a slower pace decide whether to output enable the Data pads.
   assign  pci_ad_out_oe_comb =  pci_master_ad_out_oe_comb
                               | pci_target_ad_out_oe_comb;
+
+// Capture new CBE output data each clock, even if it is not driven for target refs.
+  assign  pci_cbe_out_en_next = pci_ad_out_en_next;
+// NOTE pci_cbe_out_oe_comb is driven from inside the Master module.
+
+// NOTE: Calculate parity if driving the AD bus.
+// NOTE: If target responding to a read, need to include the CURRENT
+//       CBE signals, driven by Master.
+// NOTE: very timing critical.  3 nSec setup on CBE signals.
+// See the PCI Local Bus Spec Revision 2.2 section 3.7.1
+  wire    outgoing_data_parity = (^ pci_ad_out_next[31:0]);
+  wire    outgoing_cbe_parity = (^ pci_cbe_l_out_next[3:0]);
+
+  wire    incoming_data_parity = (^ pci_ad_in_prev[31:0]);
+  wire    incoming_cbe_parity = (^ pci_cbe_l_in_prev[3:0]);
+
+  wire    current_cbe_parity = (^ pci_cbe_l_in_comb[3:0]);
+
+// NOTE NOT DONE YET.  Decide what parity to drive
+  assign  pci_par_out_next = 1'b0;
   assign  pci_par_out_oe_comb = pci_master_par_out_oe_comb
                               | pci_target_par_out_oe_comb;
-  assign  pci_frame_out_oe_comb = 1'b0;  // controlled by Master
-  assign  pci_irdy_out_oe_comb =  1'b0;  // controlled by Master
-// Devsel already controlled by Target
+
+// PERR must be asserted, then deasserted, then set to high-Z
+// SERR is open-collector.  It is asserted, then assumed invalid
+// until it is seen deasserted for 2 clocks.
+// See the PCI Local Bus Spec Revision 2.2 section 3.7.4.2
+  assign  pci_perr_out_next    = pci_master_perr_out_next
+                               | pci_target_perr_out_next;
   assign  pci_perr_out_oe_comb = pci_master_perr_out_oe_comb
                                | pci_target_perr_out_oe_comb;
   assign  pci_serr_out_oe_comb = pci_master_serr_out_oe_comb

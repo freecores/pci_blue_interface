@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_target_pads.v,v 1.4 2001-03-05 09:54:56 bbeaver Exp $
+// $Id: pci_target_pads.v,v 1.5 2001-06-08 08:40:41 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -91,7 +91,8 @@ module pci_target_pads (
 `endif // PCI_EXTERNAL_IDSEL
   pci_ad_in_prev,     pci_ad_out_next,     pci_ad_out_en_next,
                       pci_ad_out_oe_comb,
-  pci_cbe_l_in_prev,  pci_cbe_l_out_next,  pci_cbe_out_en_next,
+  pci_cbe_l_in_prev,  pci_cbe_l_in_comb,
+                      pci_cbe_l_out_next,  pci_cbe_out_en_next,
                       pci_cbe_out_oe_comb,
   pci_par_in_prev,    pci_par_out_next,    pci_par_out_oe_comb,
   pci_frame_in_prev,  pci_frame_out_next,  pci_frame_out_oe_comb,
@@ -127,6 +128,7 @@ module pci_target_pads (
   input  [31:0] pci_ad_out_next;
   input   pci_ad_out_en_next;
   input   pci_ad_out_oe_comb;
+  output [3:0] pci_cbe_l_in_comb;
   output [3:0] pci_cbe_l_in_prev;
   input  [3:0] pci_cbe_l_out_next;
   input   pci_cbe_out_en_next;
@@ -181,7 +183,6 @@ module pci_target_pads (
 
 // Make no-connect wires to connect to unused pad combinational outputs
   wire   [31:0] discard_data_in;
-  wire   [3:0] discard_cbe_in;
   wire    discard_par_in, discard_idsel_in, discard_frame_l_in;
   wire    discard_devsel_l_in, discard_stop_l_in;
   wire    discard_serr_l_in, discard_perr_l_in;
@@ -239,7 +240,7 @@ pci_registered_io_pad ad07 (
 );
 pci_registered_io_pad cbe0 (
   .pci_clk           (pci_clk),
-  .pci_ad_in_comb    (discard_cbe_in[0]),   .pci_ad_in_prev    (pci_cbe_l_in_prev[0]),
+  .pci_ad_in_comb    (pci_cbe_l_in_comb[0]), .pci_ad_in_prev    (pci_cbe_l_in_prev[0]),
   .pci_ad_out_next (pci_cbe_l_out_next[0]), .pci_ad_out_en_next (pci_cbe_out_en_next),
   .pci_ad_out_oe_comb (pci_cbe_out_oe_comb), .pci_ad_ext        (pci_ext_cbe_l[0])
 );
@@ -293,7 +294,7 @@ pci_registered_io_pad ad15 (
 );
 pci_registered_io_pad cbe1 (
   .pci_clk           (pci_clk),
-  .pci_ad_in_comb    (discard_cbe_in[1]),   .pci_ad_in_prev    (pci_cbe_l_in_prev[1]),
+  .pci_ad_in_comb    (pci_cbe_l_in_comb[1]), .pci_ad_in_prev    (pci_cbe_l_in_prev[1]),
   .pci_ad_out_next (pci_cbe_l_out_next[1]), .pci_ad_out_en_next (pci_cbe_out_en_next),
   .pci_ad_out_oe_comb (pci_cbe_out_oe_comb), .pci_ad_ext        (pci_ext_cbe_l[1])
 );
@@ -347,7 +348,7 @@ pci_registered_io_pad frame (
 );
 pci_registered_io_pad cbe2 (
   .pci_clk           (pci_clk),
-  .pci_ad_in_comb    (discard_cbe_in[2]),   .pci_ad_in_prev    (pci_cbe_l_in_prev[2]),
+  .pci_ad_in_comb    (pci_cbe_l_in_comb[2]), .pci_ad_in_prev    (pci_cbe_l_in_prev[2]),
   .pci_ad_out_next (pci_cbe_l_out_next[2]), .pci_ad_out_en_next (pci_cbe_out_en_next),
   .pci_ad_out_oe_comb (pci_cbe_out_oe_comb), .pci_ad_ext        (pci_ext_cbe_l[2])
 );
@@ -409,7 +410,7 @@ pci_registered_io_pad idsel (
 `endif // PCI_EXTERNAL_IDSEL
 pci_registered_io_pad cbe3 (
   .pci_clk           (pci_clk),
-  .pci_ad_in_comb    (discard_cbe_in[3]),   .pci_ad_in_prev    (pci_cbe_l_in_prev[3]),
+  .pci_ad_in_comb    (pci_cbe_l_in_comb[3]), .pci_ad_in_prev    (pci_cbe_l_in_prev[3]),
   .pci_ad_out_next (pci_cbe_l_out_next[3]), .pci_ad_out_en_next (pci_cbe_out_en_next),
   .pci_ad_out_oe_comb (pci_cbe_out_oe_comb), .pci_ad_ext        (pci_ext_cbe_l[3])
 );

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_example_host_controller.v,v 1.5 2001-03-05 09:54:56 bbeaver Exp $
+// $Id: pci_example_host_controller.v,v 1.6 2001-06-08 08:40:41 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -464,6 +464,7 @@ endtask
   reg    [31:0] mem_read_data;
 
 // storage accessed only through the following always block
+// `define VERILOGGER_BUG
 `ifdef VERILOGGER_BUG
   reg    [7:0] Example_Host_Mem_0 [0:63];  // address limits, not bits in address
   reg    [7:0] Example_Host_Mem_1 [0:63];  // address limits, not bits in address
@@ -543,6 +544,7 @@ endtask
                      hold_master_data[31:0], $time);
         error_detected <= ~error_detected;
       end
+      `NO_ELSE;
     end
     `NO_ELSE;
 `ifdef VERBOSE_TEST_DEVICE
@@ -550,7 +552,10 @@ endtask
     begin
       $display ("Example Host Controller %h - Local Memory read with Address %h, Data %h, at time %t",
                  test_device_id[2:0], {mem_address[7:2], 2'b00},
-                 Example_Host_Mem_Zero[31:0], $time);
+                 {Example_Host_Mem_3[mem_address[7:2]],
+                  Example_Host_Mem_2[mem_address[7:2]],
+                  Example_Host_Mem_1[mem_address[7:2]],
+                  Example_Host_Mem_0[mem_address[7:2]]}, $time);
     end
     `NO_ELSE;
     if (mem_write_enable)
@@ -575,6 +580,7 @@ endtask
                      hold_master_data[31:0], $time);
         error_detected <= ~error_detected;
       end
+      `NO_ELSE;
     end
     `NO_ELSE;
 `ifdef VERBOSE_TEST_DEVICE

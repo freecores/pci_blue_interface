@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_constants.vh,v 1.5 2001-03-05 09:54:52 bbeaver Exp $
+// $Id: pci_blue_constants.vh,v 1.6 2001-06-08 08:40:37 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_behaviorial_master.v,v 1.4 2001-03-05 09:54:50 bbeaver Exp $
+// $Id: pci_behaviorial_master.v,v 1.5 2001-06-08 08:40:36 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -193,7 +193,7 @@ module pci_behaviorial_master (
     test_error_event <= 1'bZ;
   end
 
-// Make the FRAME_OE  and IRDY_OE output enable signals.  They must
+// Make the FRAME_OE and IRDY_OE output enable signals.  They must
 //   become asserted as soon as each of those signals become asserted, and
 //   must stay asserted one clock after the signal becomes deasserted.
   reg     prev_frame_asserted, prev_irdy_asserted;

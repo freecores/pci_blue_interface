@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_master.v,v 1.4 2001-03-05 09:54:53 bbeaver Exp $
+// $Id: pci_blue_master.v,v 1.5 2001-06-08 08:40:38 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -55,11 +55,61 @@
 // This code was developed using VeriLogger Pro, by Synapticad.
 // Their support is greatly appreciated.
 //
+// NOTE:  The Master State Machine does one of two things when it sees data
+//        in it's Command FIFO:
+//        1) Unload the data and use it as either a PCI Address, a PCI
+//           Write Data value, or a PCI Read Strobe indication.  In these
+//           cases, the data is also sent to the PCI Slave as documentation
+//           of PCI Master Activity.
+//        2) Unload the data and send it to the PCI Slave for interpretation.
+//           This path, which does not need external bus activity, is used
+//           when a local configuration register is to be changed, and is
+//           also used when a Write Fence is handled.
+//
+// NOTE:  In all cases, the Master State Machine has to wait to unload data
+//        from the Command FIFO until there is room in the Target State Machine
+//        Response FIFO to receive the unloaded data.
+//
+// NOTE:  If there IS room in the PCI Target FIFO, the PCI Master may still
+//        have to delay a transfer.  The PCI Target gets to decide which
+//        state machine, Master or Target, gets to write the FIFO each clock.
+//
+// NOTE:  The Master State Machine might also wait even if there is room in the
+//        Target State Machine Response FIFO if a Delayed Read is in progress,
+//        and the Command FIFO contains either a Write Fence or a Read command.
+//
+// NOTE:  As events occur on the PCI Bus, the Master State Machine writes
+//        Status data to the PCI Target State Machine.
+//
+// NOTE:  Sometimes, the Master State Machine needs to stick a data item
+//        into the Target State Machine Response FIFO even when it is not
+//        unloading from the Master State Machine Command FIFO.  This happens
+//        when things like disconnects or read data arrives, and also when
+//        an error occurs on the bus.
+//        If an event occurs which needs to be reported, but the FIFO is
+//        not available, the event is remembered and inserted later.
+//
+// NOTE:  The Master State Machine will unload an entry from the Command FIFO and
+//        insert the command into the Response FIFO when these conditions are met:
+//        Command FIFO has data in it, and
+//        Response FIFO has room to accept data, and
+//        No Status indication needs to be sent to Target, and
+//        Target not preventing writes for any Target purpose,
+//        and one of the following:
+//          It's a Write Fence, or
+//          It's a Local Configuration Reference, or
+//          Master Enabled,and Bus Available, and Address Mode, and
+//            It's a Read Address and Target not holding off Reads, or
+//            It's a Write Address, or
+//          Data Mode, and
+//            It's Write Data and local IRDY and external TRDY is asserted, or
+//            It's Read Strobes and local IRDY and external TRDY is asserted
+//
 // NOTE:  This Master State Machine is an implementation of the Master State
 //        Machine described in the PCI Local Bus Specification Revision 2.2,
 //        Appendix B.  Locking is not supported.
 //
-// NOTE:  The Master State Machine must make sure that it can acept or
+// NOTE:  The Master State Machine must make sure that it can accept or
 //        deliver data within the Master Data Latency time from when it
 //        asserts FRAME Low, described in the PCI Local Bus Specification
 //        Revision 2.2, section 3.5.2
@@ -214,8 +264,8 @@ module pci_blue_master (
 
 // Check that the Request FIFO is getting entries in the allowed order
 //   Address, Data, Data_Last.  Anything else is an error.
-  parameter PCI_FIFO_WAITING_FOR_ADDRESS = 1'b0;
-  parameter PCI_FIFO_WAITING_FOR_LAST    = 1'b1;
+  parameter PCI_REQUEST_FIFO_WAITING_FOR_ADDRESS = 1'b0;
+  parameter PCI_REQUEST_FIFO_WAITING_FOR_LAST    = 1'b1;
 
   reg     request_fifo_state;  // tracks no_address, address, data, data_last;
   reg     master_request_fifo_error;
@@ -224,13 +274,13 @@ module pci_blue_master (
     if (pci_reset_comb)
     begin
       master_request_fifo_error <= 1'b0;
-      request_fifo_state <= PCI_FIFO_WAITING_FOR_ADDRESS;
+      request_fifo_state <= PCI_REQUEST_FIFO_WAITING_FOR_ADDRESS;
     end
     else
     begin
       if (pci_iface_request_data_available_meta)
       begin
-        if (request_fifo_state == PCI_FIFO_WAITING_FOR_ADDRESS)
+        if (request_fifo_state == PCI_REQUEST_FIFO_WAITING_FOR_ADDRESS)
         begin
           if (  (pci_iface_request_type[2:0] == `PCI_HOST_REQUEST_SPARE)
               | (pci_iface_request_type[2:0] == `PCI_HOST_REQUEST_W_DATA_RW_MASK)
@@ -242,18 +292,18 @@ module pci_blue_master (
                                 == `PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR) )
           begin
             master_request_fifo_error <= 1'b1;
-            request_fifo_state <= PCI_FIFO_WAITING_FOR_ADDRESS;
+            request_fifo_state <= PCI_REQUEST_FIFO_WAITING_FOR_ADDRESS;
           end
           else if (pci_iface_request_type[2:0]
                                 == `PCI_HOST_REQUEST_INSERT_WRITE_FENCE)
           begin
             master_request_fifo_error <= pci_iface_request_error;
-            request_fifo_state <= PCI_FIFO_WAITING_FOR_ADDRESS;
+            request_fifo_state <= PCI_REQUEST_FIFO_WAITING_FOR_ADDRESS;
           end
           else
           begin  // Either type of Address entry is OK
             master_request_fifo_error <= pci_iface_request_error;
-            request_fifo_state <= PCI_FIFO_WAITING_FOR_LAST;
+            request_fifo_state <= PCI_REQUEST_FIFO_WAITING_FOR_LAST;
           end
         end
         else  // PCI_FIFO_WAITING_FOR_LAST
@@ -266,7 +316,7 @@ module pci_blue_master (
                                 == `PCI_HOST_REQUEST_INSERT_WRITE_FENCE) )
           begin
             master_request_fifo_error <= 1'b1;
-            request_fifo_state <= PCI_FIFO_WAITING_FOR_ADDRESS;
+            request_fifo_state <= PCI_REQUEST_FIFO_WAITING_FOR_ADDRESS;
           end
           else if (  (pci_iface_request_type[2:0]
                          == `PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST)
@@ -274,12 +324,12 @@ module pci_blue_master (
                          == `PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR) )
           begin
             master_request_fifo_error <= pci_iface_request_error;
-            request_fifo_state <= PCI_FIFO_WAITING_FOR_ADDRESS;
+            request_fifo_state <= PCI_REQUEST_FIFO_WAITING_FOR_ADDRESS;
           end
           else
           begin  // Either type of Data without Last
             master_request_fifo_error <= pci_iface_request_error;
-            request_fifo_state <= PCI_FIFO_WAITING_FOR_LAST;
+            request_fifo_state <= PCI_REQUEST_FIFO_WAITING_FOR_LAST;
           end
         end
       end
@@ -290,6 +340,92 @@ module pci_blue_master (
       end
     end
   end
+
+// Keep track of the present PCI Address, so the Master can restart references
+// if it receives a Target Retry.
+// The bottom 2 bits of a PCI Address have special meaning to the
+// PCI Master and PCI Target.  See the PCI Local Bus Spec
+// Revision 2.2 section 3.2.2.1 and 3.2.2.2 for details.
+
+   reg   [31:0] Running_Master_Address;
+   reg   [3:0] Grabbed_Master_Command;
+   reg    Grab_Master_Address, Inc_Master_Address;
+
+   always @(posedge pci_clk)
+   begin
+     if (Grab_Master_Address == 1'b1)
+     begin
+       Running_Master_Address[31:0] <= pci_iface_request_data[31:0];
+       Grabbed_Master_Command[3:0] <= pci_iface_request_cbe[3:0];
+     end
+     else
+     begin
+       if (Inc_Master_Address == 1'b1)
+       begin
+         Running_Master_Address[31:0] <= Running_Master_Address[31:0]
+                                       + 32'h00000004;
+       end
+       else
+       begin
+         Running_Master_Address[31:0] <= Running_Master_Address[31:0];
+       end
+       Grabbed_Master_Command[3:0] <= Grabbed_Master_Command[3:0];
+     end
+   end
+
+// The PCI Bus gets either data directly from the FIFO or it gets the stored
+// address, which has been incrementing until the previous Target Retry was received.
+   reg    Select_Stored_Master_Address;
+   assign pci_master_ad_out_next[31:0] = Select_Stored_Master_Address
+                                       ? Running_Master_Address[31:0]
+                                       : pci_iface_request_data[31:0];
+   assign pci_cbe_l_out_next[3:0] =      Select_Stored_Master_Address
+                                       ? Grabbed_Master_Command[3:0]
+                                       : pci_iface_request_cbe[3:0];
+
+// Master Aborts are detected when the Master asserts FRAME, and does
+// not see DEVSEL in a timely manner.  See the PCI Local Bus Spec
+// Revision 2.2 section 3.3.3.1.
+
+   reg   [2:0] Master_Abort_Counter;
+   reg    Start_Master_Abort_Counter, Master_Abort_Detected;
+
+   always @(posedge pci_clk)
+   begin
+     if (Start_Master_Abort_Counter == 1'b1)
+     begin
+       Master_Abort_Counter[2:0] <= 3'h0;
+       Master_Abort_Detected <= 1'b0;
+     end
+     else
+     begin
+       Master_Abort_Counter[2:0] <= Master_Abort_Counter[2:0] + 3'h1;
+       Master_Abort_Detected <= (Master_Abort_Counter[2:0] == 3'h7);
+     end
+   end
+
+// The Master Latency Counter is needed to force the Master off the bus
+// in a timely fashon if it is in the middle of a burst when it's Grant
+// is removed.  See the PCI Local Bus Spec Revision 2.2 section 3.5.4
+
+   reg   [7:0] Master_Latency_Timer;
+   reg    Clear_Master_Latency_Timer, Master_Latency_Time_Exceeded;
+
+   always @(posedge pci_clk)
+   begin
+     if (Clear_Master_Latency_Timer == 1'b1)
+     begin
+       Master_Latency_Timer[7:0] <= 8'h00;
+       Master_Latency_Time_Exceeded <= 1'b0;
+     end
+     else
+     begin
+       Master_Latency_Timer[7:0] <= Master_Latency_Timer[7:0] + 8'h01;
+       Master_Latency_Time_Exceeded <= (Master_Latency_Timer[7:0]  // set
+                                          == master_latency_value[7:0])
+                                     | Master_Latency_Time_Exceeded;  // hold
+     end
+   end
 
 // The PCI Blue Master gets commands from the pci_request_fifo.
 // There are 3 main types of entries:
@@ -402,7 +538,6 @@ module pci_blue_master (
 `define PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR        (4'h7)
 */
 
-
 // The Master State Machine has a pretty easy existence.  It responds
 //   at leasure to the transition of FRAME_L from unasserted HIGH to
 //   asserted LOW.
@@ -424,72 +559,374 @@ module pci_blue_master (
 // The state machine as described in Appendix B.
 // No Lock State Machine is implemented.
 // This design supports Medium Decode.  Fast Decode is not supported.
+//
+// Here is my interpretation of the Master State Machine:
+//
+// The Master is in one of 3 states when transferring data:
+// 1) Waiting, 2) Transferring data with more to come, 3) Transferring
+// the last Data item.
+//
+// The Request FIFO can indicate that it 1) contains no Data,
+// 2) contains Data which is not the last, and 3) contains the last Data
+//
+// The Target can say that it wants a Wait State, that it wants
+// to transfer Data, that it wants to transfer the Last Data,
+// and that it wants to do a Disconnect, Retry, or Target Abort.
+// (This last condition will be called Target DRA below.)
+//
+// The State Sequence is as follows:
+//                    TRDY   STOP            FRAME   IRDY
+//    MASTER_IDLE,        FIFO Empty           0      0
+// Target Don't Care   X      X                0      0  -> MASTER_IDLE
+//                    TRDY   STOP            FRAME   IRDY
+//    MASTER_IDLE         FIFO Address         0      0
+// Target Don't Care   X      X                1      0  -> MASTER_ADDR
+//                    TRDY   STOP            FRAME   IRDY
+//    MASTER_ADDR         FIFO Don't care      1      0
+// Target Don't Care   X      X                1      0  -> MASTER_WAIT
+//                    TRDY   STOP            FRAME   IRDY
+//    MASTER_WAIT,        FIFO Empty           1      0
+// Target Wait         0      0                1      0  -> MASTER_WAIT
+// Target Data         1      0                1      0  -> MASTER_WAIT
+// Target Last Data    1      1                1      0  -> MASTER_WAIT
+// Target DRA          0      1                0      1  -> MASTER_S_TAR
+//                    TRDY   STOP            FRAME   IRDY
+//    MASTER_WAIT,        FIFO non-Last Data   1      0
+// Target Wait         0      0                1      1  -> MASTER_DATA_MORE
+// Target Data         1      0                1      1  -> MASTER_DATA_MORE
+// Target Last Data    1      1                0      1  -> MASTER_DATA_LAST
+// Target DRA          0      1                0      1  -> MASTER_S_TAR
+//                    TRDY   STOP            FRAME   IRDY
+//    MASTER_WAIT,        FIFO Last Data       1      0
+// Target Wait         0      0                0      1  -> MASTER_DATA_LAST
+// Target Data         1      0                0      1  -> MASTER_DATA_LAST
+// Target Last Data    1      1                0      1  -> MASTER_DATA_LAST
+// Target DRA          0      1                0      1  -> MASTER_S_TAR
+//                    TRDY   STOP            FRAME   IRDY
+//    MASTER_DATA_MORE,   FIFO Empty           1      1
+// Target Wait         0      0                1      1  -> MASTER_DATA_MORE
+// Target Data         1      0                1      0  -> MASTER_WAIT
+// Target Last Data    1      1                0      1  -> MASTER_DATA_LAST
+// Target DRA          0      1                0      1  -> MASTER_S_TAR
+//                    TRDY   STOP            FRAME   IRDY
+//    MASTER_DATA_MORE,   FIFO non-Last Data   1      1
+// Target Wait         0      0                1      1  -> MASTER_DATA_MORE
+// Target Data         1      0                1      1  -> MASTER_DATA_MORE
+// Target Last Data    1      1                0      1  -> MASTER_DATA_LAST
+// Target DRA          0      1                0      1  -> MASTER_S_TAR
+//                    TRDY   STOP            FRAME   IRDY
+//    MASTER_DATA_MORE,   FIFO Last Data       1      1
+// Target Wait         0      0                1      1  -> MASTER_DATA_MORE
+// Target Data         1      0                0      1  -> MASTER_DATA_LAST
+// Target Last Data    1      1                0      1  -> MASTER_DATA_LAST
+// Target DRA          0      1                0      1  -> MASTER_S_TAR
+//                    TRDY   STOP            FRAME   IRDY
+//    MASTER_DATA_LAST,   FIFO Empty           0      1 (or if no Fast Back-to-Back)
+// Target Wait         0      0                0      1  -> MASTER_DATA_LAST
+// Target Data         1      0                0      0  -> MASTER_IDLE
+// Target Last Data    1      1                0      0  -> MASTER_IDLE
+// Target DRA          0      1                0      0  -> MASTER_IDLE
+//                    TRDY   STOP            FRAME   IRDY
+//    MASTER_DATA_LAST,   FIFO Address         0      1 (and if Fast Back-to-Back)
+// Target Don't Care   X      X                1      0  -> MASTER_ADDR
+//                    TRDY   STOP            FRAME   IRDY
+//    MASTER_S_TAR,       FIFO Empty           0      1 (or if no Fast Back-to-Back)
+// Target Don't Care   X      X                0      0  -> MASTER_IDLE
+//                    TRDY   STOP            FRAME   IRDY
+//    MASTER_S_TAR,       FIFO Address         0      1 (and if Fast Back-to-Back)
+// Target Don't Care   X      X                1      0  -> MASTER_ADDR
+//
+// NOTE: that in all cases, the FRAME and IRDY signals are calculated
+//   based on the TRDY and STOP signals, which are very late and very
+//   timing critical.
+// The functions will be implemented as a 4-1 MUX using TRDY and STOP
+//   as the selection variables.
+// The inputs to the FRAME and IRDY MUX's will be decided based on the state
+//   the Master is in, and also on the contents of the Request FIFO.
+// NOTE: that for both FRAME and IRDY, there are 5 possible functions of
+//   TRDY and STOP.  Both output bits might be all 0's, all 1's, and
+//   each has 3 functions which are not all 0's nor all 1's.
+// NOTE: These extremely timing critical functions will each be implemented
+//   as a single CLB in a Xilinx chip, with a 3-bit Function Selection
+//   paramater.  The 3 bits plus TRDY plus STOP use up a 5-input LUT.
+//
+// The functions are as follows:
+//    Function Sel [2:0]  TRDY  STOP  ->  FRAME  IRDY
+//                  0XX    X     X          0     0
+//
+//                  100    X     X          1     1
+//
+// Target Wait      101    0     0          1     0
+// Target DRA       101    0     1          0     1
+// Target Data      101    1     0          1     0
+// Target Last Data 101    1     1          1     0
+//
+// Target Wait      110    0     0          1     1
+// Target DRA       110    0     1          0     1
+// Target Data      110    1     0          1     0
+// Target Last Data 110    1     1          0     1
+//
+// Target Wait      111    0     0          1     1
+// Target DRA       111    0     1          0     0
+// Target Data      111    1     0          0     0
+// Target Last Data 111    1     1          0     0
+//
+// For each state, use the function:       F(Frame) F(IRDY)
+//    MASTER_IDLE,        FIFO Empty          000     000 (no FRAME, IRDY)
+//    MASTER_IDLE         FIFO Address        100     000 (Always FRAME)
+//    MASTER_ADDR         FIFO Don't care     100     000 (Always FRAME)
+//    MASTER_WAIT,        FIFO Empty          101     101 (FRAME unless DRA)
+//    MASTER_WAIT,        FIFO non-Last Data  110     100
+//    MASTER_WAIT,        FIFO Last Data      000     100
+//    MASTER_DATA_MORE,   FIFO Empty          110     110
+//    MASTER_DATA_MORE,   FIFO non-Last Data  110     100
+//    MASTER_DATA_MORE,   FIFO Last Data      111     100
+//    MASTER_DATA_LAST,   FIFO Empty          000     111 (or if no Fast Back-to-Back)
+//    MASTER_DATA_LAST,   FIFO Address        100     000 (and if Fast Back-to-Back)
+//    MASTER_S_TAR,       FIFO Empty          000     000 (or if no Fast Back-to-Back)
+//    MASTER_S_TAR,       FIFO Address        100     000 (and if Fast Back-to-Back)
+//    MASTER_DR_BUS,      FIFO Empty          000     000 (no FRAME, IRDY)
+//    MASTER_DR_BUS,      FIFO_Address        100     000 (Always FRAME)
 
-  parameter PCI_MASTER_IDLE        = 6'b000001;
-  parameter PCI_MASTER_ADDR_B_BUSY = 6'b000010;
-  parameter PCI_MASTER_M_DATA      = 6'b000100;
-  parameter PCI_MASTER_S_TAR       = 6'b001000;
-  parameter PCI_MASTER_TURN_AR     = 6'b010000;
-  parameter PCI_MASTER_DR_BUS      = 6'b100000;
-  reg [5:0] PCI_Master_State;
-  wire [5:0] Next_PCI_Master_State;
+  parameter PCI_MASTER_IDLE           = 8'b00000001;  // Master in IDLE state
+  parameter PCI_MASTER_ADDR           = 8'b00000010;  // Master Drives Address
+  parameter PCI_MASTER_ADDR2          = 8'b00000100;  // Master Drives Address in 64-bit address mode
+  parameter PCI_MASTER_WAIT           = 8'b00001000;  // Waiting for Master Data
+  parameter PCI_MASTER_DATA_MORE      = 8'b00010000;  // Master Transfers Data
+  parameter PCI_MASTER_DATA_LAST      = 8'b00100000;  // Master Transfers Last Data
+  parameter PCI_MASTER_S_TAR          = 8'b01000000;  // Stop makes Turn Around
+  parameter PCI_MASTER_DR_BUS         = 8'b10000000;  // Address Step or Bus Park
+  reg [7:0] PCI_Master_State;
+  wire [7:0] Next_PCI_Master_State;
 
-  assign Next_PCI_Master_State[0] =     // MASTER_IDLE
-        1'b0;
-  assign Next_PCI_Master_State[1] =     // MASTER_IDLE
-        1'b0;
-  assign Next_PCI_Master_State[2] =     // MASTER_IDLE
-        1'b0;
-  assign Next_PCI_Master_State[3] =     // MASTER_IDLE
-        1'b0;
-  assign Next_PCI_Master_State[4] =     // MASTER_IDLE
-        1'b0;
-  assign Next_PCI_Master_State[5] =     // MASTER_IDLE
-        1'b0;
-
+  assign Next_PCI_Master_State[7:0] = PCI_MASTER_IDLE;  // MASTER_IDLE
 
 // Experience with the PCI Master Interface teaches that the signals
 //   FRAME and IRDY are extremely time critical.  These signals cannot be
 //   latched in the IO pads.  The signals must be acted upon by the
 //   Target State Machine as combinational inputs.
+//
+// The combinational logic is below.  This feeds into an Output Flop
+//   which is right at the IO pad.  The State Machine uses the Frame,
+//   IRDY, DEVSEL, TRDY, and STOP signals which are latched in the
+//   input pads.  Therefore, allthe fast stuff is in the gates below
+//   this case statement.
 
-// This Case Statement is supposed to implement the Master State Machine.
-// I believe that it might be safer to implement it as gates, in order
-//   to make absolutely sure that there are the minimum number of loads on
-//   the FRAME and IRDY signals.
+  wire   Request_FIFO_Empty, Request_FIFO_CONTAINS_ADDRESS;
+  wire   Request_FIFO_CONTAINS_DATA_MORE, Request_FIFO_CONTAINS_DATA_LAST;
+
+  wire   PCI_Frame_If_Not_Early_STOP, PCI_Frame_Unconditional;
 
   always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
   begin
     if (pci_reset_comb)
     begin
       PCI_Master_State <= PCI_MASTER_IDLE;
+// NOTE WORKING need to hop to MASTER_DR_BUS
     end
     else
     begin
-      case (PCI_Master_State)
+      case (PCI_Master_State[7:0])
       PCI_MASTER_IDLE:
         begin
+          if (Request_FIFO_Empty)
+          begin
+            PCI_Master_State[7:0] <= PCI_MASTER_IDLE;
+          end
+          else if (Request_FIFO_CONTAINS_ADDRESS)
+          begin
+            PCI_Master_State[7:0] <= PCI_MASTER_ADDR;
+          end
+          else // Request_FIFO_CONTAINS_DATA_????.  Bug
+          begin
+            PCI_Master_State[7:0] <= PCI_MASTER_IDLE;
+            $display ("PCI Master State Machine Unknown %x at time %t",
+                           PCI_Master_State, $time);
+          end
         end
-      PCI_MASTER_ADDR_B_BUSY:
-        begin
+      PCI_MASTER_ADDR:
+        begin  // when 64-bit Address added, -> PCI_MASTER_ADDR2
+          PCI_Master_State[7:0] <= PCI_MASTER_WAIT;
         end
-      PCI_MASTER_M_DATA:
+      PCI_MASTER_ADDR2:
+        begin  // Not implemented yet. Will be identical to Wait
+          PCI_Master_State[7:0] <= PCI_MASTER_WAIT;
+        end
+      PCI_MASTER_WAIT:
         begin
+          if (Request_FIFO_Empty)
+          begin
+            case ({pci_trdy_in_prev, pci_stop_in_prev})
+            2'b00:   PCI_Master_State[7:0] <= PCI_MASTER_WAIT;
+            2'b01:   PCI_Master_State[7:0] <= PCI_MASTER_S_TAR;
+            2'b10:   PCI_Master_State[7:0] <= PCI_MASTER_WAIT;
+            2'b11:   PCI_Master_State[7:0] <= PCI_MASTER_WAIT;
+            default:
+              begin
+                PCI_Master_State[7:0] <= PCI_MASTER_WAIT;  // error
+                $display ("PCI Master State Machine Unknown %x at time %t",
+                           PCI_Master_State, $time);
+              end
+            endcase
+          end
+          else if (Request_FIFO_CONTAINS_DATA_MORE)
+          begin
+            case ({pci_trdy_in_prev, pci_stop_in_prev})
+            2'b00:   PCI_Master_State[7:0] <= PCI_MASTER_DATA_MORE;
+            2'b01:   PCI_Master_State[7:0] <= PCI_MASTER_S_TAR;
+            2'b10:   PCI_Master_State[7:0] <= PCI_MASTER_DATA_MORE;
+            2'b11:   PCI_Master_State[7:0] <= PCI_MASTER_DATA_LAST;
+            default:
+              begin
+                PCI_Master_State[7:0] <= PCI_MASTER_WAIT;  // error
+                $display ("PCI Master State Machine Unknown %x at time %t",
+                           PCI_Master_State, $time);
+              end
+            endcase
+          end
+          else if (Request_FIFO_CONTAINS_DATA_LAST)
+          begin
+            case ({pci_trdy_in_prev, pci_stop_in_prev})
+            2'b00:   PCI_Master_State[7:0] <= PCI_MASTER_DATA_LAST;
+            2'b01:   PCI_Master_State[7:0] <= PCI_MASTER_S_TAR;
+            2'b10:   PCI_Master_State[7:0] <= PCI_MASTER_DATA_LAST;
+            2'b11:   PCI_Master_State[7:0] <= PCI_MASTER_DATA_LAST;
+            default:
+              begin
+                PCI_Master_State[7:0] <= PCI_MASTER_WAIT;  // error
+                $display ("PCI Master State Machine Unknown %x at time %t",
+                           PCI_Master_State, $time);
+              end
+            endcase
+          end
+          else  // Request_FIFO_CONTAINS_ADDRESS.  Bug
+          begin
+            PCI_Master_State[7:0] <= PCI_MASTER_WAIT;  // error
+            $display ("PCI Master State Machine Unknown %x at time %t",
+                           PCI_Master_State, $time);
+          end
+        end
+      PCI_MASTER_DATA_MORE:
+        begin
+          if (Request_FIFO_Empty)
+          begin
+            case ({pci_trdy_in_prev, pci_stop_in_prev})
+            2'b00:   PCI_Master_State[7:0] <= PCI_MASTER_DATA_MORE;
+            2'b01:   PCI_Master_State[7:0] <= PCI_MASTER_S_TAR;
+            2'b10:   PCI_Master_State[7:0] <= PCI_MASTER_WAIT;
+            2'b11:   PCI_Master_State[7:0] <= PCI_MASTER_DATA_LAST;
+            default:
+              begin
+                PCI_Master_State[7:0] <= PCI_MASTER_DATA_MORE;  // error
+                $display ("PCI Master State Machine Unknown %x at time %t",
+                           PCI_Master_State, $time);
+              end
+            endcase
+          end
+          else if (Request_FIFO_CONTAINS_DATA_MORE)
+          begin
+            case ({pci_trdy_in_prev, pci_stop_in_prev})
+            2'b00:   PCI_Master_State[7:0] <= PCI_MASTER_DATA_MORE;
+            2'b01:   PCI_Master_State[7:0] <= PCI_MASTER_S_TAR;
+            2'b10:   PCI_Master_State[7:0] <= PCI_MASTER_DATA_MORE;
+            2'b11:   PCI_Master_State[7:0] <= PCI_MASTER_DATA_LAST;
+            default:
+              begin
+                PCI_Master_State[7:0] <= PCI_MASTER_DATA_MORE;  // error
+                $display ("PCI Master State Machine Unknown %x at time %t",
+                           PCI_Master_State, $time);
+              end
+            endcase
+          end
+          else if (Request_FIFO_CONTAINS_DATA_LAST)
+          begin
+            case ({pci_trdy_in_prev, pci_stop_in_prev})
+            2'b00:   PCI_Master_State[7:0] <= PCI_MASTER_DATA_MORE;
+            2'b01:   PCI_Master_State[7:0] <= PCI_MASTER_S_TAR;
+            2'b10:   PCI_Master_State[7:0] <= PCI_MASTER_DATA_LAST;
+            2'b11:   PCI_Master_State[7:0] <= PCI_MASTER_DATA_LAST;
+            default:
+              begin
+                PCI_Master_State[7:0] <= PCI_MASTER_DATA_MORE;  // error
+                $display ("PCI Master State Machine Unknown %x at time %t",
+                           PCI_Master_State, $time);
+              end
+            endcase
+          end
+          else  // Request_FIFO_CONTAINS_ADDRESS.  Bug
+          begin
+            PCI_Master_State[7:0] <= PCI_MASTER_DATA_MORE;  // error
+            $display ("PCI Master State Machine Unknown %x at time %t",
+                           PCI_Master_State, $time);
+          end
+        end
+      PCI_MASTER_DATA_LAST:
+        begin
+          if (Request_FIFO_Empty)
+          begin
+            case ({pci_trdy_in_prev, pci_stop_in_prev})
+            2'b00:   PCI_Master_State[7:0] <= PCI_MASTER_DATA_LAST;
+            2'b01:   PCI_Master_State[7:0] <= PCI_MASTER_IDLE;
+            2'b10:   PCI_Master_State[7:0] <= PCI_MASTER_IDLE;
+            2'b11:   PCI_Master_State[7:0] <= PCI_MASTER_IDLE;
+            default:
+              begin
+                PCI_Master_State[7:0] <= PCI_MASTER_WAIT;  // error
+                $display ("PCI Master State Machine Unknown %x at time %t",
+                           PCI_Master_State, $time);
+              end
+            endcase
+          end
+          else if (Request_FIFO_CONTAINS_ADDRESS)
+          begin
+            PCI_Master_State[7:0] <= PCI_MASTER_ADDR;
+          end
+          else // Request_FIFO_CONTAINS_DATA_????.  Bug
+          begin
+            PCI_Master_State[7:0] <= PCI_MASTER_DATA_LAST;  // error
+            $display ("PCI Master State Machine Unknown %x at time %t",
+                           PCI_Master_State, $time);
+          end
         end
       PCI_MASTER_S_TAR:
         begin
-        end
-      PCI_MASTER_TURN_AR:
-        begin
+          if (Request_FIFO_Empty)
+          begin
+            PCI_Master_State[7:0] <= PCI_MASTER_IDLE;
+          end
+          else if (Request_FIFO_CONTAINS_ADDRESS)
+          begin
+            PCI_Master_State[7:0] <= PCI_MASTER_ADDR;
+          end
+          else // Request_FIFO_CONTAINS_DATA_????.  Bug
+          begin
+            PCI_Master_State[7:0] <= PCI_MASTER_IDLE;  // error
+            $display ("PCI Master State Machine Unknown %x at time %t",
+                           PCI_Master_State, $time);
+          end
         end
       PCI_MASTER_DR_BUS:
         begin
+          if (Request_FIFO_Empty)
+          begin
+            PCI_Master_State[7:0] <= PCI_MASTER_IDLE;
+          end
+          else if (Request_FIFO_CONTAINS_ADDRESS)
+          begin
+            PCI_Master_State[7:0] <= PCI_MASTER_ADDR;
+          end
+          else // Request_FIFO_CONTAINS_DATA_????.  Bug
+          begin
+            PCI_Master_State[7:0] <= PCI_MASTER_IDLE;  // error
+            $display ("PCI Master State Machine Unknown %x at time %t",
+                           PCI_Master_State, $time);
+          end
         end
-
       default:
         begin
-//        $display ("PCI Master State Machine Unknown %x at time %t",
-//                            PCI_Master_State, $time);
+          PCI_Master_State[7:0] <= PCI_MASTER_IDLE;  // error
+          $display ("PCI Master State Machine Unknown %x at time %t",
+                           PCI_Master_State, $time);
         end
       endcase
     end
@@ -516,12 +953,76 @@ module pci_blue_master (
   assign  pci_master_ad_out_oe_comb = 1'b0;
   assign  pci_cbe_out_oe_comb = 1'b0;
   assign  pci_master_par_out_oe_comb = 1'b0;
-  assign  pci_frame_out_oe_comb = 1'b0;
-  assign  pci_irdy_out_oe_comb = 1'b0;
   assign  pci_master_perr_out_oe_comb = 1'b0;
   assign  pci_master_serr_out_oe_comb = 1'b0;
 
   assign  pci_master_to_target_request_data_load = 1'b0;
+
+// As far as I can tell, this is the story.
+//
+// Default is no FRAME, no IRDY.  This is the PCI_MASTER_IDLE State.
+//
+// At the beginning of a transfer, the Master asserts FRAME and
+//   not IRDY for 1 clock, independent of all other signals, to
+//   indicate Address Valid.  This is the PCI_MASTER_ADDR state.
+//
+// The Master then might choose to insert Wait States.  A Wait
+//   State is when FRAME and not IRDY are asserted.  The Wait
+//   State can be ended when the Master has data to transfer, or the
+//   Wait State might also end when a Target Disconnect with no
+//   data or a Target Abort happens.  The Wait State will not
+//   end if a Target Disconnect With Data happens, unless the
+//   Master is also ready to transfer data.  This is the
+//   PCI_MASTER_DATA_OR_WAIT state.
+//
+// At the end of the address phase or a wait state, the Master
+//   will either assert FRAME with IRDY to indicate that data is
+//   ready and that more data will be available, or it will assert
+//   no FRAME and IRDY to indicate that the last data is available.
+//   The Data phase will end when the Target indicates that a
+//   Target Disconnect with no data or a Target Abort has occurred,
+//   or that the Target has transfered data.  The Target can also
+//   indicate that this should be a target disconnect with data.
+//   This is also the PCI_MASTER_DATA_OR_WAIT state.
+//
+// In some situations, like when a Master Abort happens, or when
+//   certain Target Aborts happen, the Master will have to transition
+//   om asserting FRAME and not IRDY to no FRAME and IRDY, to let
+//   the target end the transfer state sequence correctly.
+//   This is the PCI_MASTER_S_TAR state
+//
+// In all cases, it seems that the formula for the FRAME signal
+//   will look like: Frame_Unconditional
+//                 + Frame_If_No_Stop * ~STOP
+//                 + Frame_If_No_IRDY * ~IRDY;
+//   with the 3 control signals coming out of the Master State Machine.
+
+// As quickly as possible, decide whether to present new Master Control Info
+//   on Master Control bus, or to continue sending old data.  The state machine
+//   needs to know what happened too, so it can prepare the Control info for
+//   next time.
+// NOTE: IRDY and TRDY are very late.  3 nSec before clock edge!
+// NOTE: The Frame_Next and IRDY_Next signals are latched in the
+//       output pad in the IO pad module.
+
+  wire   [2:0] PCI_Next_FRAME_Code;
+pci_critical_next_frame pci_critical_next_frame (
+  .PCI_Next_FRAME_Code        (PCI_Next_FRAME_Code[2:0]),
+  .pci_trdy_in_comb           (pci_trdy_in_comb),
+  .pci_stop_in_comb           (pci_stop_in_comb),
+  .pci_frame_out_next         (pci_frame_out_next)
+);
+
+  wire   [2:0] PCI_Next_IRDY_Code;
+pci_critical_next_irdy pci_critical_next_irdy (
+  .PCI_Next_IRDY_Code         (PCI_Next_IRDY_Code[2:0]),
+  .pci_trdy_in_comb           (pci_trdy_in_comb),
+  .pci_stop_in_comb           (pci_stop_in_comb),
+  .pci_irdy_out_next          (pci_irdy_out_next)
+);
+
+  assign  pci_frame_out_oe_comb = 1'b0;
+  assign  pci_irdy_out_oe_comb = 1'b0;
 
 // Signals which the Target uses to determine what to do:
 // Target_Address_Match

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_example_chip.v,v 1.4 2001-03-05 09:54:56 bbeaver Exp $
+// $Id: pci_example_chip.v,v 1.5 2001-06-08 08:40:41 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -167,6 +167,7 @@ module pci_example_chip (
 
 // input wires reporting the value of the external PCI bus
   wire   [31:0] pci_ad_in_prev;
+  wire   [3:0] pci_cbe_l_in_comb;
   wire   [3:0] pci_cbe_l_in_prev;
   wire    pci_par_in_prev;
   wire    pci_frame_in_prev, pci_irdy_in_prev;
@@ -263,6 +264,7 @@ pci_target_pads pci_target_pads (
   .pci_ad_out_next            (pci_ad_out_next[31:0]),
   .pci_ad_out_en_next         (pci_ad_out_en_next),
   .pci_ad_out_oe_comb         (pci_ad_out_oe_comb),
+  .pci_cbe_l_in_comb          (pci_cbe_l_in_comb[3:0]),
   .pci_cbe_l_in_prev          (pci_cbe_l_in_prev[3:0]),
   .pci_cbe_l_out_next         (pci_cbe_l_out_next[3:0]),
   .pci_cbe_out_en_next        (pci_cbe_out_en_next),
@@ -576,6 +578,7 @@ pci_blue_interface pci_blue_interface (
   .pci_ad_out_next            (pci_ad_out_next_a[31:0]),
   .pci_ad_out_en_next         (pci_ad_out_en_next_a),
   .pci_ad_out_oe_comb         (pci_ad_out_oe_comb_a),
+  .pci_cbe_l_in_comb          (pci_cbe_l_in_comb[3:0]),
   .pci_cbe_l_in_prev          (pci_cbe_l_in_prev[3:0]),
   .pci_cbe_l_out_next         (pci_cbe_l_out_next_a[3:0]),
   .pci_cbe_out_en_next        (pci_cbe_out_en_next_a),

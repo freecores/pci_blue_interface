@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: reminders.v,v 1.4 2001-03-05 09:54:48 bbeaver Exp $
+// $Id: reminders.v,v 1.5 2001-06-08 08:40:35 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //

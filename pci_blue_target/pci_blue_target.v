@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_target.v,v 1.4 2001-03-05 09:54:54 bbeaver Exp $
+// $Id: pci_blue_target.v,v 1.5 2001-06-08 08:40:39 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -90,7 +90,7 @@
 //        and 3.5.1.2.
 //
 // NOTE:  This Target State Machine is prepared to try to deal with one
-//        Delayed Read reference, , as described in the PCI Local Bus
+//        Delayed Read reference, as described in the PCI Local Bus
 //        Specification Revision 2.2, sections 3.3.3.3 and 3.7.5.
 //
 // NOTE:  This Target State Machine must be careful if an Address Parity
@@ -244,7 +244,6 @@ module pci_blue_target (
 // NOTE WORKING temporarily set values to OE signals to let the bus not be X's
   assign  pci_target_ad_out_oe_comb = 1'b0;
   assign  pci_target_par_out_oe_comb = 1'b0;
-  assign  pci_d_t_s_out_oe_comb = 1'b0;
   assign  pci_target_perr_out_oe_comb = 1'b0;
   assign  pci_target_serr_out_oe_comb = 1'b0;
 
@@ -377,6 +376,41 @@ module pci_blue_target (
 //  assign  pci_d_t_s_out_oe_comb = pci_d_t_s_out_oe_next_prev;
 //  assign  pci_target_perr_out_oe_comb = pci_perr_out_oe_next_prev;
 //  assign  pci_target_serr_out_oe_comb = pci_serr_out_oe_next_prev;
+
+// As quickly as possible, decide whether to present new Target Control Info
+// on AD bus or to continue sending old data.  The state machine needs to
+// know what happened too, so it can prepare the Control info for next time.
+// NOTE: IRDY and TRDY are very late.  3 nSec before clock edge!
+
+// NOTE THESE SEEM WRONG.  These will have to calculate what to do by
+// looking at Frame and IRDY as well as what the State Machine
+// wants to do.  There needs to be more combinational logic here.
+// Still, try to keep the loading on IRDY to a MINIMUM
+
+pci_critical_AND_MUX pci_critical_AND_MUX_DEVSEL (
+  .d_0                        (),
+  .d_1                        (),
+  .sel_0                      (Target_Expects_IRDY),
+  .sel_1                      (pci_irdy_in_comb),
+  .q                          (pci_devsel_out_next)
+);
+
+pci_critical_AND_MUX pci_critical_AND_MUX_TRDY (
+  .d_0                        (),
+  .d_1                        (),
+  .sel_0                      (Target_Expects_IRDY),
+  .sel_1                      (pci_irdy_in_comb),
+  .q                          (pci_trdy_out_next)
+);
+
+pci_critical_AND_MUX pci_critical_AND_MUX_STOP (
+  .d_0                        (),
+  .d_1                        (),
+  .sel_0                      (Target_Expects_IRDY),
+  .sel_1                      (pci_irdy_in_comb),
+  .q                          (pci_stop_out_next)
+);
+  assign  pci_d_t_s_out_oe_comb = 1'b0;
 
 endmodule
 
