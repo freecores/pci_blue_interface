@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_target.v,v 1.25 2001-09-26 09:48:50 bbeaver Exp $
+// $Id: pci_blue_target.v,v 1.26 2001-10-04 09:30:48 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -872,38 +872,38 @@ module pci_blue_target (
 // PCI Master and PCI Target.  See the PCI Local Bus Spec
 // Revision 2.2 section 3.2.2.1 and 3.2.2.2 for details.
 
-  reg    [PCI_BUS_DATA_RANGE:0] Target_Delayed_Read_Address;
-  reg    [PCI_BUS_CBE_RANGE:0] Target_Delayed_Read_Command;
-  reg    [PCI_BUS_CBE_RANGE:0] Target_Delayed_Read_Byte_Strobes;
-  reg     Target_Delayed_Read_Address_Parity;
+  reg    [PCI_BUS_DATA_RANGE:0] Delayed_Read_Address;
+  reg    [PCI_BUS_CBE_RANGE:0] Delayed_Read_Command;
+  reg    [PCI_BUS_CBE_RANGE:0] Delayed_Read_Byte_Strobes;
+  reg     Delayed_Read_Address_Parity;
   reg     Grab_Target_Address, Prev_Grab_Target_Address, Inc_Target_Address;
 
   always @(posedge pci_clk)
   begin
     if (Grab_Target_Address == 1'b1)
     begin
-      Target_Delayed_Read_Address[PCI_BUS_DATA_RANGE:0] <= pci_ad_in_prev[PCI_BUS_DATA_RANGE:0];
-      Target_Delayed_Read_Command[PCI_BUS_CBE_RANGE:0] <= pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0];
-      Target_Delayed_Read_Address_Parity <= 1'b0;  // NOTE WORKING
+      Delayed_Read_Address[PCI_BUS_DATA_RANGE:0] <= pci_ad_in_prev[PCI_BUS_DATA_RANGE:0];
+      Delayed_Read_Command[PCI_BUS_CBE_RANGE:0] <= pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0];
+      Delayed_Read_Address_Parity <= 1'b0;  // NOTE WORKING
     end
     else if (Grab_Target_Address == 1'b0)
     begin
       if (Inc_Target_Address == 1'b1)
       begin
-        Target_Delayed_Read_Address[PCI_BUS_DATA_RANGE:0] <=
-                          Target_Delayed_Read_Address[PCI_BUS_DATA_RANGE:0]
+        Delayed_Read_Address[PCI_BUS_DATA_RANGE:0] <=
+                          Delayed_Read_Address[PCI_BUS_DATA_RANGE:0]
                         + `PCI_BUS_Address_Step;
       end
       else if (Inc_Target_Address == 1'b0)
       begin
-        Target_Delayed_Read_Address[PCI_BUS_DATA_RANGE:0] <=
-                               Target_Delayed_Read_Address[PCI_BUS_DATA_RANGE:0];
+        Delayed_Read_Address[PCI_BUS_DATA_RANGE:0] <=
+                               Delayed_Read_Address[PCI_BUS_DATA_RANGE:0];
       end
       else
       begin  // NOTE: WORKING
       end
-      Target_Delayed_Read_Command[PCI_BUS_CBE_RANGE:0] <=
-                               Target_Delayed_Read_Command[PCI_BUS_CBE_RANGE:0];
+      Delayed_Read_Command[PCI_BUS_CBE_RANGE:0] <=
+                               Delayed_Read_Command[PCI_BUS_CBE_RANGE:0];
     end
     else
     begin  // NOTE: WORKING
@@ -911,18 +911,30 @@ module pci_blue_target (
     Prev_Grab_Target_Address <= Grab_Target_Address;
     if ((Prev_Grab_Target_Address == 1'b1) || (Inc_Target_Address == 1'b1))
     begin
-      Target_Delayed_Read_Byte_Strobes[PCI_BUS_CBE_RANGE:0] <=
+      Delayed_Read_Byte_Strobes[PCI_BUS_CBE_RANGE:0] <=
                                pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0];
     end
     else if ((Prev_Grab_Target_Address == 1'b0) && (Inc_Target_Address == 1'b0))
     begin
-      Target_Delayed_Read_Byte_Strobes[PCI_BUS_CBE_RANGE:0] <=
-                               Target_Delayed_Read_Byte_Strobes[PCI_BUS_CBE_RANGE:0];
+      Delayed_Read_Byte_Strobes[PCI_BUS_CBE_RANGE:0] <=
+                               Delayed_Read_Byte_Strobes[PCI_BUS_CBE_RANGE:0];
     end
     else
     begin  // NOTE: WORKING
     end
   end
+
+// Address Compare Logic to discover if a Read is being done to the same
+//   address with the same command and Byte Strobes as the present Delayed Read.
+
+  wire    Delayed_Read_Address_Match =
+             & (Delayed_Read_Address[PCI_BUS_DATA_RANGE:0] ==
+                                      pci_ad_in_prev[PCI_BUS_DATA_RANGE:0])
+             & (Delayed_Read_Command[PCI_BUS_CBE_RANGE:0] ==
+                                      pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0])
+             & (Delayed_Read_Address_Parity == 1'b0)  // NOTE: WORKING
+             & (Delayed_Read_Byte_Strobes[PCI_BUS_CBE_RANGE:0] ==
+                                      pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0]);
 
 // Delayed Read Discard Counter
 // See the PCI Local Bus Spec Revision 2.2 section 3.3.3.3.3 for details.
@@ -961,41 +973,35 @@ module pci_blue_target (
 
 // Delayed Read In Progress Indicator
 
-  reg     Delayed_Read_In_Progress;
+  parameter DELAYED_READ_NOT_ACTIVE = 2'b00;
+  parameter DELAYED_READ_DATA_WAIT =  2'b00;
+  parameter DELAYED_READ_FLUSH =      2'b00;
+  parameter DELAYED_READ_FLUSH_DONE = 2'b00;
+
+  reg    [1:0] PCI_Delayed_Read_State;
 
   always @(posedge pci_clk or posedge pci_reset_comb)
   begin
     if (pci_reset_comb == 1'b1)
     begin
-      Delayed_Read_In_Progress <= 1'b0;
+      PCI_Delayed_Read_State[1:0] <= DELAYED_READ_NOT_ACTIVE;
     end
     else if (pci_reset_comb == 1'b0)
     begin  // NOTE: WORKING
-      if (Delayed_Read_In_Progress && Delayed_Read_Discard_Now)
+      if ((PCI_Delayed_Read_State[1:0] == DELAYED_READ_NOT_ACTIVE) && Delayed_Read_Discard_Now)
       begin
-        Delayed_Read_In_Progress <= 1'b0;
+        PCI_Delayed_Read_State[1:0] <= DELAYED_READ_NOT_ACTIVE;  // NOTE WORKING
       end
       else
       begin
-        Delayed_Read_In_Progress <= 1'b0;  // NOTE WORKING
+        PCI_Delayed_Read_State[1:0] <= DELAYED_READ_NOT_ACTIVE;  // NOTE WORKING
       end
     end
     else
     begin  // NOTE: WORKING
+        PCI_Delayed_Read_State[1:0] <= DELAYED_READ_NOT_ACTIVE;  // NOTE WORKING
     end
   end
-
-// Address Compare Logic to discover if a Read is being done to the same
-//   address with the same command and Byte Strobes as the present Delayed Read.
-
-  wire    Delayed_Read_Address_Match = Delayed_Read_In_Progress
-             & (Target_Delayed_Read_Address[PCI_BUS_DATA_RANGE:0] ==
-                                      pci_ad_in_prev[PCI_BUS_DATA_RANGE:0])
-             & (Target_Delayed_Read_Command[PCI_BUS_CBE_RANGE:0] ==
-                                      pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0])
-             & (Target_Delayed_Read_Address_Parity == 1'b0)  // NOTE: WORKING
-             & (Target_Delayed_Read_Byte_Strobes[PCI_BUS_CBE_RANGE:0] ==
-                                      pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0]);
 
 // Address Compare logic to discover whether a Write has been done to data
 //   which is in the Delayed Read Prefetch Buffer.
@@ -1005,8 +1011,8 @@ module pci_blue_target (
 // See the PCI Local Bus Spec Revision 2.2 section 3.2.5 for details.
 
   wire    Delayed_Read_Write_Collision =
-                (pci_ad_in_prev[31:7] ==  Target_Delayed_Read_Address[31:7])
-              | (pci_ad_in_prev[31:7] == (Target_Delayed_Read_Address[31:7]
+                (pci_ad_in_prev[31:7] == Delayed_Read_Address[31:7])
+              | (pci_ad_in_prev[31:7] == (Delayed_Read_Address[31:7]
                                                               + 25'h0000001) );
 
 // Calculate the parity which is received due to an external Master sending
@@ -1029,17 +1035,15 @@ module pci_blue_target (
 // Classify the new reference based on the latched Command and sometimes
 //   the IDSEL and address lines.
 
-  wire    pci_config_read =
-                  (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_CONFIG_READ);  // NOTE: WORKING: address, idsel!
-  wire    pci_config_write =
-                  (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_CONFIG_WRITE);
-  wire    pci_mem_io_read =
-                  (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_IO_READ)
+  wire    pci_config_ref =
+                  (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_CONFIG_READ)  // NOTE: WORKING: address, idsel!
+                | (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_CONFIG_WRITE);
+  wire    pci_mem_io_ref =
+                  (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_IO_READ)  // NOTE: WORKING: address, idsel!
                 | (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_READ)
                 | (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_READ_MULTIPLE)
-                | (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_READ_LINE);
-  wire    pci_mem_io_write =
-                  (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_IO_WRITE)
+                | (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_READ_LINE)
+                | (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_IO_WRITE)
                 | (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_WRITE)
                 | (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_WRITE_INVALIDATE);
   wire    pci_invalid_command =
@@ -1606,22 +1610,36 @@ pci_blue_config_regs pci_blue_config_regs (
 
 function [TS_Range:0] Target_Next_State;
   input  [TS_Range:0] Target_Present_State;
-  input   Response_FIFO_has_Two_Words_Of_Room;
-  input   DELAYED_READ_FIFO_CONTAINS_DATA;
-  input   Timeout_Forces_Disconnect;
+
   input   frame_in_critical;
   input   irdy_in_critical;
   input   frame_in_prev;
   input   irdy_in_prev;
   input   frame_in_prev_prev;
   input   irdy_in_prev_prev;
-  input   address_parity;
-  input   par_in_critical;
-  input   config_read;
-  input   config_write;
-  input   mem_io_read;
-  input   mem_io_write;
+
+  input   config_ref;
+  input   read_ref;
+
   input   invalid_command;
+  input   mem_io_ref;
+
+  input   mem_io_address_match;
+
+  input   Response_FIFO_has_Two_Words_Of_Room;
+
+  input  [1:0] delayed_read_state;
+  input   delayed_address_match;
+
+  input   DELAYED_READ_FIFO_CONTAINS_DATA;
+  input   Timeout_Forces_Disconnect;
+
+
+  input   delayed_data_available;
+  input   target_abort;
+  input   target_retry;
+  input   target_last_data;
+  input   near_bank_end;
 
   begin
 // synopsys translate_off
@@ -1637,83 +1655,148 @@ function [TS_Range:0] Target_Next_State;
 // synopsys translate_on
 
     case (Target_Present_State[TS_Range:0])  // synopsys parallel_case
+// The Target can get an Address Parity Error.  This is when the Address
+//   plus Command has wrong parity during an ordinary Address Phase, or
+//   during either phase of a Dual Address cycle.
+// The Target will respond as if no parity error had occurred.
+// It is the responsibility of the Host to notice the Parity Error
+//   and to avoid doing any activity with fatal side effects.
+// The Host Interface might Target Abort any Reads, and ignore any writes.
+// See the PCI Local Bus Spec Revision 2.2 section 3.7.3 for details.
+
     PCI_TARGET_IDLE_000:
       begin
         if (   ({frame_in_prev, irdy_in_prev} == MASTER_WAIT)  // starting transfer
              & (   ({frame_in_prev_prev, irdy_in_prev_prev} == MASTER_IDLE)  // idle previously
-                 | ({frame_in_prev_prev, irdy_in_prev_prev} == MASTER_DATA_LAST)))  // finishing previously
+                 | ({frame_in_prev_prev, irdy_in_prev_prev} == MASTER_DATA_LAST)) )  // finishing previously
         begin
-          if (config_read)  // Config Reads done without telling Target
+          if (config_ref == 1'b1)  // Config References done without telling Target
           begin
-            Target_Next_State[TS_Range:0] = PCI_TARGET_CONFIG_READ_WAIT_100;
+            if (read_ref == 1'b1)
+            begin
+              Target_Next_State[TS_Range:0] = PCI_TARGET_CONFIG_READ_WAIT_100;
+            end
+            else
+            begin
+              Target_Next_State[TS_Range:0] = PCI_TARGET_CONFIG_WRITE_WAIT_100;
+            end
           end
-          else if (config_write)  // Config Writes done without telling Target
-          begin
-            Target_Next_State[TS_Range:0] = PCI_TARGET_CONFIG_WRITE_WAIT_100;
-          end
-          else if (address_parity_check_enabled & ~parity OK)  // punt on any detected Address Error
-          begin
-            Target_Next_State[TS_Range:0] = PCI_TARGET_NOT_ME_000;
-          end
-          else if (invalid_command)  // punt if unrecognized command
-          begin
-            Target_Next_State[TS_Range:0] = PCI_TARGET_NOT_ME_000;
-          end
-          else if ( ~(   (mem_address_match & mem_enabled & memory_command)  // punt if no match possible
-                       | (io_address_match  & io_enabled & io_command) ) )
+          else if ((config_ref == 1'b0) & (invalid_command == 1'b1))  // ignore if unrecognized command
           begin
             Target_Next_State[TS_Range:0] = PCI_TARGET_NOT_ME_000;
           end
-          else if (~Response_FIFO_has_Two_Words_Of_Room)  // stall if impossible to send data to Target
+          else if (   (config_ref == 1'b0) & (invalid_command == 1'b0)
+                    & (mem_io_ref == 1'b1) )
           begin
-            Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_RETRY_101;
+            if (mem_io_address_match == 1'b0)
+            begin  // ignore if no match possible
+              Target_Next_State[TS_Range:0] = PCI_TARGET_NOT_ME_000;
+            end
+            else if (   (mem_io_address_match == 1'b1)
+                      & (Response_FIFO_has_Two_Words_Of_Room == 1'b0) )
+            begin  // must be match, so stall if impossible to send data to Target
+              Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_RETRY_101;
+            end
+            else if (   (mem_io_address_match == 1'b1)
+                      & (Response_FIFO_has_Two_Words_Of_Room == 1'b1)
+                      & (read_ref == 1'b1) )
+            begin  // its a read
+
+              if ((delayed_read_state[1:0] == DELAYED_READ_NOT_ACTIVE))
+              begin  // start delayed read immediately
+                Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_RETRY_101;
+              end
+              else if (   (delayed_read_state[1:0] != DELAYED_READ_NOT_ACTIVE)
+                        & (delayed_address_match == 1'b0) )
+              begin  // defer other reads until delayed read done
+                Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_RETRY_101;
+              end
+              else if (   (delayed_read_state[1:0] == DELAYED_READ_FLUSH)
+                        & (delayed_address_match == 1'b1) )
+              begin  // defer read until flush done
+                Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_RETRY_101;
+              end
+              else if (   (delayed_read_state[1:0] == DELAYED_READ_FLUSH_DONE)
+                        & (delayed_address_match == 1'b1) )
+              begin  // start delayed read immediately
+                Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_RETRY_101;
+              end
+              else if (   (delayed_read_state[1:0] == DELAYED_READ_DATA_WAIT)
+                        & (delayed_address_match == 1'b1)
+                        & (delayed_data_available == 1'b0) )
+              begin  // no data available yet.  Wait for a while, look again
+                Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_WAIT_100;
+              end
+              else if (   (delayed_read_state[1:0] == DELAYED_READ_DATA_WAIT)
+                        & (delayed_address_match == 1'b1)
+                        & (delayed_data_available == 1'b1)
+                        & (target_abort == 1'b1) )
+              begin  // Host says do Target Abort
+                Target_Next_State[TS_Range:0] = PCI_TARGET_READ_ABORT_FIRST_100;
+              end
+              else if (   (delayed_read_state[1:0] == DELAYED_READ_DATA_WAIT)
+                        & (delayed_address_match == 1'b1)
+                        & (delayed_data_available == 1'b1)
+                        & (target_retry == 1'b1) )
+              begin  // Host says do Target Abort
+                Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_RETRY_101;
+              end
+              else if (   (delayed_read_state[1:0] == DELAYED_READ_DATA_WAIT)
+                        & (delayed_address_match == 1'b1)
+                        & (delayed_data_available == 1'b1)
+                        & (target_last_data == 1'b1) )
+              begin  // Host says do Last Data now
+                Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_DATA_STOP_111;
+              end
+              else if (   (delayed_read_state[1:0] == DELAYED_READ_DATA_WAIT)
+                        & (delayed_address_match == 1'b1)
+                        & (delayed_data_available == 1'b1)
+                        & (target_last_data == 1'b0)
+                        & (near_bank_end == 1'b1) )
+              begin  // Host says do more Data, but getting close to memory bank boundry
+                Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_DATA_STOP_111;
+              end
+              else if (   (delayed_read_state[1:0] == DELAYED_READ_DATA_WAIT)
+                        & (delayed_address_match == 1'b1)
+                        & (delayed_data_available == 1'b1)
+                        & (target_last_data == 1'b0)
+                        & (near_bank_end == 1'b0) )
+              begin  // Host says do more Data
+                Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_DATA_110;
+              end
+              else
+              begin
+                Target_Next_State[TS_Range:0] = PCI_TARGET_IDLE_000;
+  $display ("something");
+              end
+            end
+            else if (   (mem_io_address_match == 1'b1)
+                      & (Response_FIFO_has_Two_Words_Of_Room == 1'b1)
+                      & (read_ref == 1'b0))
+            begin  // its a write
+              if (near_bank_end == 1'b1)
+              begin
+                Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_WRITE_DATA_STOP_111;
+              end
+              else if (near_bank_end == 1'b0)
+              begin
+                Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_WRITE_DATA_110;
+              end
+              else
+              begin
+                Target_Next_State[TS_Range:0] = PCI_TARGET_IDLE_000;
+  $display ("something");
+              end
+            end
+            else  // error
+            begin
+              Target_Next_State[TS_Range:0] = PCI_TARGET_IDLE_000;
+  $display ("something");
+            end
           end
-          else if (~delayed_read_in_progress & its a read)  // start delayed read immediately
-          begin
-            Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_RETRY_101;
-          end
-          else if (delayed_read_in_progress & its a read & delayed address miss)  // defer reads until delayed read done
-          begin
-            Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_RETRY_101;
-          end
-          else if (delayed_read_in_progress & its a read & delayed address hit & data available & its abort)
-          begin
-            Target_Next_State[TS_Range:0] = PCI_TARGET_READ_ABORT_FIRST_100;
-          end
-          else if (delayed_read_in_progress & its a read & delayed address hit & data available & its retry)
-          begin
-            Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_RETRY_101;
-          end
-          else if (delayed_read_in_progress & its a read & delayed address hit & data available & its last data)
-          begin
-            Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_DATA_STOP_111;
-          end
-          else if (delayed_read_in_progress & its a read & delayed address hit & data available & ~its last data & near_bank_end)
-          begin
-            Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_DATA_STOP_110;
-          end
-          else if (delayed_read_in_progress & its a read & delayed address hit & data available & ~its last data & ~near_bank_end)
-          begin
-            Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_DATA_110;
-          end
-          else if (delayed_read_in_progress & its a read & delayed address hit & no data available)
-          begin
-            Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_WAIT_100;
-          end
-          else if (~its a read & near_bank_end)
-          begin
-            Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_WRITE_DATA_STOP_110;
-          end
-          else if (~its a read & ~near_bank_end)
-          begin
-            Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_WRITE_DATA_110;
-          end
-        end
-        else
-        begin
-          Target_Next_State[TS_Range:0] = PCI_TARGET_IDLE_000;
         end
       end
+
     PCI_TARGET_NOT_ME_000:
       begin
         Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
@@ -1738,7 +1821,7 @@ function [TS_Range:0] Target_Next_State;
       begin
         Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
       end
-    PCI_TARGET_MEMORY_READ_STOP_101:
+    PCI_TARGET_MEMORY_READ_RETRY_101:
       begin
         Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
       end
@@ -1770,7 +1853,7 @@ function [TS_Range:0] Target_Next_State;
       begin
         Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
       end
-    PCI_TARGET_MEMORY_WRITE_STOP_101:
+    PCI_TARGET_MEMORY_WRITE_RETRY_101:
       begin
         Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
       end
@@ -1810,10 +1893,8 @@ endfunction
                 pci_irdy_in_prev_prev,
                 address_data_parity,
                 pci_par_in_critical,
-                pci_config_read,
-                pci_config_write,
-                pci_mem_io_read,
-                pci_mem_io_write,
+                pci_config_ref,
+                pci_mem_io_ref,
                 pci_invalid_command
               );
 
