@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: crc32_lib.v,v 1.2 2001-08-19 13:49:08 bbeaver Exp $
+// $Id: crc32_lib.v,v 1.3 2001-08-20 11:42:24 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -7,15 +7,12 @@
 //             new data.
 //           CRC-32 needs to start out with a value of all F's.
 //           When CRC-32 is applied to a block which ends with the CRC-32 of the
-//             block, the resulting CRC-32 checksum is always ????
+//             block, the resulting CRC-32 checksum is always 32'hCBF43926.
 //
-// IMPLEMENTATION NOTE: This is combinational logic.  The user needs to put
-//           flops after this.  It is possible that the initial value might be
-//           implemented as a preset to the flops, or as a clear with the flops
-//           wrapped before and after with inverters.
-//
-// NOTE: The verilog these routines is based on comes from the nice web page:
-//       http://www.easics.be/webtools/crctool
+// NOTE:  The verilog these routines is started from scratch.  A new user might
+//          want to look at a wonderful paper by Ross Williams, which seems to
+//          be at ftp.adelaide.edu.au:/pub/rocksoft/crc_v3.txt
+//        Also see http://www.easics.be/webtools/crctool
 //
 // This library is free software; you can distribute it and/or modify it
 // under the terms of the GNU Lesser General Public License as published
@@ -63,15 +60,71 @@
 // This code was developed using VeriLogger Pro, by Synapticad.
 // Their support is greatly appreciated.
 //
-// NOTE:  There are other sequences of numbers which share the property
-//          of Grey Code that only 1 bit transitions per value change.  The
-//          sequence 0x00, 0x1, 0x3, 0x7, 0x6, 0x4, 0x0 is one such
-//          sequence.  It should be possible to make a library which counts
-//          in sequences less than 2**n long, yet still has this property.
+// NOTE:  I am greatly confused about the order in which the CRC should be
+//          sent over the wire to a remote machine.  Bit 0 first?  Bit 31 first?
+//          True or compliment values?  The user has got to figure this out in
+//          order to interoperate with existing machines.
+//
+// NOTE:  Bit order matters in this code, of course.  The existing code on
+//          the net assumes that when you present a multi-bit word to a parallel
+//          CRC generator, the MSB corresponds to teh earliest data to arrive
+//          across a serial interface.  Fine.  Go with it.
+// NOTE:  The code also assumes that the data shifts into bit 0 of the shift
+//          register, and shifts out of bit 31.  Fine.  Go with it.
+//
+// NOTE:  The math for the CRC-32 is beyond me.
+//
+// NOTE:  But they are pretty easy to use.
+//          You initialize a CRC to a special value to keep from missing
+//            initial 0 bytes.  That is 32'hFFFFFFFF for CRC-32.
+//          You update a CRC as data comes in.
+//          You append the calculated CRC to the end of your message.
+//            You have to agree on logic sense and bit order with the
+//            receiver, or everything you send will seem wrong.
+//          The receiver calculates a CRC the same way, but receives a
+//            message longer than the one you sent, due to the added CRC.
+//          After the CRC is processed by the receiver, you either compare
+//            the calculated CRC with the sent one, or look for a magic
+//            final value which indicates that the message had no errors.
+//
+// NOTE:  Looking on the web, one finds a nice tutorial by Cypress entitled
+//          "Parallel Cyclic Redundancy Check (CRC) for HOTLink(TM)".
+//        This reminds me of how I learned to do this from a wonderful
+//          CRC tutorial on the web, done by Ross N. WIlliams.
+//
+// NOTE:  The CRC-32 polynomial is:
+//            X**0 + X**1 + X**2 + X**4 + X**5 + X**7 + X**8 + X**10
+//          + X**11 + X**12 + X**16 + X**22 + X**23 + X**26 + X**32
+//        You initialize it to the value 32'hFFFFFFFF
+//        You append it to the end of the message.
+//        The receiver sees the value 32'hCBF43926 when the message is
+//          received no errors.
+//
+//        That means that each clock a new bit comes in, you have to shift
+//          all the 32 running state bits 1 bit higher and drop the MSB.
+//          PLUS you have to XOR in (new bit ^ bit 31) to locations
+//          0, 1, 2, 4, 5, 7, 8, 10, 11, 12, 16, 22, 23, and 26.
+//
+//        That is simple but slow.  If you keep track of the bits, you can
+//          see that it might be possible to apply 1 bit, shift it, apply
+//          another bit, shift THAT, and end up with a new formula of how
+//          to update the shift register based on applyig 1 bits at once.
+//
+//        That is the general plan.  Figure out how to apply several bits
+//          at a time.  Write out the big formula, then simplify it if possible.
+//          Apply the bits, shift several bit locations at once, run faster.
+//
+//        But what are the formulas?  Good question.  Use a computer to figure
+//          this out for you.  And WIlliams wrote a program!
+//
+// NOTE:  The idea is simple, so I may include one here too.  
 //
 //===========================================================================
 
 `timescale 1ns/1ps
+
+// The LSB corresponds to bit 0, the new input bit.
+`define CRC_32   32'b0000_0100_1100_0001_0001_1101_1011_0111
 
 // Given a 32-bit CRC-32 running value, update it using 8 new bits of data.
 // The way to make this fast is to find common sub-expressions.
@@ -79,14 +132,284 @@
 // The user needs to supply external flops to make this work.
 
 module crc32_8_comb (
-  present_crc32,
+  present_crc_32,
   data_in_8,
-  next_crc32
+  next_crc_32
 );
 
-  input  [31:0] present_crc32;
+  input  [31:0] present_crc_32;
   input  [7:0] data_in_8;
-  output [31:0] next_crc32;
+  output [31:0] next_crc_32;
 
 endmodule
+
+module crc32_16_comb (
+  present_crc_32,
+  data_in_8,
+  next_crc_32
+);
+
+  input  [31:0] present_crc_32;
+  input  [15:0] data_in_8;
+  output [31:0] next_crc_32;
+
+endmodule
+
+module crc32_32_comb (
+  present_crc_32,
+  data_in_8,
+  next_crc_32
+);
+
+  input  [31:0] present_crc_32;
+  input  [31:0] data_in_8;
+  output [31:0] next_crc_32;
+
+endmodule
+
+module crc32_64_comb (
+  present_crc_32,
+  data_in_8,
+  next_crc_32
+);
+
+  input  [31:0] present_crc_32;
+  input  [63:0] data_in_8;
+  output [31:0] next_crc_32;
+
+endmodule
+
+
+// Try to make a program which will generate formulas for how to do CRC-32
+//   several bits at a time.
+// The idea is to get a single-bit implementation which works.  (!)
+// Then apply an initial value for state and an input data stream.
+// The initial value will have a single bit set, and the data stream
+//   will have a single 1-bit followed by 0 bits.
+// Grind the state machine forward the desired number of bits N, and
+//   look at the stored state.  Each place in the shift register where
+//   there is a 1'b1, that is a bit which is sensitive to the input
+//   or state bit in a parallel implementation N bits wide.
+//
+// remember  CRC_32 = 32'b0000_0100_1100_0001_0001_1101_1011_0111
+
+`define CALCULATE_FUNCTIONAL_DEPENDENCE_ON_INPUT_AND_STATE
+`ifdef CALCULATE_FUNCTIONAL_DEPENDENCE_ON_INPUT_AND_STATE
+module print_out_formulas ();
+
+  parameter NUM_BITS_TO_DO_IN_PARALLEL = 8'h10;
+
+  reg    [31:0] running_state;
+  reg    [31:0] input_vector;
+  reg     xor_value;
+  integer i, j;
+
+  reg    [1023:0] corner_turner;  // use to read out formulas for each bit
+
+  initial
+  begin
+    $display ("Calculating functional dependence on input bits.  Rightmost bit is State Bit 0.");
+    for (i = 0; i < NUM_BITS_TO_DO_IN_PARALLEL; i = i + 1)
+    begin
+      running_state = 32'h00000000;
+      input_vector = 32'h80000000;  // MSB first for this program
+      for (j = 0; j < i + 1; j = j + 1)
+      begin
+        xor_value = input_vector[31] ^ running_state[31];
+        running_state[31:0] = xor_value
+                            ? {running_state[30:0], 1'b0} ^ `CRC_32
+                            : {running_state[30:0], 1'b0};
+        input_vector[31:0] = {input_vector[30:0], 1'b0};
+      end
+      $display ("input bit number (bigger is earlier) %d, dependence %b",
+                   i, running_state[31:0]);
+// First entry, which gets shifted the most in corner_turner, is the last bit loaded                    
+      corner_turner[1023:0] = {corner_turner[1023 - 32 : 0], running_state[31:0]};
+    end
+
+// try to read out formulas by sweeping a 1-bit through the corner_turner array.
+    for (i = 0; i < 32; i = i + 1)  // each state bit depends on:
+    begin
+      $display ("State Variable %d depends on input bit number (bigger is earlier) :", i);
+      for (j = 0; j < NUM_BITS_TO_DO_IN_PARALLEL; j = j + 1)
+      begin
+        if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL - j - 1) * 32 + i] != 1'b0)
+          $display ("%d", j);
+      end
+    end
+    $display ("State bits all just shift towards the MSB by the number of bits acted on each clock.");
+  end
+endmodule
+`endif  // CALCULATE_FUNCTIONAL_DEPENDENCE_ON_INPUT_AND_STATE
+
+// `define SERIAL_VERSION_FOR_DEBUG
+`ifdef SERIAL_VERSION_FOR_DEBUG
+// a slow one to make sure I did things right.
+module crc_32_1_bit_at_a_time (
+  present_crc_32,
+  data_in,
+  next_crc_32
+);
+
+  input  [31:0] present_crc_32;
+  input   data_in;
+  output [31:0] next_crc_32;
+
+  wire    xor_value = data_in ^ present_crc_32[31];
+
+  assign  next_crc_32[31:0] = xor_value
+                     ? {present_crc_32[30:0], 1'b0} ^ `CRC_32
+                     : {present_crc_32[30:0], 1'b0};
+endmodule
+
+module test_crc_1 ();
+
+  integer i, j;
+  reg    [31:0] present_crc_32;
+  wire   [31:0] next_crc_32;
+  reg    [7:0] data_in;
+
+  initial
+  begin
+    #10;
+    $display ("running serial version of code");
+    present_crc_32[31:0] = 32'hFFFFFFFF;
+    data_in = 1'b0;
+    for (i = 0; i < 43; i = i + 1)
+    begin
+      data_in[7:0] = 8'h00;
+      for (j = 0; j < 8; j = j + 1)
+      begin
+        #0 ;
+        present_crc_32[31:0] = next_crc_32[31:0];
+        data_in[7:0] = {data_in[6:0], 1'b0};
+      end
+    end
+    data_in[7:0] = 8'h28;
+    for (j = 0; j < 8; j = j + 1)
+    begin
+      #0 ;
+      present_crc_32[31:0] = next_crc_32[31:0];
+      data_in[7:0] = {data_in[6:0], 1'b0};
+    end
+    $display ("after 40 bytes of 1'b0, I want 32'h864D7F99, I get 32\`h%x", ~present_crc_32[31:0]);
+
+    present_crc_32[31:0] = 32'hFFFFFFFF;
+    data_in = 1'b0;
+    for (i = 0; i < 40; i = i + 1)
+    begin
+      data_in[7:0] = 8'hFF;
+      for (j = 0; j < 8; j = j + 1)
+      begin
+        #0 ;
+        present_crc_32[31:0] = next_crc_32[31:0];
+        data_in[7:0] = {data_in[6:0], 1'b0};
+      end
+    end
+    for (i = 0; i < 3; i = i + 1)
+    begin
+      data_in[7:0] = 8'h00;
+      for (j = 0; j < 8; j = j + 1)
+      begin
+        #0 ;
+        present_crc_32[31:0] = next_crc_32[31:0];
+        data_in[7:0] = {data_in[6:0], 1'b0};
+      end
+    end
+    data_in[7:0] = 8'h28;
+    for (j = 0; j < 8; j = j + 1)
+    begin
+      #0 ;
+      present_crc_32[31:0] = next_crc_32[31:0];
+      data_in[7:0] = {data_in[6:0], 1'b0};
+    end
+    $display ("after 40 bytes of 1'b1, I want 32'hC55E457A, I get 32\`h%x", ~present_crc_32[31:0]);
+
+    present_crc_32[31:0] = 32'hFFFFFFFF;
+    data_in = 1'b0;
+    for (i = 0; i < 40; i = i + 1)
+    begin
+      data_in[7:0] = i + 1;
+      for (j = 0; j < 8; j = j + 1)
+      begin
+        #0 ;
+        present_crc_32[31:0] = next_crc_32[31:0];
+        data_in[7:0] = {data_in[6:0], 1'b0};
+      end
+    end
+    for (i = 0; i < 3; i = i + 1)
+    begin
+      data_in[7:0] = 8'h00;
+      for (j = 0; j < 8; j = j + 1)
+      begin
+        #0 ;
+        present_crc_32[31:0] = next_crc_32[31:0];
+        data_in[7:0] = {data_in[6:0], 1'b0};
+      end
+    end
+    data_in[7:0] = 8'h28;
+    for (j = 0; j < 8; j = j + 1)
+    begin
+      #0 ;
+      present_crc_32[31:0] = next_crc_32[31:0];
+      data_in[7:0] = {data_in[6:0], 1'b0};
+    end
+    $display ("after 40 bytes of 1'b1, I want 32'hBF671ED0, I get 32\`h%x", ~present_crc_32[31:0]);
+  end
+
+crc_32_1_bit_at_a_time test_1_bit (
+  .present_crc_32             (present_crc_32[31:0]),
+  .data_in                    (data_in[7]),
+  .next_crc_32                (next_crc_32[31:0])
+);
+
+//  Angie Tso's CRC-32 Test Cases
+//  tsoa@ttc.com
+//  Angie Tso
+//  Telecommunications Techniques Corp.     E-mail: tsoa@ttc.com
+//  20400 Observation Drive,                Voice : 301-353-1550 ext.4061
+//  Germantown, MD 20876-4023               Fax   : 301-353-1536 Mail Stop O
+//  
+//  Angie posted the following on the cell-relay list Mon, 24 Oct 1994 18:33:11 GMT=20
+//  --------------------------------------------------------------------------------
+//  
+//  Here are the examples of valid AAL-5 CS-PDU in I.363:
+//     (There are three examples in I.363)
+//  
+//  40 Octets filled with "0"
+//  CPCS-UU = 0, CPI = 0, Length = 40, CRC-32 = 864d7f99
+//  char pkt_data[48]={0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+//                     0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+//                     0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+//                     0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+//                     0x00,0x00,0x00,0x28,0x86,0x4d,0x7f,0x99};
+//  
+//  40 Octets filled with "1"
+//  CPCS-UU = 0, CPI = 0, Length = 40, CRC-32 = c55e457a
+//  char pkt_data[48]={0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+//                     0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+//                     0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+//                     0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+//                     0x00,0x00,0x00,0x28,0xc5,0x5e,0x45,0x7a};
+//  
+//  40 Octets counting: 1 to 40
+//  CPCS-UU = 0, CPI = 0, Length = 40, CRC-32 = bf671ed0
+//  char pkt_data[48]={0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0a,
+//                     0x0b,0x0c,0x0d,0x0e,0x0f,0x10,0x11,0x12,0x13,0x14,
+//                     0x15,0x16,0x17,0x18,0x19,0x1a,0x1b,0x1c,0x1d,0x1e,
+//                     0x1f,0x20,0x21,0x22,0x23,0x24,0x25,0x26,0x27,0x28,
+//                     0x00,0x00,0x00,0x28,0xbf,0x67,0x1e,0xd0};
+//  
+//  Here is one out of my calculation for your reference:
+//  
+//  40 Octets counting: 1 to 40
+//  CPCS-UU = 11, CPI = 22, CRC-32 = acba602a
+//  char pkt_data[48]={0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0a,
+//                     0x0b,0x0c,0x0d,0x0e,0x0f,0x10,0x11,0x12,0x13,0x14,
+//                     0x15,0x16,0x17,0x18,0x19,0x1a,0x1b,0x1c,0x1d,0x1e,
+//                     0x1f,0x20,0x21,0x22,0x23,0x24,0x25,0x26,0x27,0x28,
+//                     0x11,0x22,0x00,0x28,0xac,0xba,0x60,0x2a};
+
+endmodule
+`endif  // SERIAL_VERSION_FOR_DEBUG
 
