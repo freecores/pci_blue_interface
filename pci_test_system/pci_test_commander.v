@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_test_commander.v,v 1.10 2001-08-15 10:31:47 bbeaver Exp $
+// $Id: pci_test_commander.v,v 1.11 2001-09-26 09:48:59 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -1339,7 +1339,7 @@ endtask
     present_test_name[79:0] <= "Nowhere___";
     test_master_number <= 3'h0;
     test_address[PCI_BUS_DATA_RANGE:0] <= `PCI_BUS_DATA_ZERO;
-    test_command <= PCI_COMMAND_RESERVED_4;
+    test_command <= PCI_COMMAND_RESERVED_READ_4;
     test_data[PCI_BUS_DATA_RANGE:0] <= `PCI_BUS_DATA_ZERO;
     test_byte_enables_l[PCI_BUS_CBE_RANGE:0] <= `Test_All_Bytes;
     test_size <= `Test_One_Word;

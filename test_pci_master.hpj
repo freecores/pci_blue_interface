@@ -6,7 +6,7 @@
     <File IsIndirectlyAdded="0">pci_blue_fifos\pci_blue_fifo_flags.v</File>
     <File IsIndirectlyAdded="0">pci_vendor_lib\pci_vendor_lib.v</File>
     <File IsIndirectlyAdded="0">pci_blue_master\pci_blue_master.v</File>
-    <File IsIndirectlyAdded="0">function_lib\synchronizer_flop.v</File>
+    <File IsIndirectlyAdded="0">..\misc\synchronizer_flop.v</File>
     <File IsIndirectlyAdded="1">pci_blue_include\pci_blue_options.vh</File>
     <File IsIndirectlyAdded="1">pci_blue_include\pci_blue_constants.vh</File>
   </UserSourceFileList>

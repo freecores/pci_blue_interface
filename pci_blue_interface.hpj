@@ -1,6 +1,6 @@
 <!DOCTYPE SimulationProject SYSTEM "hdl-prj.dtd">
 <SimulationProject Logfile="verilog.log" Keyfile="..\..\VLogger\verilog.key" Language="Verilog" DelayType="typical" AddTopLevelSignals="1" FileNamesShown="1" HideEmptyLists="1" ShowWatch="1" DumpWatch="0" InteractiveMode="1" ParametersAreWatchable="0" ClearLogBeforeCompile="1" AutoParseProject="0">
-  <FileList>
+  <UserSourceFileList>
     <File IsIndirectlyAdded="0">pci_test_system\pci_test_top.v</File>
     <File IsIndirectlyAdded="0">pci_example_chip\pci_example_chip.v</File>
     <File IsIndirectlyAdded="0">pci_blue_arbiter\pci_blue_arbiter.v</File>
@@ -23,27 +23,27 @@
     <File IsIndirectlyAdded="0">pci_example_chip\monitor_pci_interface_host_port.v</File>
     <File IsIndirectlyAdded="0">Readme</File>
     <File IsIndirectlyAdded="0">reminders.v</File>
-  </FileList>
+    <File IsIndirectlyAdded="0">..\misc\synchronizer_flop.v</File>
+  </UserSourceFileList>
   <DirList>
-    <Directory>C:\SYNAPTICAD.7.4\</Directory>
-    <Directory>C:\SYNAPTICAD\</Directory>
-    <Directory>C:\VLOGGER\</Directory>
-    <Directory>pci_blue_include\</Directory>
-    <Directory>C:\free_ip\pci_blue_interface\</Directory>
+    <Directory>..\..\SYNAPTICAD.7.9F</Directory>
+    <Directory>..\..\SYNAPTICAD.7.4</Directory>
+    <Directory>..\..\SYNAPTICAD</Directory>
+    <Directory>..\..\VLOGGER</Directory>
+    <Directory>pci_blue_include</Directory>
+    <Directory></Directory>
   </DirList>
   <LibDirList>
-    <Directory>C:\SYNAPTICAD.7.4\lib\verilog\</Directory>
-    <Directory>C:\SYNAPTICAD\lib\verilog\</Directory>
-    <Directory>C:\VLOGGER\lib\verilog\</Directory>
+    <Directory>..\..\SYNAPTICAD.7.9F\lib\verilog</Directory>
+    <Directory>..\..\SYNAPTICAD.7.4\lib\verilog</Directory>
+    <Directory>..\..\SYNAPTICAD\lib\verilog</Directory>
+    <Directory>..\..\VLOGGER\lib\verilog</Directory>
   </LibDirList>
   <LibExtensionList>
     <Extension>.v</Extension>
     <Extension>.vo</Extension>
     <Extension>.vh</Extension>
   </LibExtensionList>
-  <NameOfModelUnderTest></NameOfModelUnderTest>
-  <ComponentInstantiation></ComponentInstantiation>
-  <ComponentDeclaration></ComponentDeclaration>
   <TBenchProperties>
     <TBenchProp Value="False">VerboseSamples</TBenchProp>
     <TBenchProp Value="False">VerboseSequenceVerification</TBenchProp>

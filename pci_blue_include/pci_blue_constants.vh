@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_constants.vh,v 1.14 2001-08-15 10:31:46 bbeaver Exp $
+// $Id: pci_blue_constants.vh,v 1.15 2001-09-26 09:48:46 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -61,12 +61,12 @@
   parameter PCI_COMMAND_SPECIAL_CYCLE           = 4'b0001;
   parameter PCI_COMMAND_IO_READ                 = 4'b0010;
   parameter PCI_COMMAND_IO_WRITE                = 4'b0011;
-  parameter PCI_COMMAND_RESERVED_4              = 4'b0100;
-  parameter PCI_COMMAND_RESERVED_5              = 4'b0101;
+  parameter PCI_COMMAND_RESERVED_READ_4         = 4'b0100;
+  parameter PCI_COMMAND_RESERVED_WRITE_5        = 4'b0101;
   parameter PCI_COMMAND_MEMORY_READ             = 4'b0110;
   parameter PCI_COMMAND_MEMORY_WRITE            = 4'b0111;
-  parameter PCI_COMMAND_RESERVED_8              = 4'b1000;
-  parameter PCI_COMMAND_RESERVED_9              = 4'b1001;
+  parameter PCI_COMMAND_RESERVED_READ_8         = 4'b1000;
+  parameter PCI_COMMAND_RESERVED_WRITE_9        = 4'b1001;
   parameter PCI_COMMAND_CONFIG_READ             = 4'b1010;
   parameter PCI_COMMAND_CONFIG_WRITE            = 4'b1011;
   parameter PCI_COMMAND_MEMORY_READ_MULTIPLE    = 4'b1100;
@@ -250,14 +250,14 @@
 //   be waited for to satisfy the Delayed Read Request.
 // Tags the Host Controller sends across the Delayed_Read_Data FIFO to indicate
 //   progress made on transfers initiated by the external PCI Bus Master.
-  parameter PCI_HOST_DELAYED_READ_DATA_SPARE               = 3'b000;
-  parameter PCI_HOST_DELAYED_READ_DATA_TARGET_ABORT        = 3'b001;
-  parameter PCI_HOST_DELAYED_READ_DATA_SPARE_2             = 3'b010;
-  parameter PCI_HOST_DELAYED_READ_DATA_SPARE_3             = 3'b011;
-  parameter PCI_HOST_DELAYED_READ_DATA_VALID               = 3'b100;
-  parameter PCI_HOST_DELAYED_READ_DATA_VALID_PERR          = 3'b101;
-  parameter PCI_HOST_DELAYED_READ_DATA_VALID_LAST          = 3'b110;
-  parameter PCI_HOST_DELAYED_READ_DATA_VALID_LAST_PERR     = 3'b111;
+  parameter PCI_HOST_DELAYED_READ_DATA_SPARE           = 3'b000;
+  parameter PCI_HOST_DELAYED_READ_DATA_TARGET_ABORT    = 3'b001;
+  parameter PCI_HOST_DELAYED_READ_DATA_SPARE_2         = 3'b010;
+  parameter PCI_HOST_DELAYED_READ_DATA_FAST_RETRY      = 3'b011;
+  parameter PCI_HOST_DELAYED_READ_DATA_VALID           = 3'b100;
+  parameter PCI_HOST_DELAYED_READ_DATA_VALID_PERR      = 3'b101;
+  parameter PCI_HOST_DELAYED_READ_DATA_VALID_LAST      = 3'b110;
+  parameter PCI_HOST_DELAYED_READ_DATA_VALID_LAST_PERR = 3'b111;
 
 
 // Macros which are used as paramaters in the Test Device code

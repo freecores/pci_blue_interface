@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_example_host_controller.v,v 1.11 2001-08-15 10:31:47 bbeaver Exp $
+// $Id: pci_example_host_controller.v,v 1.12 2001-09-26 09:48:57 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -203,7 +203,7 @@ module pci_example_host_controller (
 task Clear_Example_Host_Command;
   begin
     hold_master_address[PCI_BUS_DATA_RANGE:0] <= `BUS_IMPOSSIBLE_VALUE;
-    hold_master_command[PCI_BUS_CBE_RANGE:0] <= PCI_COMMAND_RESERVED_4;
+    hold_master_command[PCI_BUS_CBE_RANGE:0] <= PCI_COMMAND_RESERVED_READ_4;
     hold_master_data[PCI_BUS_DATA_RANGE:0] <= `BUS_IMPOSSIBLE_VALUE;
     hold_master_byte_enables_l[PCI_BUS_CBE_RANGE:0] <= 4'hF;
     hold_master_addr_par_err <= 1'b0;

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_example_chip.v,v 1.14 2001-08-15 10:31:47 bbeaver Exp $
+// $Id: pci_example_chip.v,v 1.15 2001-09-26 09:48:56 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -199,7 +199,7 @@ module pci_example_chip (
 //   good timing.  This will make verification simpler.
   wire    pci_reset_comb_sync;
 
-pci_synchronizer_flop sync_reset_flop (
+synchronizer_flop sync_reset_flop (
   .data_in                    (1'b1),
   .clk_out                    (pci_clk),
   .sync_data_out              (pci_reset_comb_sync),  // Goes to 1'b0 on reset

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_target.v,v 1.24 2001-09-13 09:58:09 bbeaver Exp $
+// $Id: pci_blue_target.v,v 1.25 2001-09-26 09:48:50 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -1011,6 +1011,7 @@ module pci_blue_target (
 
 // Calculate the parity which is received due to an external Master sending
 //   an Address or a Write Data item.
+// NOTE: WORKING: This will have to be re-written for a 64-bit PCI interface
   wire    par_0 = (^pci_ad_in_prev[3:0]);
   wire    par_1 = (^pci_ad_in_prev[7:4]);
   wire    par_2 = (^pci_ad_in_prev[11:8]);
@@ -1024,6 +1025,31 @@ module pci_blue_target (
   wire    par_4_5 = par_4 ^ par_5 ^ pci_cbe_l_in_prev[2];
   wire    par_6_7 = par_6 ^ par_7 ^ pci_cbe_l_in_prev[2];
   wire    address_data_parity = par_0_1 ^ par_2_3 ^ par_4_5 ^ par_6_7;
+
+// Classify the new reference based on the latched Command and sometimes
+//   the IDSEL and address lines.
+
+  wire    pci_config_read =
+                  (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_CONFIG_READ);  // NOTE: WORKING: address, idsel!
+  wire    pci_config_write =
+                  (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_CONFIG_WRITE);
+  wire    pci_mem_io_read =
+                  (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_IO_READ)
+                | (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_READ)
+                | (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_READ_MULTIPLE)
+                | (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_READ_LINE);
+  wire    pci_mem_io_write =
+                  (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_IO_WRITE)
+                | (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_WRITE)
+                | (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_WRITE_INVALIDATE);
+  wire    pci_invalid_command =
+                  (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_INTERRUPT_ACKNOWLEDGE)
+                | (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_SPECIAL_CYCLE)
+                | (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_RESERVED_READ_4)
+                | (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_RESERVED_WRITE_5)
+                | (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_RESERVED_READ_8)
+                | (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_RESERVED_WRITE_9)
+                | (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_DUAL_ADDRESS_CYCLE);
 
 // The Target State Machine as described in Appendix B.
 // No Lock State Machine is implemented.
@@ -1203,18 +1229,24 @@ module pci_blue_target (
   parameter PCI_TARGET_IDLE_000                   = 6'b0_000_00;  // 00 Idle
   parameter PCI_TARGET_NOT_ME_000                 = 6'b0_000_01;  // 01 Not Me
 
-  parameter PCI_TARGET_DEVSEL_READ_WAIT_100       = 6'b0_100_00;  // 10 DEVSEL Read
-  parameter PCI_TARGET_DEVSEL_READ_DATA_110       = 6'b0_110_00;  // 18 Read Data
-  parameter PCI_TARGET_DEVSEL_READ_DATA_STOP_111  = 6'b0_111_00;  // 1C Read Data Stop
-  parameter PCI_TARGET_DEVSEL_READ_STOP_101       = 6'b0_101_00;  // 14 Read Stop
+  parameter PCI_TARGET_CONFIG_READ_WAIT_100       = 6'b0_100_01;  // 11 DEVSEL Read
+  parameter PCI_TARGET_CONFIG_READ_DATA_110       = 6'b0_110_01;  // 19 Read Data
+
+  parameter PCI_TARGET_MEMORY_READ_WAIT_100       = 6'b0_100_00;  // 10 DEVSEL Read
+  parameter PCI_TARGET_MEMORY_READ_DATA_110       = 6'b0_110_00;  // 18 Read Data
+  parameter PCI_TARGET_MEMORY_READ_DATA_STOP_111  = 6'b0_111_00;  // 1C Read Data Stop
+  parameter PCI_TARGET_MEMORY_READ_RETRY_101      = 6'b0_101_00;  // 14 Read Stop
 
   parameter PCI_TARGET_READ_ABORT_FIRST_100       = 6'b0_100_01;
   parameter PCI_TARGET_READ_ABORT_SECOND_001      = 6'b0_001_00;  // 04 Read Target Abort
 
-  parameter PCI_TARGET_DEVSEL_WRITE_WAIT_100      = 6'b1_100_00;  // 30 DEVSEL Write
-  parameter PCI_TARGET_DEVSEL_WRITE_DATA_110      = 6'b1_110_00;  // 38 Write Data
-  parameter PCI_TARGET_DEVSEL_WRITE_DATA_STOP_111 = 6'b1_111_00;  // 3C Write Data Stop
-  parameter PCI_TARGET_DEVSEL_WRITE_STOP_101      = 6'b1_101_00;  // 34 Write Stop
+  parameter PCI_TARGET_CONFIG_WRITE_WAIT_100      = 6'b1_100_01;  // 31 DEVSEL Write
+  parameter PCI_TARGET_CONFIG_WRITE_DATA_110      = 6'b1_110_01;  // 39 Write Data
+
+  parameter PCI_TARGET_MEMORY_WRITE_WAIT_100      = 6'b1_100_00;  // 30 DEVSEL Write
+  parameter PCI_TARGET_MEMORY_WRITE_DATA_110      = 6'b1_110_00;  // 38 Write Data
+  parameter PCI_TARGET_MEMORY_WRITE_DATA_STOP_111 = 6'b1_111_00;  // 3C Write Data Stop
+  parameter PCI_TARGET_MEMORY_WRITE_RETRY_101     = 6'b1_101_00;  // 34 Write Stop
 
   parameter PCI_TARGET_WRITE_ABORT_FIRST_100      = 6'b1_100_01;
   parameter PCI_TARGET_WRITE_ABORT_SECOND_001     = 6'b1_001_00;  // 24 Write Target Abort
@@ -1574,7 +1606,7 @@ pci_blue_config_regs pci_blue_config_regs (
 
 function [TS_Range:0] Target_Next_State;
   input  [TS_Range:0] Target_Present_State;
-  input   Response_FIFO_has_Room;
+  input   Response_FIFO_has_Two_Words_Of_Room;
   input   DELAYED_READ_FIFO_CONTAINS_DATA;
   input   Timeout_Forces_Disconnect;
   input   frame_in_critical;
@@ -1585,6 +1617,11 @@ function [TS_Range:0] Target_Next_State;
   input   irdy_in_prev_prev;
   input   address_parity;
   input   par_in_critical;
+  input   config_read;
+  input   config_write;
+  input   mem_io_read;
+  input   mem_io_write;
+  input   invalid_command;
 
   begin
 // synopsys translate_off
@@ -1602,34 +1639,106 @@ function [TS_Range:0] Target_Next_State;
     case (Target_Present_State[TS_Range:0])  // synopsys parallel_case
     PCI_TARGET_IDLE_000:
       begin
-        if (   ({frame_in_prev, irdy_in_prev} == MASTER_WAIT)
-             & (   ({frame_in_prev_prev, irdy_in_prev_prev} == MASTER_IDLE)
-                 | ({frame_in_prev_prev, irdy_in_prev_prev} == MASTER_DATA_LAST)))
+        if (   ({frame_in_prev, irdy_in_prev} == MASTER_WAIT)  // starting transfer
+             & (   ({frame_in_prev_prev, irdy_in_prev_prev} == MASTER_IDLE)  // idle previously
+                 | ({frame_in_prev_prev, irdy_in_prev_prev} == MASTER_DATA_LAST)))  // finishing previously
         begin
-          Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
+          if (config_read)  // Config Reads done without telling Target
+          begin
+            Target_Next_State[TS_Range:0] = PCI_TARGET_CONFIG_READ_WAIT_100;
+          end
+          else if (config_write)  // Config Writes done without telling Target
+          begin
+            Target_Next_State[TS_Range:0] = PCI_TARGET_CONFIG_WRITE_WAIT_100;
+          end
+          else if (address_parity_check_enabled & ~parity OK)  // punt on any detected Address Error
+          begin
+            Target_Next_State[TS_Range:0] = PCI_TARGET_NOT_ME_000;
+          end
+          else if (invalid_command)  // punt if unrecognized command
+          begin
+            Target_Next_State[TS_Range:0] = PCI_TARGET_NOT_ME_000;
+          end
+          else if ( ~(   (mem_address_match & mem_enabled & memory_command)  // punt if no match possible
+                       | (io_address_match  & io_enabled & io_command) ) )
+          begin
+            Target_Next_State[TS_Range:0] = PCI_TARGET_NOT_ME_000;
+          end
+          else if (~Response_FIFO_has_Two_Words_Of_Room)  // stall if impossible to send data to Target
+          begin
+            Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_RETRY_101;
+          end
+          else if (~delayed_read_in_progress & its a read)  // start delayed read immediately
+          begin
+            Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_RETRY_101;
+          end
+          else if (delayed_read_in_progress & its a read & delayed address miss)  // defer reads until delayed read done
+          begin
+            Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_RETRY_101;
+          end
+          else if (delayed_read_in_progress & its a read & delayed address hit & data available & its abort)
+          begin
+            Target_Next_State[TS_Range:0] = PCI_TARGET_READ_ABORT_FIRST_100;
+          end
+          else if (delayed_read_in_progress & its a read & delayed address hit & data available & its retry)
+          begin
+            Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_RETRY_101;
+          end
+          else if (delayed_read_in_progress & its a read & delayed address hit & data available & its last data)
+          begin
+            Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_DATA_STOP_111;
+          end
+          else if (delayed_read_in_progress & its a read & delayed address hit & data available & ~its last data & near_bank_end)
+          begin
+            Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_DATA_STOP_110;
+          end
+          else if (delayed_read_in_progress & its a read & delayed address hit & data available & ~its last data & ~near_bank_end)
+          begin
+            Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_DATA_110;
+          end
+          else if (delayed_read_in_progress & its a read & delayed address hit & no data available)
+          begin
+            Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_READ_WAIT_100;
+          end
+          else if (~its a read & near_bank_end)
+          begin
+            Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_WRITE_DATA_STOP_110;
+          end
+          else if (~its a read & ~near_bank_end)
+          begin
+            Target_Next_State[TS_Range:0] = PCI_TARGET_MEMORY_WRITE_DATA_110;
+          end
         end
         else
         begin
-          Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
+          Target_Next_State[TS_Range:0] = PCI_TARGET_IDLE_000;
         end
       end
     PCI_TARGET_NOT_ME_000:
       begin
         Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
       end
-    PCI_TARGET_DEVSEL_READ_WAIT_100:
+    PCI_TARGET_CONFIG_READ_WAIT_100:
       begin
         Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
       end
-    PCI_TARGET_DEVSEL_READ_DATA_110:
+    PCI_TARGET_CONFIG_READ_DATA_110:
       begin
         Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
       end
-    PCI_TARGET_DEVSEL_READ_DATA_STOP_111:
+    PCI_TARGET_MEMORY_READ_WAIT_100:
       begin
         Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
       end
-    PCI_TARGET_DEVSEL_READ_STOP_101:
+    PCI_TARGET_MEMORY_READ_DATA_110:
+      begin
+        Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
+      end
+    PCI_TARGET_MEMORY_READ_DATA_STOP_111:
+      begin
+        Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
+      end
+    PCI_TARGET_MEMORY_READ_STOP_101:
       begin
         Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
       end
@@ -1641,19 +1750,27 @@ function [TS_Range:0] Target_Next_State;
       begin
         Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
       end
-    PCI_TARGET_DEVSEL_WRITE_WAIT_100:
+    PCI_TARGET_CONFIG_WRITE_WAIT_100:
       begin
         Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
       end
-    PCI_TARGET_DEVSEL_WRITE_DATA_110:
+    PCI_TARGET_CONFIG_WRITE_DATA_110:
       begin
         Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
       end
-    PCI_TARGET_DEVSEL_WRITE_DATA_STOP_111:
+    PCI_TARGET_MEMORY_WRITE_WAIT_100:
       begin
         Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
       end
-    PCI_TARGET_DEVSEL_WRITE_STOP_101:
+    PCI_TARGET_MEMORY_WRITE_DATA_110:
+      begin
+        Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
+      end
+    PCI_TARGET_MEMORY_WRITE_DATA_STOP_111:
+      begin
+        Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
+      end
+    PCI_TARGET_MEMORY_WRITE_STOP_101:
       begin
         Target_Next_State[TS_Range:0] = TS_X;  // NOTE: WORKING
       end
@@ -1692,7 +1809,12 @@ endfunction
                 pci_frame_in_prev_prev,
                 pci_irdy_in_prev_prev,
                 address_data_parity,
-                pci_par_in_critical
+                pci_par_in_critical,
+                pci_config_read,
+                pci_config_write,
+                pci_mem_io_read,
+                pci_mem_io_write,
+                pci_invalid_command
               );
 
   always @(posedge pci_clk)

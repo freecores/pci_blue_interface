@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_bus_monitor.v,v 1.12 2001-08-15 10:31:47 bbeaver Exp $
+// $Id: pci_bus_monitor.v,v 1.13 2001-09-26 09:48:54 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -940,10 +940,10 @@ endtask
       PCI_COMMAND_IO_WRITE:
         $display (" monitor - IO Write started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[PCI_BUS_DATA_RANGE:0], cbe_l_prev[PCI_BUS_CBE_RANGE:0], $time);
-      PCI_COMMAND_RESERVED_4:
+      PCI_COMMAND_RESERVED_READ_4:
         $display (" monitor - Reserved started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[PCI_BUS_DATA_RANGE:0], cbe_l_prev[PCI_BUS_CBE_RANGE:0], $time);
-      PCI_COMMAND_RESERVED_5:
+      PCI_COMMAND_RESERVED_WRITE_5:
         $display (" monitor - Reserved started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[PCI_BUS_DATA_RANGE:0], cbe_l_prev[PCI_BUS_CBE_RANGE:0], $time);
       PCI_COMMAND_MEMORY_READ:
@@ -952,10 +952,10 @@ endtask
       PCI_COMMAND_MEMORY_WRITE:
         $display (" monitor - Memory Write started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[PCI_BUS_DATA_RANGE:0], cbe_l_prev[PCI_BUS_CBE_RANGE:0], $time);
-      PCI_COMMAND_RESERVED_8:
+      PCI_COMMAND_RESERVED_READ_8:
         $display (" monitor - Reserved started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[PCI_BUS_DATA_RANGE:0], cbe_l_prev[PCI_BUS_CBE_RANGE:0], $time);
-      PCI_COMMAND_RESERVED_9:
+      PCI_COMMAND_RESERVED_WRITE_9:
         $display (" monitor - Reserved started, AD: 'h%x, CBE: 'h%x, at time %t",
                     ad_prev[PCI_BUS_DATA_RANGE:0], cbe_l_prev[PCI_BUS_CBE_RANGE:0], $time);
       PCI_COMMAND_CONFIG_READ:

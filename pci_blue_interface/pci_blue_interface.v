@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_interface.v,v 1.24 2001-08-15 10:31:46 bbeaver Exp $
+// $Id: pci_blue_interface.v,v 1.25 2001-09-26 09:48:48 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -279,7 +279,7 @@ module pci_blue_interface (
   end
 
 // First level synchronization of PCI Reset signal
-pci_synchronizer_flop sync_reset_flop (
+synchronizer_flop sync_reset_flop (
   .data_in                    (pci_reset_comb),
   .clk_out                    (host_sync_clk),
   .sync_data_out              (pci_reset_sync),
@@ -289,7 +289,7 @@ pci_synchronizer_flop sync_reset_flop (
 // Synchronization of signal which says PCI Interface sees some sort of error
   wire    target_config_reg_signals_some_error;
 
-pci_synchronizer_flop sync_error_flop (
+synchronizer_flop sync_error_flop (
   .data_in                    (target_config_reg_signals_some_error),
   .clk_out                    (host_sync_clk),
   .sync_data_out              (pci_config_reg_signals_some_error),
@@ -1122,7 +1122,7 @@ $display ("Got Last Read Data");  // NOTE WORKING
 // Once SERR is debounced, it is safe to look at it in verilog.
   wire    SERR_sync;
 
-pci_synchronizer_flop sync_SERR_flop (
+synchronizer_flop sync_SERR_flop (
   .data_in                    (pci_serr_in_prev),
   .clk_out                    (pci_sync_clk),
   .sync_data_out              (SERR_sync),

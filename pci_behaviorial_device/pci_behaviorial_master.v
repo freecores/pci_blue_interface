@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_behaviorial_master.v,v 1.10 2001-08-15 10:31:46 bbeaver Exp $
+// $Id: pci_behaviorial_master.v,v 1.11 2001-09-26 09:48:43 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -502,7 +502,7 @@ task Master_Assert_Address;
       begin  // might have lost things after first step.  Undrive everything.
         master_ad_out[PCI_BUS_DATA_RANGE:0] <= `BUS_IMPOSSIBLE_VALUE;
         master_ad_oe <= 1'b0;
-        master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= PCI_COMMAND_RESERVED_4;  // easy to see
+        master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= PCI_COMMAND_RESERVED_READ_4;  // easy to see
         master_cbe_oe <= 1'b0;
         master_debug_force_bad_par <= 1'b0;
         master_got_master_abort <= 1'b0;
@@ -985,7 +985,7 @@ task Execute_Master_Ref_Undrive_All_In_Any_Termination_Unless_Fast_B2B;
 // Otherwise enforce an idle state
         master_ad_out[PCI_BUS_DATA_RANGE:0] <= `BUS_IMPOSSIBLE_VALUE;
         master_ad_oe <= 1'b0;
-        master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= PCI_COMMAND_RESERVED_4;  // easy to see
+        master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= PCI_COMMAND_RESERVED_READ_4;  // easy to see
         master_cbe_oe <= 1'b0;
         master_debug_force_bad_par <= 1'b0;
         master_got_master_abort <= got_master_abort;
@@ -1212,7 +1212,7 @@ task Complain_That_Test_Not_Written;
     error_detected <= ~error_detected;
     master_ad_out[PCI_BUS_DATA_RANGE:0] <= `BUS_IMPOSSIBLE_VALUE;
     master_ad_oe <= 1'b0;
-    master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= PCI_COMMAND_RESERVED_4;  // easy to see
+    master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= PCI_COMMAND_RESERVED_READ_4;  // easy to see
     master_cbe_oe <= 1'b0;
     master_debug_force_bad_par <= 1'b0;
     master_got_master_abort <= 1'b0;
@@ -1319,9 +1319,9 @@ endtask
           Complain_That_Test_Not_Written (want_fast_back_to_back);
         PCI_COMMAND_IO_WRITE:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
-        PCI_COMMAND_RESERVED_4:
+        PCI_COMMAND_RESERVED_READ_4:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
-        PCI_COMMAND_RESERVED_5:
+        PCI_COMMAND_RESERVED_WRITE_5:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
         PCI_COMMAND_MEMORY_READ:
           Execute_Master_PCI_Ref (TEST_MASTER_DOING_MEM_READ,
@@ -1329,9 +1329,9 @@ endtask
         PCI_COMMAND_MEMORY_WRITE:
           Execute_Master_PCI_Ref (TEST_MASTER_DOING_MEM_WRITE,
                                              want_fast_back_to_back);
-        PCI_COMMAND_RESERVED_8:
+        PCI_COMMAND_RESERVED_READ_8:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
-        PCI_COMMAND_RESERVED_9:
+        PCI_COMMAND_RESERVED_WRITE_9:
           Complain_That_Test_Not_Written (want_fast_back_to_back);
         PCI_COMMAND_CONFIG_READ:
           Execute_Master_PCI_Ref (TEST_MASTER_DOING_CONFIG_READ,
@@ -1365,14 +1365,14 @@ endtask
     begin  // park bus
       master_ad_out[PCI_BUS_DATA_RANGE:0] <= `BUS_PARK_VALUE;
       master_ad_oe <= 1'b1;
-      master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= PCI_COMMAND_RESERVED_4;
+      master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= PCI_COMMAND_RESERVED_READ_4;
       master_cbe_oe <= 1'b1;
     end
     else
     begin  // unpark if grant is removed
       master_ad_out[PCI_BUS_DATA_RANGE:0] <= `BUS_IMPOSSIBLE_VALUE;
       master_ad_oe <= 1'b0;
-      master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= PCI_COMMAND_RESERVED_4;
+      master_cbe_l_out[PCI_BUS_CBE_RANGE:0] <= PCI_COMMAND_RESERVED_READ_4;
       master_cbe_oe <= 1'b0;
     end
 // NOTE WORKING need to handle master_got_target_retry here
