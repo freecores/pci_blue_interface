@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_target.v,v 1.4 2001-09-02 11:32:42 bbeaver Exp $
+// $Id: test_pci_target.v,v 1.5 2001-09-04 04:51:56 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -74,6 +74,7 @@ module pci_test_target (
   pci_clk,
   pci_target_ad_bus,
   pci_ad_in_prev,
+  pci_cbe_l_in_prev,
   pci_frame_in_critical, pci_frame_in_prev,
   pci_irdy_in_critical, pci_irdy_in_prev,
   pci_devsel_in_critical,
@@ -118,6 +119,7 @@ module pci_test_target (
   output  Target_Exposes_Data_On_IRDY;
   output  pci_clk;
   output [PCI_BUS_DATA_RANGE:0] pci_ad_in_prev;
+  output [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_prev;
   output [PCI_BUS_DATA_RANGE:0] pci_target_ad_bus;
   output  pci_frame_in_critical, pci_frame_in_prev;
   output  pci_irdy_in_critical, pci_irdy_in_prev;
@@ -151,35 +153,38 @@ module pci_test_target (
   output  new_data;
   output  inc;     // TEMPORARY
 
+`ifdef TARGET_INCLUDED
 // GROSS debugging signal. Only here to put signal in waveform.
-  assign  pci_state[4:0]        = pci_blue_master.PCI_Master_State[4:0];                  // TEMPORARY
-  assign  pci_retry_type[2:0]   = {pci_blue_master.Master_Retry_Address_Type[2:0]};       // TEMPORARY
-  assign  pci_retry_address[31:0] = {pci_blue_master.Master_Retry_Address[31:2], 2'b0};   // TEMPORARY
-  assign  pci_retry_command[3:0]  = pci_blue_master.Master_Retry_Command[3:0];            // TEMPORARY
-  assign  pci_retry_write_reg   = pci_blue_master.Master_Retry_Write_Reg;                 // TEMPORARY
-  assign  Doing_Config_Reference = pci_blue_master.Master_Doing_Config_Reference;         // TEMPORARY
-  assign  pci_retry_data[31:0]  = pci_blue_master.Master_Retry_Data[31:0];                // TEMPORARY
-  assign  pci_retry_data_type[2:0] = pci_blue_master.Master_Retry_Data_Type[2:0];         // TEMPORARY
-  assign  fifo_contains_address = pci_blue_master.Request_FIFO_CONTAINS_ADDRESS;          // TEMPORARY
-  assign  pci_target_full       = pci_blue_master.master_to_target_status_full;           // TEMPORARY
-  assign  pci_bus_full          = pci_blue_master.master_request_full;                    // TEMPORARY
-  assign  two_words_avail       = pci_blue_master.request_fifo_two_words_available_meta;  // TEMPORARY
-  assign  one_word_avail        = pci_blue_master.request_fifo_data_available_meta;       // TEMPORARY
-  assign  addr_aval             = pci_blue_master.Request_FIFO_CONTAINS_ADDRESS;          // TEMPORARY
-  assign  more                  = pci_blue_master.Request_FIFO_CONTAINS_DATA_MORE;        // TEMPORARY
-  assign  two_more              = pci_blue_master.Request_FIFO_CONTAINS_DATA_TWO_MORE;    // TEMPORARY
-  assign  last                  = pci_blue_master.Request_FIFO_CONTAINS_DATA_LAST;        // TEMPORARY
-  assign  working               = pci_blue_master.working;       // TEMPORARY
-  assign  new_addr_new_data     = pci_blue_master.proceed_with_new_address_plus_new_data;        // TEMPORARY
-  assign  old_addr_new_data     = pci_blue_master.proceed_with_stored_address_plus_new_data;     // TEMPORARY
-  assign  old_addr_old_data     = pci_blue_master.proceed_with_stored_address_plus_stored_data;  // TEMPORARY
-  assign  new_data              = pci_blue_master.proceed_with_new_data;                  // TEMPORARY
-  assign  inc                   = pci_blue_master.Inc_Stored_Address;                     // TEMPORARY
+  assign  pci_state[4:0]        = pci_blue_target.PCI_Master_State[4:0];                  // TEMPORARY
+  assign  pci_retry_type[2:0]   = {pci_blue_target.Master_Retry_Address_Type[2:0]};       // TEMPORARY
+  assign  pci_retry_address[31:0] = {pci_blue_target.Master_Retry_Address[31:2], 2'b0};   // TEMPORARY
+  assign  pci_retry_command[3:0]  = pci_blue_target.Master_Retry_Command[3:0];            // TEMPORARY
+  assign  pci_retry_write_reg   = pci_blue_target.Master_Retry_Write_Reg;                 // TEMPORARY
+  assign  Doing_Config_Reference = pci_blue_target.Master_Doing_Config_Reference;         // TEMPORARY
+  assign  pci_retry_data[31:0]  = pci_blue_target.Master_Retry_Data[31:0];                // TEMPORARY
+  assign  pci_retry_data_type[2:0] = pci_blue_target.Master_Retry_Data_Type[2:0];         // TEMPORARY
+  assign  fifo_contains_address = pci_blue_target.Request_FIFO_CONTAINS_ADDRESS;          // TEMPORARY
+  assign  pci_target_full       = pci_blue_target.master_to_target_status_full;           // TEMPORARY
+  assign  pci_bus_full          = pci_blue_target.master_request_full;                    // TEMPORARY
+  assign  two_words_avail       = pci_blue_target.request_fifo_two_words_available_meta;  // TEMPORARY
+  assign  one_word_avail        = pci_blue_target.request_fifo_data_available_meta;       // TEMPORARY
+  assign  addr_aval             = pci_blue_target.Request_FIFO_CONTAINS_ADDRESS;          // TEMPORARY
+  assign  more                  = pci_blue_target.Request_FIFO_CONTAINS_DATA_MORE;        // TEMPORARY
+  assign  two_more              = pci_blue_target.Request_FIFO_CONTAINS_DATA_TWO_MORE;    // TEMPORARY
+  assign  last                  = pci_blue_target.Request_FIFO_CONTAINS_DATA_LAST;        // TEMPORARY
+  assign  working               = pci_blue_target.working;       // TEMPORARY
+  assign  new_addr_new_data     = pci_blue_target.proceed_with_new_address_plus_new_data;        // TEMPORARY
+  assign  old_addr_new_data     = pci_blue_target.proceed_with_stored_address_plus_new_data;     // TEMPORARY
+  assign  old_addr_old_data     = pci_blue_target.proceed_with_stored_address_plus_stored_data;  // TEMPORARY
+  assign  new_data              = pci_blue_target.proceed_with_new_data;                  // TEMPORARY
+  assign  inc                   = pci_blue_target.Inc_Stored_Address;                     // TEMPORARY
+`endif  // TARGET_INCLUDED
 
 // PCI signals
   reg    [PCI_BUS_DATA_RANGE:0] pci_ad_in_prev;
-  wire   [PCI_BUS_DATA_RANGE:0] pci_master_ad_out_next;
-  wire    pci_master_ad_out_oe_comb;
+  reg    [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_prev;
+  wire   [PCI_BUS_DATA_RANGE:0] pci_target_ad_out_next;
+  wire    pci_target_ad_out_oe_comb;
   reg     pci_frame_in_critical, pci_frame_in_prev;
   wire    pci_frame_out_next, pci_frame_out_oe_comb;
   reg     pci_irdy_in_critical, pci_irdy_in_prev;
@@ -193,6 +198,21 @@ module pci_test_target (
   wire    Target_Forces_PERR;
 // Signal to control Request pin if on-chip PCI devices share it
   wire    This_Chip_Driving_TRDY = 1'b0;  // NOTE: use GNT instead.
+
+// Signals from the Master to the Target to insert Status Info into the Response FIFO.
+  wire   [2:0] master_to_target_status_type = 3'h0;
+  wire   [PCI_BUS_CBE_RANGE:0] master_to_target_status_cbe = 4'h0;
+  wire   [PCI_BUS_DATA_RANGE:0] master_to_target_status_data = 32'h00000000;
+  wire    master_to_target_status_flush = 1'b0;
+  wire    master_to_target_status_available = 1'b0;
+  reg     master_to_target_status_two_words_free;
+  reg     master_to_target_status_unload;
+
+// Signals from the Config Regs to the Master to control it.
+  wire    master_enable;
+  wire    master_fast_b2b_en;
+  wire    master_perr_enable;
+  wire   [7:0] master_latency_value;
 
 // Wires connecting the Host FIFOs to the PCI Interface
   reg    host_reset_comb;
@@ -210,8 +230,8 @@ module pci_test_target (
   wire    pci_host_response_error;
 
 // Wires used by the host controller to send delayed read data by the pci interface
-  wire   [PCI_BUS_DATA_RANGE:0] pci_host_delayed_read_data;
-  wire   [2:0] pci_host_delayed_read_type;
+  reg    [PCI_BUS_DATA_RANGE:0] pci_host_delayed_read_data;
+  reg    [2:0] pci_host_delayed_read_type;
   wire    pci_host_delayed_read_room_available_meta;
   wire    pci_host_delayed_read_two_words_available_meta;
   reg     pci_host_delayed_read_data_submit;
@@ -295,10 +315,12 @@ endtask
 
   reg    pci_perr_in_comb, pci_serr_in_comb;
   reg   [PCI_BUS_DATA_RANGE:0] pci_ad_in_comb;
+  reg   [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_comb;
 
 task set_pci_idle;
   begin
     pci_ad_in_comb[PCI_BUS_DATA_RANGE:0] = `PCI_BUS_DATA_X;
+    pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0] = `PCI_BUS_CBE_X;
     pci_devsel_in_critical = 1'b0;
     pci_trdy_in_critical = 1'b0;
     pci_stop_in_critical = 1'b0;
@@ -310,30 +332,22 @@ endtask
 task write_delayed_read_fifo;
   input [2:0] entry_type;
   input [PCI_BUS_CBE_RANGE:0] entry_cbe;
-  input [PCI_BUS_DATA_RANGE:0] entry_data;
   begin
-    pci_delayed_read_submit <= 1'b1;
-    pci_delayed_read_type[2:0] <= entry_type[2:0];
-    pci_delayed_read_cbe[PCI_BUS_CBE_RANGE:0] <= entry_cbe[PCI_BUS_CBE_RANGE:0];
-    pci_delayed_read_data[PCI_BUS_DATA_RANGE:0] <= entry_data[PCI_BUS_DATA_RANGE:0];
+    pci_host_delayed_read_data_submit <= 1'b1;
+    pci_host_delayed_read_type[2:0] <= entry_type[2:0];
+    pci_host_delayed_read_data[PCI_BUS_DATA_RANGE:0] <= next_data[PCI_BUS_DATA_RANGE:0];
   end
 endtask
 
-task pci_devsel;
+task pci_frame;
   begin
-    pci_devsel_in_critical <= 1'b1;
+    pci_frame_in_critical <= 1'b1;
   end
 endtask
 
-task pci_trdy;
+task pci_irdy;
   begin
-    pci_trdy_in_critical <= 1'b1;
-  end
-endtask
-
-task pci_stop;
-  begin
-    pci_stop_in_critical <= 1'b1;
+    pci_irdy_in_critical <= 1'b1;
   end
 endtask
 
@@ -343,28 +357,59 @@ task pci_perr;
   end
 endtask
 
+task write_reg;
+  input  [PCI_BUS_CBE_RANGE:0] ref_type;
+  begin
+  end
+endtask
+
+task write_addr;
+  input  [PCI_BUS_CBE_RANGE:0] ref_type;
+  input   serr_requested;
+  begin
+  end
+endtask
+
+task read_be;
+  input  [PCI_BUS_CBE_RANGE:0] byte_enables;
+  input   last_requested;
+  begin
+  end
+endtask
+
+task write_data;
+  input  [PCI_BUS_CBE_RANGE:0] byte_enables;
+  input   last_requested;
+  input   perr_requested;
+  begin
+  end
+endtask
+
 // Make shorthand command task so that it is easier to set things up.
 // CRITICAL WRITE must always be READ + 1.  Used in _pair task below.
-parameter noop = 0;
-parameter REG_READ  =        1;
-parameter REG_WRITE =        2;
-parameter MEM_READ =         3;
-parameter MEM_WRITE =        4;
-parameter MEM_READ_SERR =    5;
-parameter MEM_WRITE_SERR =   6;
+  parameter noop =                  0;
+  parameter REG_READ  =             1;
+  parameter REG_WRITE =             2;
+  parameter MEM_READ =              3;
+  parameter MEM_WRITE =             4;
+  parameter MEM_READ_SERR =         5;
+  parameter MEM_WRITE_SERR =        6;
 
-parameter DATA =             7;
-parameter DATA_PERR =        8;
-parameter DATA_LAST =        9;
-parameter DATA_LAST_PERR =  10;
+  parameter READ_DATA =             7;
+  parameter READ_DATA_LAST =        8;
 
-parameter DLY_noop =           1;
-parameter DLY_DATA =           2;
-parameter DLY_DATA_PERR =      3;
-parameter DLY_DATA_LAST =      4;
-parameter DLY_DATA_LAST_PERR = 5;
-parameter DLY_DISCONNECT =     6;
-parameter DLY_ABORT =          7;
+  parameter WRITE_DATA =            9;
+  parameter WRITE_DATA_PERR =      10;
+  parameter WRITE_DATA_LAST =      11;
+  parameter WRITE_DATA_LAST_PERR = 12;
+
+  parameter DLY_noop =              0;
+  parameter DLY_DATA =              1;
+  parameter DLY_DATA_PERR =         2;
+  parameter DLY_DATA_LAST =         3;
+  parameter DLY_DATA_LAST_PERR =    4;
+  parameter DLY_DISCONNECT =        5;
+  parameter DLY_ABORT =             6;
 
 // Lets think about this.
 //   Need to have external device do a Reference.
@@ -374,7 +419,7 @@ parameter DLY_ABORT =          7;
 task do_target_test;
   input  [7:0] total_time;
 
-  input  [3:0] ext_command_1;  input  [3:0] data_type_1;
+  input  [3:0] command_1;      input  [3:0] data_type_1;
 
   input  [7:0] data_time_2;    input  [3:0] data_type_2;
   input  [7:0] data_time_3;    input  [3:0] data_type_3;
@@ -405,50 +450,54 @@ task do_target_test;
         for (t1 = 8'h00; t1 < total_time[7:0]; t1 = t1 + 8'h01) do_clocks (4'h1);
       end  // clock gen
 
+// Cause external bus activity, including FRAME and IRDY activity
       begin  // first Address, data
         @(negedge pci_clk);
         if (command_1 == REG_READ)
-          write_fifo (PCI_HOST_REQUEST_INSERT_WRITE_FENCE, 4'h0, 32'h00020000);
+          write_reg (PCI_COMMAND_CONFIG_READ);
         else if (command_1 == REG_WRITE)
-          write_fifo (PCI_HOST_REQUEST_INSERT_WRITE_FENCE, 4'h0, 32'h00010000);
-        else if (command_1 == FENCE)
-          write_fifo (PCI_HOST_REQUEST_INSERT_WRITE_FENCE, 4'h0, 32'h00040000);
-        else if (command_1 == CONFIG_READ)
-          write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_READ);
-        else if (command_1 == CONFIG_WRITE)
-          write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_WRITE);
+          write_reg (PCI_COMMAND_CONFIG_WRITE);
         else if (command_1 == MEM_READ)
-          write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ);
+          write_addr (PCI_COMMAND_MEMORY_READ, 1'b0);
         else if (command_1 == MEM_READ_SERR)
-          write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR, PCI_COMMAND_MEMORY_READ);
+          write_addr (PCI_COMMAND_MEMORY_READ, 1'b1);
         else if (command_1 == MEM_WRITE)
-          write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE);
+          write_addr (PCI_COMMAND_MEMORY_WRITE, 1'b0);
         else if (command_1 == MEM_WRITE_SERR)
-          write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR, PCI_COMMAND_MEMORY_WRITE);
+          write_addr (PCI_COMMAND_MEMORY_WRITE, 1'b1);
+
         else $display ("*** bad first command");
         @(negedge pci_clk);
-        if (data_type_1 == DATA)
-          write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_0);
-        else if (data_type_1 == DATA_PERR)
-          write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR, `Test_Byte_0);
-        else if (data_type_1 == DATA_LAST)
-          write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_0);
-        else if (data_type_1 == DATA_LAST_PERR)
-          write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR, `Test_Byte_0);
+        if (data_type_1 == READ_DATA)
+          read_be (`Test_Byte_0, 1'b0);
+        else if (data_type_1 == READ_DATA_LAST)
+          read_be (`Test_Byte_0, 1'b1);
+        else if (data_type_1 == WRITE_DATA)
+          write_data (`Test_Byte_0, 1'b0, 1'b0);
+        else if (data_type_1 == WRITE_DATA_PERR)
+          write_data (`Test_Byte_0, 1'b0, 1'b1);
+        else if (data_type_1 == WRITE_DATA_LAST)
+          write_data (`Test_Byte_0, 1'b1, 1'b0);
+        else if (data_type_1 == WRITE_DATA_LAST_PERR)
+          write_data (`Test_Byte_0, 1'b1, 1'b1);
       end  // first Address, data
 
       begin  // second data
         if (data_time_2[7:0] != 8'h00)
         begin
           for (d2 = 8'h00; d2 <= data_time_2[7:0]; d2 = d2 + 8'h01) @(negedge pci_clk);
-          if (data_type_2 == DATA)
-            write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1);
-          else if (data_type_2 == DATA_PERR)
-            write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR, `Test_Byte_1);
-          else if (data_type_2 == DATA_LAST)
-            write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_1);
-          else if (data_type_2 == DATA_LAST_PERR)
-            write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR, `Test_Byte_1);
+          if (data_type_2 == READ_DATA)
+            read_be (`Test_Byte_0, 1'b0);
+          else if (data_type_2 == READ_DATA_LAST)
+            read_be (`Test_Byte_0, 1'b1);
+          else if (data_type_2 == WRITE_DATA)
+            write_data (`Test_Byte_0, 1'b0, 1'b0);
+          else if (data_type_2 == WRITE_DATA_PERR)
+            write_data (`Test_Byte_0, 1'b0, 1'b1);
+          else if (data_type_2 == WRITE_DATA_LAST)
+            write_data (`Test_Byte_0, 1'b1, 1'b0);
+          else if (data_type_2 == WRITE_DATA_LAST_PERR)
+            write_data (`Test_Byte_0, 1'b1, 1'b1);
         end
       end  // second data
 
@@ -456,14 +505,18 @@ task do_target_test;
         if (data_time_3[7:0] != 8'h00)
         begin
           for (d3 = 8'h00; d3 <= data_time_3[7:0]; d3 = d3 + 8'h01) @(negedge pci_clk);
-          if (data_type_3 == DATA)
-            write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_2);
-          else if (data_type_3 == DATA_PERR)
-            write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR, `Test_Byte_2);
-          else if (data_type_3 == DATA_LAST)
-            write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_2);
-          else if (data_type_3 == DATA_LAST_PERR)
-            write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR, `Test_Byte_2);
+          if (data_type_3 == READ_DATA)
+            read_be (`Test_Byte_0, 1'b0);
+          else if (data_type_3 == READ_DATA_LAST)
+            read_be (`Test_Byte_0, 1'b1);
+          else if (data_type_3 == WRITE_DATA)
+            write_data (`Test_Byte_0, 1'b0, 1'b0);
+          else if (data_type_3 == WRITE_DATA_PERR)
+            write_data (`Test_Byte_0, 1'b0, 1'b1);
+          else if (data_type_3 == WRITE_DATA_LAST)
+            write_data (`Test_Byte_0, 1'b1, 1'b0);
+          else if (data_type_3 == WRITE_DATA_LAST_PERR)
+            write_data (`Test_Byte_0, 1'b1, 1'b1);
         end
       end  // third data
 
@@ -471,14 +524,18 @@ task do_target_test;
         if (data_time_4[7:0] != 8'h00)
         begin
           for (d4 = 8'h00; d4 <= data_time_4[7:0]; d4 = d4 + 8'h01) @(negedge pci_clk);
-          if (data_type_4 == DATA)
-            write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_3);
-          else if (data_type_4 == DATA_PERR)
-            write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR, `Test_Byte_3);
-          else if (data_type_4 == DATA_LAST)
-            write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_3);
-          else if (data_type_4 == DATA_LAST_PERR)
-            write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR, `Test_Byte_3);
+          if (data_type_4 == READ_DATA)
+            read_be (`Test_Byte_0, 1'b0);
+          else if (data_type_4 == READ_DATA_LAST)
+            read_be (`Test_Byte_0, 1'b1);
+          else if (data_type_4 == WRITE_DATA)
+            write_data (`Test_Byte_0, 1'b0, 1'b0);
+          else if (data_type_4 == WRITE_DATA_PERR)
+            write_data (`Test_Byte_0, 1'b0, 1'b1);
+          else if (data_type_4 == WRITE_DATA_LAST)
+            write_data (`Test_Byte_0, 1'b1, 1'b0);
+          else if (data_type_4 == WRITE_DATA_LAST_PERR)
+            write_data (`Test_Byte_0, 1'b1, 1'b1);
         end
       end  // fourth data
 
@@ -486,24 +543,18 @@ task do_target_test;
         if (addr_time_5[7:0] != 8'h00)
         begin
           for (d5 = 8'h00; d5 <= addr_time_5[7:0]; d5 = d5 + 8'h01) @(negedge pci_clk);
-          if (command_5 == REG_READ)
-            write_fifo (PCI_HOST_REQUEST_INSERT_WRITE_FENCE, 4'h0, 32'h00020000);
-          else if (command_5 == REG_WRITE)
-            write_fifo (PCI_HOST_REQUEST_INSERT_WRITE_FENCE, 4'h0, 32'h00010000);
-          else if (command_5 == FENCE)
-            write_fifo (PCI_HOST_REQUEST_INSERT_WRITE_FENCE, 4'h0, 32'h00040000);
-          else if (command_5 == CONFIG_READ)
-            write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_READ);
-          else if (command_5 == CONFIG_WRITE)
-            write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_WRITE);
+        if (command_5 == REG_READ)
+          write_reg (PCI_COMMAND_CONFIG_READ);
+        else if (command_5 == REG_WRITE)
+          write_reg (PCI_COMMAND_CONFIG_WRITE);
           else if (command_5 == MEM_READ)
-            write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ);
+            write_data (`Test_Byte_0, 1'b0, 1'b0);
           else if (command_5 == MEM_READ_SERR)
-            write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR, PCI_COMMAND_MEMORY_READ);
+            write_data (`Test_Byte_0, 1'b0, 1'b1);
           else if (command_5 == MEM_WRITE)
-            write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE);
+            write_data (`Test_Byte_0, 1'b1, 1'b0);
           else if (command_5 == MEM_WRITE_SERR)
-            write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR, PCI_COMMAND_MEMORY_WRITE);
+            write_data (`Test_Byte_0, 1'b1, 1'b1);
         end
       end  // fifth Address
 
@@ -511,14 +562,18 @@ task do_target_test;
         if (data_time_6[7:0] != 8'h00)
         begin
           for (d6 = 8'h00; d6 <= data_time_6[7:0]; d6 = d6 + 8'h01) @(negedge pci_clk);
-          if (data_type_6 == DATA)
-            write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_0);
-          else if (data_type_6 == DATA_PERR)
-            write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR, `Test_Half_0);
-          else if (data_type_6 == DATA_LAST)
-            write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Half_0);
-          else if (data_type_6 == DATA_LAST_PERR)
-            write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR, `Test_Half_0);
+          if (data_type_6 == READ_DATA)
+            read_be (`Test_Byte_0, 1'b0);
+          else if (data_type_6 == READ_DATA_LAST)
+            read_be (`Test_Byte_0, 1'b1);
+          else if (data_type_6 == WRITE_DATA)
+            write_data (`Test_Byte_0, 1'b0, 1'b0);
+          else if (data_type_6 == WRITE_DATA_PERR)
+            write_data (`Test_Byte_0, 1'b0, 1'b1);
+          else if (data_type_6 == WRITE_DATA_LAST)
+            write_data (`Test_Byte_0, 1'b1, 1'b0);
+          else if (data_type_6 == WRITE_DATA_LAST_PERR)
+            write_data (`Test_Byte_0, 1'b1, 1'b1);
         end
       end  // sixth data
 
@@ -526,31 +581,38 @@ task do_target_test;
         if (data_time_7[7:0] != 8'h00)
         begin
           for (d7 = 8'h00; d7 <= data_time_7[7:0]; d7 = d7 + 8'h01) @(negedge pci_clk);
-          if (data_type_7 == DATA)
-            write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_1);
-          else if (data_type_7 == DATA_PERR)
-            write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR, `Test_Half_1);
-          else if (data_type_7 == DATA_LAST)
-            write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Half_1);
-          else if (data_type_7 == DATA_LAST_PERR)
-            write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR, `Test_Half_1);
+          if (data_type_7 == READ_DATA)
+            read_be (`Test_Byte_0, 1'b0);
+          else if (data_type_7 == READ_DATA_LAST)
+            read_be (`Test_Byte_0, 1'b1);
+          else if (data_type_7 == WRITE_DATA)
+            write_data (`Test_Byte_0, 1'b0, 1'b0);
+          else if (data_type_7 == WRITE_DATA_PERR)
+            write_data (`Test_Byte_0, 1'b0, 1'b1);
+          else if (data_type_7 == WRITE_DATA_LAST)
+            write_data (`Test_Byte_0, 1'b1, 1'b0);
+          else if (data_type_7 == WRITE_DATA_LAST_PERR)
+            write_data (`Test_Byte_0, 1'b1, 1'b1);
         end
       end  // seventh data
 
+// Insert data into the Delayed Read FIFO
       begin  // delayed_read 1
         if (delayed_read_fifo_time_1[7:0] != 8'h00)
         begin
           for (dlyrd1 = 8'h00; dlyrd1 <= delayed_read_fifo_time_1[7:0]; dlyrd1 = dlyrd1 + 8'h01) @(negedge pci_clk);
-          if (target_dts_1[2:0] == DEV)
-          begin  pci_devsel;  end
-          else if (delayed_read_type_1[2:0] == DEV_TRANSFER_DATA)
-          begin  pci_devsel;  pci_trdy;  end
-          else if (delayed_read_type_1[2:0] == DEV_RETRY_WITH_OLD_DATA)
-          begin  pci_devsel;  pci_stop;  end
-          else if (delayed_read_type_1[2:0] == DEV_RETRY_WITH_NEW_DATA)
-          begin  pci_devsel;  pci_trdy;  pci_stop;  end
-          else if (delayed_read_type_1[2:0] == TARGET_ABORT)
-          begin  pci_stop;  end
+          if (delayed_read_type_1[2:0] == DLY_DATA)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID, `Test_Byte_0);
+          else if (delayed_read_type_1[2:0] == DLY_DATA_PERR)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_PERR, `Test_Byte_0);
+          else if (delayed_read_type_1[2:0] == DLY_DATA_LAST)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_LAST, `Test_Byte_0);
+          else if (delayed_read_type_1[2:0] == DLY_DATA_LAST_PERR)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_LAST_PERR, `Test_Byte_0);
+          else if (delayed_read_type_1[2:0] == DLY_DISCONNECT)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_FAST_RETRY, `Test_Byte_0);
+          else if (delayed_read_type_1[2:0] == DLY_ABORT)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_TARGET_ABORT, `Test_Byte_0);
         end
       end  // delayed_read 1
 
@@ -558,16 +620,18 @@ task do_target_test;
         if (delayed_read_fifo_time_2[7:0] != 8'h00)
         begin
           for (dlyrd2 = 8'h00; dlyrd2 <= delayed_read_fifo_time_2[7:0]; dlyrd2 = dlyrd2 + 8'h01) @(negedge pci_clk);
-          if (target_dts_2[2:0] == DEV)
-          begin  pci_devsel;  end
-          else if (delayed_read_type_2[2:0] == DEV_TRANSFER_DATA)
-          begin  pci_devsel;  pci_trdy;  end
-          else if (delayed_read_type_2[2:0] == DEV_RETRY_WITH_OLD_DATA)
-          begin  pci_devsel;  pci_stop;  end
-          else if (delayed_read_type_2[2:0] == DEV_RETRY_WITH_NEW_DATA)
-          begin  pci_devsel;  pci_trdy;  pci_stop;  end
-          else if (delayed_read_type_2[2:0] == TARGET_ABORT)
-          begin  pci_stop;  end
+          if (delayed_read_type_2[2:0] == DLY_DATA)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID, `Test_Byte_0);
+          else if (delayed_read_type_2[2:0] == DLY_DATA_PERR)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_PERR, `Test_Byte_0);
+          else if (delayed_read_type_2[2:0] == DLY_DATA_LAST)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_LAST, `Test_Byte_0);
+          else if (delayed_read_type_2[2:0] == DLY_DATA_LAST_PERR)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_LAST_PERR, `Test_Byte_0);
+          else if (delayed_read_type_2[2:0] == DLY_DISCONNECT)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_FAST_RETRY, `Test_Byte_0);
+          else if (delayed_read_type_2[2:0] == DLY_ABORT)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_TARGET_ABORT, `Test_Byte_0);
         end
       end  // delayed_read 2
 
@@ -575,33 +639,37 @@ task do_target_test;
         if (delayed_read_fifo_time_3[7:0] != 8'h00)
         begin
           for (dlyrd3 = 8'h00; dlyrd3 <= delayed_read_fifo_time_3[7:0]; dlyrd3 = dlyrd3 + 8'h01) @(negedge pci_clk);
-          if (target_dts_3[2:0] == DEV)
-          begin  pci_devsel;  end
-          else if (delayed_read_type_3[2:0] == DEV_TRANSFER_DATA)
-          begin  pci_devsel;  pci_trdy;  end
-          else if (delayed_read_type_3[2:0] == DEV_RETRY_WITH_OLD_DATA)
-          begin  pci_devsel;  pci_stop;  end
-          else if (delayed_read_type_3[2:0] == DEV_RETRY_WITH_NEW_DATA)
-          begin  pci_devsel;  pci_trdy;  pci_stop;  end
-          else if (delayed_read_type_3[2:0] == TARGET_ABORT)
-          begin  pci_stop;  end
+          if (delayed_read_type_3[2:0] == DLY_DATA)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID, `Test_Byte_0);
+          else if (delayed_read_type_3[2:0] == DLY_DATA_PERR)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_PERR, `Test_Byte_0);
+          else if (delayed_read_type_3[2:0] == DLY_DATA_LAST)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_LAST, `Test_Byte_0);
+          else if (delayed_read_type_3[2:0] == DLY_DATA_LAST_PERR)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_LAST_PERR, `Test_Byte_0);
+          else if (delayed_read_type_3[2:0] == DLY_DISCONNECT)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_FAST_RETRY, `Test_Byte_0);
+          else if (delayed_read_type_3[2:0] == DLY_ABORT)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_TARGET_ABORT, `Test_Byte_0);
         end
       end  // delayed_read 3
 
       begin  // delayed_read 4
         if (delayed_read_fifo_time_4[7:0] != 8'h00)
         begin
-          for (dlyrd = 8'h00; dlyrd4 <= delayed_read_fifo_time_4[7:0]; dlyrd4 = dlyrd4 + 8'h01) @(negedge pci_clk);
-          if (target_dts_4[2:0] == DEV)
-          begin  pci_devsel;  end
-          else if (delayed_read_type_4[2:0] == DEV_TRANSFER_DATA)
-          begin  pci_devsel;  pci_trdy;  end
-          else if (delayed_read_type_4[2:0] == DEV_RETRY_WITH_OLD_DATA)
-          begin  pci_devsel;  pci_stop;  end
-          else if (delayed_read_type_4[2:0] == DEV_RETRY_WITH_NEW_DATA)
-          begin  pci_devsel;  pci_trdy;  pci_stop;  end
-          else if (delayed_read_type_4[2:0] == TARGET_ABORT)
-          begin  pci_stop;  end
+          for (dlyrd4 = 8'h00; dlyrd4 <= delayed_read_fifo_time_4[7:0]; dlyrd4 = dlyrd4 + 8'h01) @(negedge pci_clk);
+          if (delayed_read_type_4[2:0] == DLY_DATA)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID, `Test_Byte_0);
+          else if (delayed_read_type_4[2:0] == DLY_DATA_PERR)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_PERR, `Test_Byte_0);
+          else if (delayed_read_type_4[2:0] == DLY_DATA_LAST)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_LAST, `Test_Byte_0);
+          else if (delayed_read_type_4[2:0] == DLY_DATA_LAST_PERR)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_LAST_PERR, `Test_Byte_0);
+          else if (delayed_read_type_4[2:0] == DLY_DISCONNECT)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_FAST_RETRY, `Test_Byte_0);
+          else if (delayed_read_type_4[2:0] == DLY_ABORT)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_TARGET_ABORT, `Test_Byte_0);
         end
       end  // delayed_read 4
 
@@ -609,16 +677,18 @@ task do_target_test;
         if (delayed_read_fifo_time_5[7:0] != 8'h00)
         begin
           for (dlyrd5 = 8'h00; dlyrd5 <= delayed_read_fifo_time_5[7:0]; dlyrd5 = dlyrd5 + 8'h01) @(negedge pci_clk);
-          if (target_dts_1[2:0] == DEV)
-          begin  pci_devsel;  end
-          else if (delayed_read_type_5[2:0] == DEV_TRANSFER_DATA)
-          begin  pci_devsel;  pci_trdy;  end
-          else if (delayed_read_type_5[2:0] == DEV_RETRY_WITH_OLD_DATA)
-          begin  pci_devsel;  pci_stop;  end
-          else if (delayed_read_type_5[2:0] == DEV_RETRY_WITH_NEW_DATA)
-          begin  pci_devsel;  pci_trdy;  pci_stop;  end
-          else if (delayed_read_type_5[2:0] == TARGET_ABORT)
-          begin  pci_stop;  end
+          if (delayed_read_type_5[2:0] == DLY_DATA)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID, `Test_Byte_0);
+          else if (delayed_read_type_5[2:0] == DLY_DATA_PERR)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_PERR, `Test_Byte_0);
+          else if (delayed_read_type_5[2:0] == DLY_DATA_LAST)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_LAST, `Test_Byte_0);
+          else if (delayed_read_type_5[2:0] == DLY_DATA_LAST_PERR)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_LAST_PERR, `Test_Byte_0);
+          else if (delayed_read_type_5[2:0] == DLY_DISCONNECT)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_FAST_RETRY, `Test_Byte_0);
+          else if (delayed_read_type_5[2:0] == DLY_ABORT)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_TARGET_ABORT, `Test_Byte_0);
         end
       end  // delayed_read 5
 
@@ -626,16 +696,18 @@ task do_target_test;
         if (delayed_read_fifo_time_6[7:0] != 8'h00)
         begin
           for (dlyrd6 = 8'h00; dlyrd6 <= delayed_read_fifo_time_6[7:0]; dlyrd6 = dlyrd6 + 8'h01) @(negedge pci_clk);
-          if (target_dts_6[2:0] == DEV)
-          begin  pci_devsel;  end
-          else if (delayed_read_type_6[2:0] == DEV_TRANSFER_DATA)
-          begin  pci_devsel;  pci_trdy;  end
-          else if (delayed_read_type_6[2:0] == DEV_RETRY_WITH_OLD_DATA)
-          begin  pci_devsel;  pci_stop;  end
-          else if (delayed_read_type_6[2:0] == DEV_RETRY_WITH_NEW_DATA)
-          begin  pci_devsel;  pci_trdy;  pci_stop;  end
-          else if (delayed_read_type_6[2:0] == TARGET_ABORT)
-          begin  pci_stop;  end
+          if (delayed_read_type_6[2:0] == DLY_DATA)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID, `Test_Byte_0);
+          else if (delayed_read_type_6[2:0] == DLY_DATA_PERR)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_PERR, `Test_Byte_0);
+          else if (delayed_read_type_6[2:0] == DLY_DATA_LAST)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_LAST, `Test_Byte_0);
+          else if (delayed_read_type_6[2:0] == DLY_DATA_LAST_PERR)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_LAST_PERR, `Test_Byte_0);
+          else if (delayed_read_type_6[2:0] == DLY_DISCONNECT)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_FAST_RETRY, `Test_Byte_0);
+          else if (delayed_read_type_6[2:0] == DLY_ABORT)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_TARGET_ABORT, `Test_Byte_0);
         end
       end  // delayed_read 6
 
@@ -643,16 +715,18 @@ task do_target_test;
         if (delayed_read_fifo_time_7[7:0] != 8'h00)
         begin
           for (dlyrd7 = 8'h00; dlyrd7 <= delayed_read_fifo_time_7[7:0]; dlyrd7 = dlyrd7 + 8'h01) @(negedge pci_clk);
-          if (target_dts_7[2:0] == DEV)
-          begin  pci_devsel;  end
-          else if (delayed_read_type_7[2:0] == DEV_TRANSFER_DATA)
-          begin  pci_devsel;  pci_trdy;  end
-          else if (delayed_read_type_7[2:0] == DEV_RETRY_WITH_OLD_DATA)
-          begin  pci_devsel;  pci_stop;  end
-          else if (delayed_read_type_7[2:0] == DEV_RETRY_WITH_NEW_DATA)
-          begin  pci_devsel;  pci_trdy;  pci_stop;  end
-          else if (delayed_read_type_7[2:0] == TARGET_ABORT)
-          begin  pci_stop;  end
+          if (delayed_read_type_7[2:0] == DLY_DATA)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID, `Test_Byte_0);
+          else if (delayed_read_type_7[2:0] == DLY_DATA_PERR)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_PERR, `Test_Byte_0);
+          else if (delayed_read_type_7[2:0] == DLY_DATA_LAST)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_LAST, `Test_Byte_0);
+          else if (delayed_read_type_7[2:0] == DLY_DATA_LAST_PERR)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_VALID_LAST_PERR, `Test_Byte_0);
+          else if (delayed_read_type_7[2:0] == DLY_DISCONNECT)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_FAST_RETRY, `Test_Byte_0);
+          else if (delayed_read_type_7[2:0] == DLY_ABORT)
+            write_delayed_read_fifo (PCI_HOST_DELAYED_READ_DATA_TARGET_ABORT, `Test_Byte_0);
         end
       end  // delayed_read 7
     join
@@ -717,6 +791,7 @@ endtask
   always @(posedge pci_clk)
   begin
     pci_ad_in_prev[PCI_BUS_DATA_RANGE:0] <= pci_ad_in_comb[PCI_BUS_DATA_RANGE:0];
+    pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0] <= pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0];
     pci_frame_in_prev  <= pci_frame_in_critical;
     pci_irdy_in_prev   <= pci_irdy_in_critical;
     pci_devsel_in_prev <= pci_devsel_in_critical;
@@ -728,9 +803,8 @@ endtask
 // Initialize signals which are set for 1 clock by tasks to create activity
   initial
   begin
-    pci_host_delayed_read_submit <= 1'b0;
+    pci_host_delayed_read_data_submit <= 1'b0;
     pci_host_delayed_read_type[2:0] <= 3'hX;
-    pci_host_delayed_read_cbe[PCI_BUS_CBE_RANGE:0] <= 4'hX;
     pci_host_delayed_read_data[PCI_BUS_DATA_RANGE:0] <= `PCI_BUS_DATA_X;
     pci_frame_in_critical  <= 1'b0;
     pci_frame_in_prev      <= 1'b0;
@@ -748,9 +822,8 @@ endtask
 // Remove signals which are set for 1 clock by tasks to create activity
   always @(posedge pci_clk)
   begin
-    pci_host_delayed_read_submit <= 1'b0;
+    pci_host_delayed_read_data_submit <= 1'b0;
     pci_host_delayed_read_type[2:0] <= 3'hX;
-    pci_host_delayed_read_cbe[PCI_BUS_CBE_RANGE:0] <= 4'hX;
     pci_host_delayed_read_data[PCI_BUS_DATA_RANGE:0] <= `PCI_BUS_DATA_X;
     pci_frame_in_critical  <= 1'b0;
     pci_irdy_in_critical   <= 1'b0;
@@ -772,8 +845,8 @@ endtask
     $display ("Setting PCI bus to nominal, at time %t", $time);
     do_reset;
     set_pci_idle;
-    set_addr (32'hAA012345);
-    set_data (32'hDD06789A);
+    set_ext_addr (32'hAA012345);
+    set_ext_data (32'hDD06789A);
       do_clocks (4'h2);
 
 `ifdef BEGINNING_OPS
@@ -942,8 +1015,6 @@ pci_fifo_storage_delayed_read pci_fifo_storage_delayed_read (
   .write_submit               (pci_host_delayed_read_data_submit),
 // NOTE Needs extra settling time to avoid metastability
   .write_room_available_meta  (pci_host_delayed_read_room_available_meta),
-// NOTE Needs extra settling time to avoid metastability
-  .write_two_words_available_meta  (pci_host_delayed_read_two_words_available_meta),
   .write_data                 ({pci_host_delayed_read_type[2:0],
                                 pci_host_delayed_read_data[PCI_BUS_DATA_RANGE:0]}), 
   .write_error                (pci_host_delayed_read_data_error),
@@ -959,6 +1030,10 @@ pci_fifo_storage_delayed_read pci_fifo_storage_delayed_read (
   .read_error                 (pci_delayed_read_fifo_error)
 );
 
+  wire    pci_devsel_out_next, pci_trdy_out_next, pci_stop_out_next;
+  wire    pci_d_t_s_out_oe_comb;
+
+`ifdef TARGET_INCLUDED
 // Instantiate the Target Interface
 pci_blue_target pci_blue_target (
 // Signals driven to control the external PCI interface
@@ -1035,6 +1110,7 @@ pci_blue_target pci_blue_target (
   .pci_clk                    (pci_clk),
   .pci_reset_comb             (host_reset_comb)
 );
+`endif  // TARGET_INCLUDED
 
 // Convert seperate signals and OE controls into composite signal
   reg    [PCI_BUS_DATA_RANGE:0] ad_reg;
@@ -1056,8 +1132,8 @@ pci_blue_target pci_blue_target (
                     ? pci_target_ad_out_next[PCI_BUS_DATA_RANGE:0]
                     : ad_reg[PCI_BUS_DATA_RANGE:0];
       devsel_reg <= pci_devsel_out_next;
-      trdy_reg <= pci_trdy_out_next;
-      stop_reg <= pci_stop_out_next;
+      trdy_reg   <= pci_trdy_out_next;
+      stop_reg   <= pci_stop_out_next;
     end
   end
 

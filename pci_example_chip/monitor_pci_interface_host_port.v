@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: monitor_pci_interface_host_port.v,v 1.11 2001-08-15 10:31:47 bbeaver Exp $
+// $Id: monitor_pci_interface_host_port.v,v 1.12 2001-09-04 04:51:57 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -296,6 +296,8 @@ module monitor_pci_interface_host_port (
         PCI_HOST_DELAYED_READ_DATA_VALID_LAST_PERR:
           $display ("Putting Valid Last PERR Data into Delayed Read FIFO, at time %t",
                      pci_host_delayed_read_data[PCI_BUS_DATA_RANGE:0], $time);
+        PCI_HOST_DELAYED_READ_DATA_FAST_RETRY:
+          $display ("Putting Target Retry into Delayed Read FIFO, at time %t", $time);
         PCI_HOST_DELAYED_READ_DATA_TARGET_ABORT:
           $display ("Putting Target Abort into Delayed Read FIFO, at time %t", $time);
         default:
