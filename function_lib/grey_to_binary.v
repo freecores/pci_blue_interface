@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: grey_to_binary.v,v 1.5 2001-08-24 07:21:09 bbeaver Exp $
+// $Id: grey_to_binary.v,v 1.6 2001-08-26 11:12:19 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -142,6 +142,7 @@ module bin_to_grey_code (
       $finish;
     end
   end
+// synopsys translate_on
 endmodule
 
 // Convert 2-bit up to 16-bit binary value into same sized grey-code value
@@ -229,6 +230,7 @@ module grey_code_to_bin (
       $finish;
     end
   end
+// synopsys translate_on
 endmodule
 
 // `define TEST_GREY_CODE

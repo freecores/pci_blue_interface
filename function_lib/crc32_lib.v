@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: crc32_lib.v,v 1.12 2001-08-25 11:42:32 bbeaver Exp $
+// $Id: crc32_lib.v,v 1.13 2001-08-26 11:12:19 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -67,10 +67,10 @@
 //
 // NOTE:  Bit order matters in this code, of course.  The existing code on
 //          the net assumes that when you present a multi-bit word to a parallel
-//          CRC generator, the MSB corresponds to teh earliest data to arrive
-//          across a serial interface.  Fine.  Go with it.
+//          CRC generator, the MSB corresponds to the earliest data to arrive
+//          across a serial interface.
 // NOTE:  The code also assumes that the data shifts into bit 0 of the shift
-//          register, and shifts out of bit 31.  Fine.  Go with it.
+//          register, and shifts out of bit 31.
 //
 // NOTE:  The math for the CRC-32 is beyond me.
 //
@@ -98,12 +98,11 @@
 //        You initialize it to the value 32'hFFFFFFFF
 //        You append it to the end of the message.
 //        The receiver sees the value 32'hC704DD7B when the message is
-//          received no errors.  Bit reversed, that is 32'hDEBB20E3.
-//        NOTE Some other DOCS SAY 32'hCBF43926!!!
+//          received no errors.
 //
 //        That means that each clock a new bit comes in, you have to shift
 //          all the 32 running state bits 1 bit higher and drop the MSB.
-//          PLUS you have to XOR in (new bit ^ bit 31) to locations
+//          PLUS you have to XOR in (new bit ^ MSB) to locations
 //          0, 1, 2, 4, 5, 7, 8, 10, 11, 12, 16, 22, 23, and 26.
 //
 //        That is simple but slow.  If you keep track of the bits, you can
@@ -118,7 +117,23 @@
 //        But what are the formulas?  Good question.  Use a computer to figure
 //          this out for you.  And Williams wrote a program!
 //
-// NOTE:  The idea is simple, so I may include one I wrote here too.  
+// NOTE:  The idea is simple, so I may include a program to print out
+//          formulas at the end of this code.  The module SHOULD be improved
+//          to group the terms into an XOR tree, with parantheses.  That can
+//          be left for a new person.
+//
+// NOTE: WORKING: Make routines which capture ALL input data in flops immediately.
+//                  All outputs are already latched.  So this module is flop-to-flop.
+//                This lets the module be synthesized and layed out independently
+//                  of all other modules when trying to meet timing.
+//                This also lets the modules which calculate with more than 32
+//                  input bits per clock have an internal pipeline stage where
+//                  the Data component of the new CRC is calculate.  But be
+//                  careful!  An extra layer of pipelining changes when data
+//                  becomes available.
+//                Might also make versions which let a non-F CRC be loaded.  This
+//                  would be useful if a CRC needed to be calculated incrementally,
+//                  which is the case when calculating AAL-5 checksums, for instance.
 //
 //===========================================================================
 
