@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_master.v,v 1.11 2001-07-23 09:43:40 bbeaver Exp $
+// $Id: test_pci_master.v,v 1.12 2001-07-28 11:21:59 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -100,6 +100,7 @@ module pci_test_master (
   two_words_avail,  // TEMPORARY
   addr_aval,  // TEMPORARY
   more,  // TEMPORARY
+  two_more,  // TEMPORARY
   last,  // TEMPORARY
   working,  // TEMPORARY
   master_got_parity_error,
@@ -150,7 +151,7 @@ module pci_test_master (
   output  one_word_avail;  // TEMPORARY
   output  two_words_avail;  // TEMPORARY
   output  addr_aval;  // TEMPORARY
-  output  more, last;
+  output  more, two_more, last;
   output  working;  // TEMPORARY
   output  master_got_parity_error;
   output  master_caused_serr;
@@ -170,8 +171,9 @@ module pci_test_master (
   assign  one_word_avail        = pci_blue_master.request_fifo_data_available_meta;       // TEMPORARY
   assign  addr_aval             = pci_blue_master.Request_FIFO_CONTAINS_ADDRESS;          // TEMPORARY
   assign  more                  = pci_blue_master.Request_FIFO_CONTAINS_DATA_MORE;        // TEMPORARY
+  assign  two_more              = pci_blue_master.Request_FIFO_CONTAINS_DATA_TWO_MORE;    // TEMPORARY
   assign  last                  = pci_blue_master.Request_FIFO_CONTAINS_DATA_LAST;        // TEMPORARY
-  assign  working               = pci_blue_master.Request_FIFO_CONTAINS_DATA_MORE;        // TEMPORARY
+  assign  working               = pci_blue_master.Master_Data_Latency_Disconnect;         // TEMPORARY
 
 // PCI signals
   wire    pci_req_out_next, pci_req_out_oe_comb;
@@ -414,6 +416,7 @@ endtask
 
   initial
   begin
+    host_reset_comb <= 1'b1;  // clobber reset right at the beginning
     $display ("Setting PCI bus to nominal, at time %t", $time);
     do_reset;
     set_pci_idle;
@@ -744,13 +747,7 @@ endtask
       do_clocks (4'h1);
     pci_devsel;
     pci_trdy;
-      do_clocks (4'h1);
-    pci_devsel;
-    pci_trdy;
-      do_clocks (4'h1);
-    pci_devsel;
-    pci_trdy;
-      do_clocks (4'h1);
+      do_clocks (4'h3);
     pci_devsel;
     pci_trdy;
       do_clocks (4'h1);
@@ -773,13 +770,7 @@ endtask
       do_clocks (4'h1);
     pci_devsel;
     pci_trdy;
-      do_clocks (4'h1);
-    pci_devsel;
-    pci_trdy;
-      do_clocks (4'h1);
-    pci_devsel;
-    pci_trdy;
-      do_clocks (4'h1);
+      do_clocks (4'h3);
     pci_devsel;
     pci_trdy;
       do_clocks (4'h1);
@@ -788,7 +779,139 @@ endtask
       do_clocks (4'h8);
 
 
+    $display ("Doing Memory Read, 3 words, 5 Master Wait State, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ, 32'hAD201234);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1, 32'hDA305678);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_2, 32'hDA405678);
+      do_clocks (4'h2);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h2);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_2, 32'hDA505678);
+      do_clocks (4'h4);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h1);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
 
+    $display ("Doing Memory Write, 3 words, 5 Master Wait State, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE, 32'hAD501234);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_0, 32'hDA605678);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_1, 32'hDA705678);
+      do_clocks (4'h2);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h2);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Half_1, 32'hDA805678);
+      do_clocks (4'h4);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h1);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
+
+    $display ("Doing Memory Read, 3 words, 7 Master Wait State, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ, 32'hAD201234);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1, 32'hDA305678);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_2, 32'hDA405678);
+      do_clocks (4'h2);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h3);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_2, 32'hDA505678);
+      do_clocks (4'h4);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h1);
+      do_clocks (4'h8);
+
+    $display ("Doing Memory Write, 3 words, 7 Master Wait State, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE, 32'hAD501234);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_0, 32'hDA605678);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_1, 32'hDA705678);
+      do_clocks (4'h2);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h3);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Half_1, 32'hDA805678);
+      do_clocks (4'h4);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h1);
+      do_clocks (4'h8);
+
+    $display ("Doing Memory Read, 3 words, 8 Master Wait State, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ, 32'hAD201234);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1, 32'hDA305678);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_2, 32'hDA405678);
+      do_clocks (4'h2);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h4);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_2, 32'hDA505678);
+      do_clocks (4'h4);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h1);
+      do_clocks (4'h8);
+
+    $display ("Doing Memory Write, 3 words, 8 Master Wait State, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE, 32'hAD501234);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_0, 32'hDA605678);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_1, 32'hDA705678);
+      do_clocks (4'h2);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h4);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Half_1, 32'hDA805678);
+      do_clocks (4'h4);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h1);
+      do_clocks (4'h8);
+
+
+
+`ifdef LATER
     $display ("Doing Config Read, 1 word, Loose Arb, Master Abort, at time %t", $time);
     do_reset;
     write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_READ, 32'hAD701234);
@@ -903,7 +1026,7 @@ endtask
     pci_grant;           // drive
       do_clocks (4'h8);
 
-`ifdef LATER
+
     $display ("Doing Memory Read, 1 word, Master Abort, at time %t", $time);
     do_reset;
     write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ, 32'hAD401234);

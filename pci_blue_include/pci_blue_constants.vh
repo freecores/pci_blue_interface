@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_constants.vh,v 1.11 2001-07-06 10:51:04 bbeaver Exp $
+// $Id: pci_blue_constants.vh,v 1.12 2001-07-28 11:21:58 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -353,5 +353,9 @@
 
 // macro used for documentation purposes when an "if" really should have no "else"
 `define NO_ELSE                                else
+
+// macro used for documentation purposes when an "case" really should have no "default"
+`define NO_DEFAULT                             default
+
 
 
