@@ -1,10 +1,9 @@
 <!DOCTYPE Desktop SYSTEM "hdl-prj.dtd">
 <Desktop>
-  <ProjectWindow X="51" Y="32" W="861" H="571">
-    <Column>537</Column>
+  <ProjectWindow X="53" Y="33" W="861" H="571">
+    <Column>589</Column>
     <Column>60</Column>
     <Column>50</Column>
     <Column>50</Column>
   </ProjectWindow>
-  <SourceWindow X="108" Y="100" W="931" H="438" File="pci_blue_master\pci_blue_master.v" Line="172"></SourceWindow>
 </Desktop>

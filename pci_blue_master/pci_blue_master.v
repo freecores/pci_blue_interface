@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_master.v,v 1.7 2001-06-12 06:37:52 bbeaver Exp $
+// $Id: pci_blue_master.v,v 1.8 2001-06-13 11:58:45 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -171,7 +171,7 @@ module pci_blue_master (
 // Signals from the Master to the Target to set bits in the Status Register
   master_got_parity_error,
   master_caused_serr,
-  master_got_master_abort,
+  master_caused_master_abort,
   master_got_target_abort,
   master_caused_parity_error,
   master_request_fifo_error,
@@ -237,10 +237,11 @@ module pci_blue_master (
 // Signals from the Master to the Target to set bits in the Status Register
   output  master_got_parity_error;
   output  master_caused_serr;
-  output  master_got_master_abort;
+  output  master_caused_master_abort;
   output  master_got_target_abort;
   output  master_caused_parity_error;
   output  master_request_fifo_error;
+// Signals from the Config Regs to the Master to control it.
   input   master_enable;
   input   master_fast_b2b_en;
   input   master_perr_enable;

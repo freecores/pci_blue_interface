@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_target.v,v 1.7 2001-06-12 06:37:53 bbeaver Exp $
+// $Id: pci_blue_target.v,v 1.8 2001-06-13 11:58:47 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -158,10 +158,11 @@ module pci_blue_target (
 // Signals from the Master to the Target to set bits in the Status Register
   master_got_parity_error,
   master_caused_serr,
-  master_got_master_abort,
+  master_caused_master_abort,
   master_got_target_abort,
   master_caused_parity_error,
   master_request_fifo_error,
+// Signals from the Config Regs to the Master to control it.
   master_enable,
   master_fast_b2b_en,
   master_perr_enable,
@@ -228,10 +229,11 @@ module pci_blue_target (
 // Signals from the Master to the Target to set bits in the Status Register
   input   master_got_parity_error;
   input   master_caused_serr;
-  input   master_got_master_abort;
+  input   master_caused_master_abort;
   input   master_got_target_abort;
   input   master_caused_parity_error;
   input   master_request_fifo_error;
+// Signals from the Config Regs to the Master to control it.
   output  master_enable;
   output  master_fast_b2b_en;
   output  master_perr_enable;
@@ -241,6 +243,69 @@ module pci_blue_target (
   output  target_config_reg_signals_some_error;
   input   pci_clk;
   input   pci_reset_comb;
+
+// Signals driven to control the external PCI interface
+  wire   [31:0] pci_config_write_data;
+  wire   [31:0] pci_config_read_data;
+  wire   [7:2] pci_config_address;
+  wire   [3:0] pci_config_byte_enables;
+  wire    pci_config_write_req;
+// Signals from the Config Registers to enable features in the Master and Target
+  wire    target_memory_enable;
+  wire    either_serr_enable;
+  wire   [`PCI_BASE_ADDR0_MATCH_RANGE] base_register_0;
+`ifdef PCI_BASE_ADDR1_MATCH_ENABLE
+  wire   [`PCI_BASE_ADDR1_MATCH_RANGE] base_register_1;
+`endif  // PCI_BASE_ADDR1_MATCH_ENABLE
+// Signals from the Master or the Target to set bits in the Status Register
+  wire    master_caused_parity_error;
+  wire    target_caused_abort;
+  wire    master_got_target_abort;
+  wire    master_caused_master_abort;
+  wire    target_caused_serr, either_caused_serr;
+  wire    target_got_parity_error, either_got_parity_error;
+// Non-standard indication that Master Request FIFO has had junk put in it.
+  wire    master_request_fifo_error;
+// Courtesy indication that PCI Interface Config Register contains an error indication
+  wire    target_config_reg_signals_some_error;
+
+// drive shared signal to master, combine shared signals to Config Regs
+  assign  master_serr_enable = either_serr_enable;
+  assign  either_caused_serr = master_caused_serr | target_caused_serr;
+  assign  either_got_parity_error = master_got_parity_error | target_got_parity_error;
+
+// Configuration Registers.
+pci_blue_config_regs pci_blue_config_regs (
+  .pci_config_write_data      (pci_config_write_data[31:0]),
+  .pci_config_read_data       (pci_config_read_data[31:0]),
+  .pci_config_address         (pci_config_address[7:2]),
+  .pci_config_byte_enables    (pci_config_byte_enables[3:0]),
+  .pci_config_write_req       (pci_config_write_req),
+// Signals from the Config Registers to enable features in the Master and Target
+  .target_memory_enable       (target_memory_enable),
+  .master_enable              (master_enable),
+  .master_perr_enable         (master_perr_enable),
+  .either_serr_enable         (either_serr_enable),
+  .master_fast_b2b_en         (master_fast_b2b_en),
+  .master_latency_value       (master_latency_value[7:0]),
+  .base_register_0            (base_register_0[`PCI_BASE_ADDR0_MATCH_RANGE]),
+`ifdef PCI_BASE_ADDR1_MATCH_ENABLE
+  .base_register_1            (base_register_1[`PCI_BASE_ADDR1_MATCH_RANGE]),
+`endif  // PCI_BASE_ADDR1_MATCH_ENABLE
+// Signals from the Master or the Target to set bits in the Status Register
+  .master_caused_parity_error (master_caused_parity_error),
+  .target_caused_abort        (target_caused_abort),
+  .master_got_target_abort    (master_got_target_abort),
+  .master_caused_master_abort (master_caused_master_abort),
+  .either_caused_serr         (either_caused_serr),
+  .either_got_parity_error    (either_got_parity_error),
+// Non-standard indication that Master Request FIFO has had junk put in it.
+  .master_request_fifo_error  (master_request_fifo_error),
+// Courtesy indication that PCI Interface Config Register contains an error indication
+  .target_config_reg_signals_some_error (target_config_reg_signals_some_error),
+  .pci_clk                    (pci_clk),
+  .pci_reset_comb             (pci_reset_comb)
+);
 
 // NOTE: WORKING temporarily set values to OE signals to let the bus not be X's
   assign  pci_target_par_out_oe_comb = 1'b0;
@@ -417,7 +482,7 @@ module pci_blue_target (
     end
   end
 
-// Remember whether a Delayed Read has been started
+// Delayed Read In Progress Indicator
 
   reg     Delayed_Read_In_Progress;
 
@@ -442,7 +507,7 @@ module pci_blue_target (
 
 // Target Initial Latency Counter.  Must respond within 16 Bus Clocks.
 // See the PCI Local Bus Spec Revision 2.2 section 3.5.1.1 for details.
-// NOTE: It would be better to ALWAYS make every read into a Delayed Read!
+// NOTE: It would be better to ALWAYS make every Memory read into a Delayed Read!
 
 // Target Subsequent Latency Counter.  Must make progress within 8 Bus Clocks.
 // See the PCI Local Bus Spec Revision 2.2 section 3.5.1.2 for details.
@@ -459,6 +524,27 @@ module pci_blue_target (
     end
   end
 
+// Address Compare logic to discover whether a non-config reference is for
+// this PCI controller.
+// NOTE: The number of valid MSB bits in the Base Address Register is set in
+// the file pci_blue_options.vh
+
+  wire    PCI_Base_Address_0_Hit =
+                              (pci_ad_in_prev[`PCI_BASE_ADDR0_MATCH_RANGE]
+                                == base_register_0[`PCI_BASE_ADDR0_MATCH_RANGE]);
+
+// Address Compare logic to discover whether a Write has been done to data
+// which is in the Delayed Read Prefetch Buffer.
+// Assume here that the Prefetch Buffer contains 16 words of 8 bytes, or 128 bytes.
+// NOTE: This will have to change if the FIFO were made longer, but is safe
+//       if the Prefetch FIFO is 16 entries of 64 bits each.
+// See the PCI Local Bus Spec Revision 2.2 section 3.2.5 for details.
+
+  wire    Address_Collision = (pci_ad_in_prev[31:7]
+                                == Target_Delayed_Read_Address[31:7])
+                            | (pci_ad_in_prev[31:7]
+                                == (Target_Delayed_Read_Address[31:7] + 25'h0000001));
+
 // The Target State Machine as described in Appendix B.
 // No Lock State Machine is implemented.
 // This design supports Medium Decode.  Fast Decode is not supported.
@@ -469,7 +555,7 @@ module pci_blue_target (
 // 1) Waiting,
 // 2) Transferring data with more to come,
 // 3) Transferring the last Data item.
-// 4) stopping a transfer
+// 4) Stopping a transfer
 //
 // The Target State Machine puts write data into the Response FIFO,
 // but receives data in response to reads from the Delayed Read Data FIFO.
@@ -478,10 +564,10 @@ module pci_blue_target (
 // 1) contain no room or Read Data,
 // 2) contain Data which is not the last
 // 3) contain the last Data
-// 4) doing a retry, disconnect, or abort
+// 4) are doing a retry, disconnect, or abort
 //
 // The Master can say that it wants a Wait State, that it wants
-// to transfer Data, that it wants to transfer the Last Data.
+// to transfer Data, or that it wants to transfer the Last Data.
 //
 // The State Sequence is as follows:
 //                   FRAME   IRDY        DEVSEL   TRDY   STOP

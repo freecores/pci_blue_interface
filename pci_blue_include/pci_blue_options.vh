@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_options.vh,v 1.5 2001-06-08 08:40:37 bbeaver Exp $
+// $Id: pci_blue_options.vh,v 1.6 2001-06-13 11:58:43 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -179,7 +179,7 @@
 //   |  Device ID  |  Vendor ID  | 0x00
 //   |   Status    |   Command   | 0x04
 //   |       Class Code   | Rev  | 0x08
-//   | BIST | HEAD | LTCY | CSize| 0x0A
+//   | BIST | HEAD | LTCY | CSize| 0x0C
 //   |      Base Address 0       | 0x10
 //   |      Base Address 1       | 0x14
 //   |          Unused           | 0x18
@@ -194,10 +194,32 @@
 //   | MLat | MGnt | IPin | ILine| 0x3C
 //
 
-// The code to support multiple Base Address Registers is in pci_addr_match.v
+// Device ID's are allocated by a particular Vendor.
+// See the PCI Local Bus Spec Revision 2.2 section 6.2.1.
+`define PCI_DEVICE_ID                          16'h1234
+// Vendor Types are allocated by the PCI SIG.
+// See the PCI Local Bus Spec Revision 2.2 section 6.2.1.
+`define PCI_VENDOR_ID                          16'h5678
+// Header Type says Normal, Single Function.
+// See the PCI Local Bus Spec Revision 2.2 Appendix D.
+`define PCI_CLASS_CODE                         24'hFF_00_00
+// Revision Numbers are allocated by a particular Vendor.
+// See the PCI Local Bus Spec Revision 2.2 section 6.2.1.
+`define PCI_REV_NUM                            8'h00
+// Header Type says Normal, Single Function.
+// See the PCI Local Bus Spec Revision 2.2 section 6.2.1.
+`define PCI_HEAD_TYPE                          8'h00
+// Minimum Grane and Maximum Latency need to be set based
+// on the expected activity of the device.  The unit of
+// time is 1/4th uSeconds.
+// See the PCI Local Bus Spec Revision 2.2 section 6.2.4.
+`define PCI_MIN_GRANT                          8'h01
+`define PCI_MAX_LATENCY                        8'h0C
 
-// Match as few bits as needed
+// The code to support multiple Base Address Registers is in pci_blue_target.v
+// Match as few bits as needed.  This example maps 16 MBytes.
 `define PCI_BASE_ADDR0_MATCH_RANGE             31:24
+`define PCI_BASE_ADDR0_RESET_VAL               8'h00
 // Match plus Fill plus Qual must together be 32 bits
 `define PCI_BASE_ADDR0_FILL                    (20'h00000)
 // Address Map Qualifier, described in the PCI specification,
@@ -210,10 +232,11 @@
 `define PCI_BASE_ADDR1_MATCH_ENABLE
 
 `ifdef PCI_BASE_ADDR1_MATCH_ENABLE
-// Match as few bits as needed
-`define PCI_BASE_ADDR1_MATCH_RANGE             31:24
+// Match as few bits as needed.  This example maps 32 MBytes.
+`define PCI_BASE_ADDR1_MATCH_RANGE             31:25
+`define PCI_BASE_ADDR1_RESET_VAL               7'h00
 // Match plus Fill plus Qual must together be 32 bits
-`define PCI_BASE_ADDR1_FILL                    (20'h00000)
+`define PCI_BASE_ADDR1_FILL                    (21'h000000)
 // Address Map Qualifier, described in the PCI specification,
 // Revision 2.2, section 6.2.5.1.  The value 0x8 indicates
 //   that the Base Address size is 32 bits, that it is a Memory
