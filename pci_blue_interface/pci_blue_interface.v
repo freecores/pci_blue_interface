@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_interface.v,v 1.10 2001-06-20 11:25:19 bbeaver Exp $
+// $Id: pci_blue_interface.v,v 1.11 2001-06-21 10:05:56 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -88,6 +88,25 @@
 //
 // NOTE TODO: Horrible.  Tasks can't depend on their Arguments being safe
 //        if there are several instances ofthe task running at once.
+//
+// NOTE:  The writer of the FIFO must notice whether it is doing an IO reference
+//        with the bottom 2 bits of the address not both 0.  If an IO reference
+//        is done with at least 1 bit non-zero, the transfer must be a single
+//        word transfer.  See the PCI Local Bus Specification Revision 2.2,
+//        section 3.2.2.1
+//
+// NOTE:  The writer of the FIFO must only insert valid sequences of Request
+//        entries.  Valid sequences are of the form Address->Data->Data_Last.
+//        Writes can follow Writes immediately, without waiting for the first
+//        to complete.  Write Fences happen after Data_Last and before Address
+//        entries.
+//
+// NOTE:  The writer of the FIFO is responsible for following the Write Fence
+//        protocol to ensure that the PCI ordering Rules are followed.  To
+//        do things correctly when a Write Fence is requested, , the FIFO writer
+//        must complete any writes, then either do a PCI Read or a Write Fence.
+//        No other activity is allowed until the Write Fence is acknowledged.
+//        Note that a Read will be acknowledged as a Write Fence!
 //
 //===========================================================================
 
@@ -706,7 +725,7 @@ $display ("Got Last Read Data");  // NOTE WORKING
                 & (   (pci_host_response_type[3:0] ==
                                  `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST)
                     | (pci_host_response_type[3:0] ==
-                                 `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_FLUSH)
+                                 `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR)
                     | (   (pci_host_response_type[3:0] ==
                                  `PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE)
                         & pci_host_response_data[17]) ) )  // Config Read done
@@ -861,9 +880,9 @@ $display ("Got Last Read Data");  // NOTE WORKING
                             `PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT)
                 & pci_host_response_data[31])
            | (pci_host_response_type[3:0] ==
-                            `PCI_HOST_RESPONSE_R_DATA_W_SENT_FLUSH)
+                            `PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR)
            | (pci_host_response_type[3:0] ==
-                            `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_FLUSH)
+                            `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR)
            | (pci_host_response_type[3:0] ==
                             `PCI_HOST_RESPONSE_EXT_W_DATA_RW_MASK_PERR)
            | (pci_host_response_type[3:0] ==
@@ -917,9 +936,9 @@ $display ("Got Last Read Data");  // NOTE WORKING
                  | ((pci_host_response_type[3:0] ==
                                    `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST))
                  | ((pci_host_response_type[3:0] ==
-                                   `PCI_HOST_RESPONSE_R_DATA_W_SENT_FLUSH))
+                                   `PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR))
                  | ((pci_host_response_type[3:0] ==
-                                   `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_FLUSH))
+                                   `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR))
                  | ((pci_host_response_type[3:0] ==
                                    `PCI_HOST_RESPONSE_EXTERNAL_SPARE))
                  | ((pci_host_response_type[3:0] ==
@@ -1187,6 +1206,9 @@ pci_fifo_storage_delayed_read pci_fifo_storage_delayed_read (
   wire    pci_target_perr_out_next, pci_target_perr_out_oe_comb;
   wire    pci_target_serr_out_oe_comb;
 
+// Signals to control shared AD bus, Parity, and SERR signals
+  wire    Target_Force_Data, Target_Expects_IRDY, Target_Requests_PERR;
+
 // Signals from the Master to the Target to insert Status Info into the Response FIFO.
   wire   [2:0] master_to_target_status_type;
   wire   [3:0] master_to_target_status_cbe;
@@ -1230,6 +1252,10 @@ pci_blue_target pci_blue_target (
   .pci_target_perr_out_oe_comb (pci_target_perr_out_oe_comb),
   .pci_serr_in_prev           (pci_serr_in_prev),
   .pci_target_serr_out_oe_comb (pci_target_serr_out_oe_comb),
+// Signals to control shared AD bus, Parity, and SERR signals
+  .Target_Force_Data          (Target_Force_Data),
+  .Target_Expects_IRDY        (Target_Expects_IRDY),
+  .Target_Requests_PERR       (Target_Requests_PERR),
 // Host Interface Response FIFO used to ask the Host Interface to service
 //   PCI References initiated by an external PCI Master.
 // This FIFO also sends status info back from the master about PCI
@@ -1280,6 +1306,9 @@ pci_blue_target pci_blue_target (
   wire    pci_master_perr_out_next, pci_master_perr_out_oe_comb;
   wire    pci_master_serr_out_oe_comb;
 
+// Signals to control shared AD bus, Parity, and SERR signals
+  wire    Master_Force_Address_Data, Master_Expects_TRDY, Master_Requests_PERR;
+
 // Instantiate the Master Interface
 pci_blue_master pci_blue_master (
 // Signals driven to control the external PCI interface
@@ -1312,6 +1341,10 @@ pci_blue_master pci_blue_master (
   .pci_master_perr_out_oe_comb (pci_master_perr_out_oe_comb),
   .pci_serr_in_prev           (pci_serr_in_prev),
   .pci_master_serr_out_oe_comb (pci_master_serr_out_oe_comb),
+// Signals to control shared AD bus, Parity, and SERR signals
+  .Master_Force_Address_Data  (Master_Force_Address_Data),
+  .Master_Expects_TRDY        (Master_Expects_TRDY),
+  .Master_Requests_PERR       (Master_Requests_PERR),
 // Host Interface Request FIFO used to ask the PCI Interface to initiate
 //   PCI References to an external PCI Target.
   .pci_request_fifo_type      (pci_request_fifo_type[2:0]),
@@ -1347,8 +1380,6 @@ pci_blue_master pci_blue_master (
 
 // Combine signals which are driven by both the Master and the Target
   wire    Present_Reference_Is_Master;
-  wire    Master_Force_Address_Data, Master_Force_Control, Master_Expects_TRDY;
-  wire    Target_Force_Data, Target_Force_Control, Target_Expects_IRDY;
 
 // Either present the next Master Address or Write Data or the next Target Data
   assign  pci_ad_out_next[31:0] = Present_Reference_Is_Master

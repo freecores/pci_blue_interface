@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_constants.vh,v 1.7 2001-06-20 11:25:16 bbeaver Exp $
+// $Id: pci_blue_constants.vh,v 1.8 2001-06-21 10:05:46 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -182,6 +182,7 @@
 // Bit 28: Target Abort received
 // Bit 27: Caused Target Abort
 // Bit 24: Caused PERR
+// Bit 19: Data Flushed by Master due to Master Abort or Target Abort
 // Bit 18: Discarded a Delayed Read due to timeout
 // Bit 17: Target Retry or Disconnect (document that a Master Retry is requested)
 // Bit 16: Got Illegal sequence of commands over Host Request Bus.
@@ -207,8 +208,8 @@
 //   will have a FLUSH entry for each data item flushed by the Master.
 `define PCI_HOST_RESPONSE_R_DATA_W_SENT                  (4'h4)
 `define PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST             (4'h5)
-`define PCI_HOST_RESPONSE_R_DATA_W_SENT_FLUSH            (4'h6)
-`define PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_FLUSH       (4'h7)
+`define PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR             (4'h6)
+`define PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR        (4'h7)
 
 
 // Responses the PCI Controller sends over the Host Response Bus to indicate

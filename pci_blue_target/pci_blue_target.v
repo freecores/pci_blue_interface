@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_target.v,v 1.10 2001-06-20 11:25:33 bbeaver Exp $
+// $Id: pci_blue_target.v,v 1.11 2001-06-21 10:06:05 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -97,6 +97,12 @@
 //        error is detected.  See the PCI Local Bus Specification Revision
 //        2.2, section 3.7.3.
 //
+// NOTE:  This Target State Machine must look at the bottom 2 bits of the
+//        address for all references (except IO references).  If the
+//        bottom 2 bits are not both 0, the transfer should be terminated
+//        with data after the first data phase.  See the PCI Local Bus
+//        Specification Revision 2.2, section 3.2.2.2.
+//
 // NOTE:  This Target State Machine is aware that a write might occur while
 //        a Delayed Read is begin done, and the write might hit on top of
 //        prefetched read data.  This Target State Machine indicates the
@@ -127,6 +133,10 @@ module pci_blue_target (
   pci_target_perr_out_oe_comb,
   pci_serr_in_prev,
   pci_target_serr_out_oe_comb,
+// Signals to control shared AD bus, Parity, and SERR signals
+  Target_Force_Data,
+  Target_Expects_IRDY,
+  Target_Requests_PERR,
 // Host Interface Response FIFO used to ask the Host Interface to service
 //   PCI References initiated by an external PCI Master.
 // This FIFO also sends status info back from the master about PCI
@@ -194,6 +204,10 @@ module pci_blue_target (
   output  pci_target_perr_out_oe_comb;
   input   pci_serr_in_prev;
   output  pci_target_serr_out_oe_comb;
+// Signals to control shared AD bus, Parity, and SERR signals
+  output  Target_Force_Data;
+  output  Target_Expects_IRDY;
+  output  Target_Requests_PERR;
 // Host Interface Response FIFO used to ask the Host Interface to service
 //   PCI References initiated by an external PCI Master.
 // This FIFO also sends status info back from the master about PCI
@@ -843,24 +857,30 @@ module pci_blue_target (
   wire   [2:0] PCI_Next_STOP_Code = 3'h0;  // NOTE: Working
 
 // NOTE: WORKING temporarily set values to OE signals to let the bus not be X's
-  assign  target_got_parity_error = 1'b0;
-  assign  target_caused_serr = 1'b0;
-  assign  target_caused_abort = 1'b0;
+  assign  target_got_parity_error = 1'b0;  // NOTE: WORKING
+  assign  target_caused_serr = 1'b0;  // NOTE: WORKING
+  assign  target_caused_abort = 1'b0;  // NOTE: WORKING
 
-  assign  pci_target_par_out_oe_comb = 1'b0;
-  assign  pci_target_perr_out_oe_comb = 1'b0;
-  assign  pci_target_serr_out_oe_comb = 1'b0;
+  assign  pci_target_par_out_oe_comb = 1'b0;  // NOTE: WORKING
+  assign  pci_target_perr_out_oe_comb = 1'b0;  // NOTE: WORKING
+  assign  pci_target_serr_out_oe_comb = 1'b0;  // NOTE: WORKING
 
-  assign  pci_delayed_read_fifo_data_unload = 1'b0;
+  assign  Target_Force_Data = 1'b0;  // NOTE: WORKING
+  assign  Target_Expects_IRDY = 1'b0;  // NOTE: WORKING
+  assign  Target_Requests_PERR = 1'b0;  // NOTE: WORKING
 
-  assign  pci_config_write_data[31:0] = 32'h00000000;
-  assign  pci_config_address[7:2] = 6'h00;
-  assign  pci_config_byte_enables[3:0] = 4'h0;
-  assign  pci_config_write_req = 1'b0;
+  assign  pci_delayed_read_fifo_data_unload = 1'b0;  // NOTE: WORKING
+
+  assign  pci_config_write_data[31:0] = 32'h00000000;  // NOTE: WORKING
+  assign  pci_config_address[7:2] = 6'h00;  // NOTE: WORKING
+  assign  pci_config_byte_enables[3:0] = 4'h0;  // NOTE: WORKING
+  assign  pci_config_write_req = 1'b0;  // NOTE: WORKING
 
   assign  pci_target_ad_out_oe_comb = 1'b0;  // NOTE: WORKING
-  assign  pci_d_t_s_out_oe_comb = 1'b0;
-  assign  pci_response_fifo_data_load = 1'b0;
+  assign  pci_d_t_s_out_oe_comb = 1'b0;  // NOTE: WORKING
+  assign  pci_response_fifo_data_load = 1'b0;  // NOTE: WORKING
+
+  assign  master_to_target_status_unload = 1'b1;  // NOTE: WORKING.  Debugging Master
 
 pci_critical_next_devsel pci_critical_next_devsel (
   .PCI_Next_DEVSEL_Code       (PCI_Next_DEVSEL_Code[2:0]),
