@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_interface.v,v 1.15 2001-07-03 09:21:03 bbeaver Exp $
+// $Id: pci_blue_interface.v,v 1.16 2001-07-04 08:19:23 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -170,11 +170,11 @@ module pci_blue_interface (
   input   host_allows_write_fence;
 // Host uses these wires to request PCI activity.
   input  [`PCI_FIFO_DATA_RANGE] pci_master_ref_address;
-  input  [`PCI_FIFO_CBE_RANGE] pci_master_ref_command;
+  input  [3:0] pci_master_ref_command;
   input   pci_master_ref_config;
-  input  [`PCI_BUS_CBE_RANGE] pci_master_byte_enables_l;
-  input  [`PCI_BUS_DATA_RANGE] pci_master_write_data;
-  output [`PCI_BUS_DATA_RANGE] pci_master_read_data;
+  input  [`PCI_FIFO_CBE_RANGE] pci_master_byte_enables_l;
+  input  [`PCI_FIFO_DATA_RANGE] pci_master_write_data;
+  output [`PCI_FIFO_DATA_RANGE] pci_master_read_data;
   input   pci_master_addr_valid, pci_master_data_valid;
   input   pci_master_requests_serr, pci_master_requests_perr;
   input   pci_master_requests_last;
@@ -183,10 +183,10 @@ module pci_blue_interface (
   output  pci_master_ref_error;
 // PCI Interface uses these wires to request local memory activity.   
   output [`PCI_FIFO_DATA_RANGE] pci_target_ref_address;
-  output [`PCI_FIFO_CBE_RANGE] pci_target_ref_command;
-  output [`PCI_BUS_CBE_RANGE] pci_target_byte_enables_l;
-  output [`PCI_BUS_DATA_RANGE] pci_target_write_data;
-  input  [`PCI_BUS_DATA_RANGE] pci_target_read_data;
+  output [3:0] pci_target_ref_command;
+  output [`PCI_FIFO_CBE_RANGE] pci_target_byte_enables_l;
+  output [`PCI_FIFO_DATA_RANGE] pci_target_write_data;
+  input  [`PCI_FIFO_DATA_RANGE] pci_target_read_data;
   input   pci_target_busy;
   output  pci_target_ref_start;
   input   pci_target_requests_abort, pci_target_requests_perr;
@@ -1242,12 +1242,16 @@ pci_fifo_storage_delayed_read pci_fifo_storage_delayed_read (
   wire    pci_target_serr_out_oe_comb;
 
 // Signals to control shared AD bus, Parity, and SERR signals
-  wire    Target_Force_Data, Target_Expects_IRDY, Target_Requests_PERR;
+  wire    Target_Force_AD_to_Data, Target_Exposes_Data_On_IRDY;
+  wire    Target_Forces_PERR;
+// Signal from Master to say that DMA data should be captured into Response FIFO
+  wire    Master_Captures_Data_On_TRDY;
 
 // Signals from the Master to the Target to insert Status Info into the Response FIFO.
   wire   [2:0] master_to_target_status_type;
-  wire   [`PCI_BUS_CBE_RANGE] master_to_target_status_cbe;
-  wire   [`PCI_BUS_DATA_RANGE] master_to_target_status_data;
+  wire   [`PCI_FIFO_CBE_RANGE] master_to_target_status_cbe;
+  wire   [`PCI_FIFO_DATA_RANGE] master_to_target_status_data;
+  wire    master_to_target_status_flush;
   wire    master_to_target_status_available, master_to_target_status_unload;
 
 // Signals from the Master to the Target to set bits in the Status Register.
@@ -1258,7 +1262,7 @@ pci_fifo_storage_delayed_read pci_fifo_storage_delayed_read (
   wire    master_asked_to_retry;
 // Signals from the Config Regs to the Master to control it.
   wire    master_enable, master_fast_b2b_en;
-  wire    master_perr_enable, master_serr_enable;
+  wire    master_perr_enable;
   wire   [7:0] master_latency_value;
 
 // Instantiate the Target Interface, which contains the Config Registers
@@ -1288,9 +1292,11 @@ pci_blue_target pci_blue_target (
   .pci_serr_in_prev           (pci_serr_in_prev),
   .pci_target_serr_out_oe_comb (pci_target_serr_out_oe_comb),
 // Signals to control shared AD bus, Parity, and SERR signals
-  .Target_Force_Data          (Target_Force_Data),
-  .Target_Expects_IRDY        (Target_Expects_IRDY),
-  .Target_Requests_PERR       (Target_Requests_PERR),
+  .Target_Force_AD_to_Data    (Target_Force_AD_to_Data),
+  .Target_Exposes_Data_On_IRDY (Target_Exposes_Data_On_IRDY),
+  .Target_Forces_PERR         (Target_Forces_PERR),
+// Signal from Master to say that DMA data should be captured into Response FIFO
+  .Master_Captures_Data_On_TRDY (Master_Captures_Data_On_TRDY),
 // Host Interface Response FIFO used to ask the Host Interface to service
 //   PCI References initiated by an external PCI Master.
 // This FIFO also sends status info back from the master about PCI
@@ -1309,9 +1315,10 @@ pci_blue_target pci_blue_target (
   .pci_delayed_read_fifo_data_unload (pci_delayed_read_fifo_data_unload),
   .pci_delayed_read_fifo_error (pci_delayed_read_fifo_error),
 // Signals from the Master to the Target to insert Status Info into the Response FIFO.
-  .master_to_target_status_type (master_to_target_status_type[2:0]),
-  .master_to_target_status_cbe  (master_to_target_status_cbe[`PCI_FIFO_CBE_RANGE]),
-  .master_to_target_status_data (master_to_target_status_data[`PCI_FIFO_DATA_RANGE]),
+  .master_to_target_status_type   (master_to_target_status_type[2:0]),
+  .master_to_target_status_cbe    (master_to_target_status_cbe[`PCI_FIFO_CBE_RANGE]),
+  .master_to_target_status_data   (master_to_target_status_data[`PCI_FIFO_DATA_RANGE]),
+  .master_to_target_status_flush  (master_to_target_status_flush),
   .master_to_target_status_available (master_to_target_status_available),
   .master_to_target_status_unload (master_to_target_status_unload),
 // Signals from the Master to the Target to set bits in the Status Register
@@ -1326,7 +1333,6 @@ pci_blue_target pci_blue_target (
   .master_enable              (master_enable),
   .master_fast_b2b_en         (master_fast_b2b_en),
   .master_perr_enable         (master_perr_enable),
-  .master_serr_enable         (master_serr_enable),
   .master_latency_value       (master_latency_value[7:0]),
 // Courtesy indication that PCI Interface Config Register contains an error indication
   .target_config_reg_signals_some_error (target_config_reg_signals_some_error),
@@ -1339,10 +1345,11 @@ pci_blue_target pci_blue_target (
   wire    pci_master_ad_en_next,    pci_master_ad_out_oe_comb;
   wire    pci_master_par_out_next,  pci_master_par_out_oe_comb;
   wire    pci_master_perr_out_next, pci_master_perr_out_oe_comb;
-  wire    pci_master_serr_out_oe_comb;
 
 // Signals to control shared AD bus, Parity, and SERR signals
-  wire    Master_Force_Address_Data, Master_Expects_TRDY, Master_Requests_PERR;
+  wire    Master_Force_AD_to_Address_Data, Master_Exposes_Data_On_TRDY;
+  wire    Master_Forces_PERR;
+  wire    PERR_Detected_While_Master_Read;
 // Signal to control Request pin if on-chip PCI devices share it
   wire    Master_Forced_Off_Bus_By_Target_Abort;
 
@@ -1372,9 +1379,11 @@ pci_blue_master pci_blue_master (
   .pci_perr_in_prev           (pci_perr_in_prev),
   .pci_serr_in_prev           (pci_serr_in_prev),
 // Signals to control shared AD bus, Parity, and SERR signals
-  .Master_Force_Address_Data  (Master_Force_Address_Data),
-  .Master_Expects_TRDY        (Master_Expects_TRDY),
-  .Master_Requests_PERR       (Master_Requests_PERR),
+  .Master_Force_AD_to_Address_Data (Master_Force_AD_to_Address_Data),
+  .Master_Captures_Data_On_TRDY (Master_Captures_Data_On_TRDY),
+  .Master_Exposes_Data_On_TRDY (Master_Exposes_Data_On_TRDY),
+  .Master_Forces_PERR         (Master_Forces_PERR),
+  .PERR_Detected_While_Master_Read (PERR_Detected_While_Master_Read),
 // Signal to control Request pin if on-chip PCI devices share it
   .Master_Forced_Off_Bus_By_Target_Abort (Master_Forced_Off_Bus_By_Target_Abort),
 // Host Interface Request FIFO used to ask the PCI Interface to initiate
@@ -1387,9 +1396,10 @@ pci_blue_master pci_blue_master (
   .pci_request_fifo_data_unload (pci_request_fifo_data_unload),
   .pci_request_fifo_error     (pci_request_fifo_error),
 // Signals from the Master to the Target to insert Status Info into the Response FIFO.
-  .master_to_target_status_type (master_to_target_status_type[2:0]),
-  .master_to_target_status_cbe  (master_to_target_status_cbe[`PCI_FIFO_CBE_RANGE]),
-  .master_to_target_status_data (master_to_target_status_data[`PCI_FIFO_DATA_RANGE]),
+  .master_to_target_status_type   (master_to_target_status_type[2:0]),
+  .master_to_target_status_cbe    (master_to_target_status_cbe[`PCI_FIFO_CBE_RANGE]),
+  .master_to_target_status_data   (master_to_target_status_data[`PCI_FIFO_DATA_RANGE]),
+  .master_to_target_status_flush  (master_to_target_status_flush),
   .master_to_target_status_available (master_to_target_status_available),
   .master_to_target_status_unload (master_to_target_status_unload),
 // Signals from the Master to the Target to set bits in the Status Register
@@ -1404,7 +1414,6 @@ pci_blue_master pci_blue_master (
   .master_enable              (master_enable),
   .master_fast_b2b_en         (master_fast_b2b_en),
   .master_perr_enable         (master_perr_enable),
-  .master_serr_enable         (master_serr_enable),
   .master_latency_value       (master_latency_value[7:0]),
   .pci_clk                    (pci_clk),
   .pci_reset_comb             (pci_reset_comb)
@@ -1424,11 +1433,12 @@ pci_blue_master pci_blue_master (
 // NOTE: IRDY and TRDY are very late.  3 nSec before clock edge!
 // NOTE: pci_ad_out_en_next goes to 36 or 72 inputs (+1?).  Very critical.
 pci_critical_data_latch_enable pci_critical_data_latch_enable (
-  .Master_Expects_TRDY        (Master_Expects_TRDY),
+  .Master_Expects_TRDY        (Master_Exposes_Data_On_TRDY),
   .pci_trdy_in_comb           (pci_trdy_in_comb),
-  .Target_Expects_IRDY        (Target_Expects_IRDY),
+  .Target_Expects_IRDY        (Target_Exposes_Data_On_IRDY),
   .pci_irdy_in_comb           (pci_irdy_in_comb),
-  .New_Data_Unconditional     (Master_Force_Address_Data | Target_Force_Data),
+  .New_Data_Unconditional     (   Master_Force_AD_to_Address_Data
+                                | Target_Force_AD_to_Data),
   .pci_ad_out_en_next         (pci_ad_out_en_next)
 );
 
@@ -1455,8 +1465,10 @@ pci_critical_data_latch_enable pci_critical_data_latch_enable (
 
 // NOTE NOT DONE YET.  Decide what parity to drive
   assign  pci_par_out_next = 1'b0;
-  assign  pci_par_out_oe_comb = pci_master_par_out_oe_comb
-                              | pci_target_par_out_oe_comb;
+  assign  pci_par_out_oe_comb = 1'b0;
+
+//  assign  pci_par_out_oe_comb = pci_master_par_out_oe_comb
+//                              | pci_target_par_out_oe_comb;
 
 // PERR must be asserted, then deasserted, then set to high-Z
 // SERR is open-collector.  It is asserted, then assumed invalid
@@ -1464,9 +1476,8 @@ pci_critical_data_latch_enable pci_critical_data_latch_enable (
 // See the PCI Local Bus Spec Revision 2.2 section 3.7.4.2 for details.
   assign  pci_perr_out_next    = pci_master_perr_out_next
                                | pci_target_perr_out_next;
-  assign  pci_perr_out_oe_comb = pci_master_perr_out_oe_comb
+  assign  pci_perr_out_oe_comb = 1'b0  // NOTE: WORKING.  Master can signal PERR on reads
                                | pci_target_perr_out_oe_comb;
-  assign  pci_serr_out_oe_comb = pci_master_serr_out_oe_comb
-                               | pci_target_serr_out_oe_comb;
+  assign  pci_serr_out_oe_comb = pci_target_serr_out_oe_comb;
 endmodule
 

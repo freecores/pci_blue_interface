@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_master.v,v 1.4 2001-07-03 09:21:17 bbeaver Exp $
+// $Id: test_pci_master.v,v 1.5 2001-07-04 08:19:44 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -74,10 +74,22 @@ module pci_test_master (
   master_to_target_status_type,
   master_to_target_status_cbe,
   master_to_target_status_data,
+  master_to_target_status_flush,
   master_to_target_status_available,
   master_to_target_status_unload,
   pci_req_out_next, pci_req_out_oe_comb,
   pci_gnt_in_comb,
+  pci_state,  // TEMPORARY
+  pci_fifo_state,  // TEMPORARY
+  pci_retry_address,  // TEMPORARY
+  pci_retry_data,  // TEMPORARY
+  pci_target_full,  // TEMPORARY
+  pci_bus_full,  // TEMPORARY
+  pci_status_data,  // TEMPORARY
+  two_words_avail,  // TEMPORARY
+  one_word_avail,  // TEMPORARY
+  addr_aval,  // TEMPORARY
+  working,  // TEMPORARY
   pci_master_ad_out_next,  pci_master_ad_out_oe_comb,
   pci_ad_in_prev,
   pci_cbe_l_out_next, pci_cbe_out_oe_comb,
@@ -103,11 +115,23 @@ module pci_test_master (
   output [2:0] master_to_target_status_type;
   output [`PCI_BUS_CBE_RANGE] master_to_target_status_cbe;
   output [`PCI_BUS_DATA_RANGE] master_to_target_status_data;
+  output  master_to_target_status_flush;
   output  master_to_target_status_available;
   output  master_to_target_status_unload;
   output  pci_req_out_next;
   output  pci_req_out_oe_comb;
   output  pci_gnt_in_comb;
+  output [9:0] pci_state;  // TEMPORARY
+  output [1:0] pci_fifo_state;  // TEMPORARY
+  output [31:0] pci_retry_address;  // TEMPORARY
+  output [31:0] pci_retry_data;  // TEMPORARY
+  output  pci_target_full;  // TEMPORARY
+  output  pci_bus_full;  // TEMPORARY
+  output [31:0] pci_status_data;  // TEMPORARY
+  output  two_words_avail;  // TEMPORARY
+  output  one_word_avail;  // TEMPORARY
+  output  addr_aval;  // TEMPORARY
+  output  working;  // TEMPORARY
   output [`PCI_BUS_DATA_RANGE] pci_ad_in_prev;
   output [`PCI_BUS_DATA_RANGE] pci_master_ad_out_next;
   output  pci_master_ad_out_oe_comb;
@@ -128,6 +152,19 @@ module pci_test_master (
   output  master_caused_parity_error;
   output  master_asked_to_retry;
 
+// GROSS debugging signal. Only here to put signal in waveform.
+  assign  pci_state[9:0]        = pci_blue_master.PCI_Master_State[9:0];                 // TEMPORARY
+  assign  pci_fifo_state[1:0]   = pci_blue_master.PCI_Master_FIFO_State[1:0];            // TEMPORARY
+  assign  pci_retry_address[31:0] = {pci_blue_master.Master_Retry_Address[31:2], 2'b0};  // TEMPORARY
+  assign  pci_retry_data[31:0]  = pci_blue_master.Master_Retry_Data[31:0];               // TEMPORARY
+  assign  pci_target_full       = pci_blue_master.master_to_target_status_full;          // TEMPORARY
+  assign  pci_bus_full          = pci_blue_master.master_to_bus_full;                    // TEMPORARY
+  assign  pci_status_data[31:0] = pci_blue_master.pci_request_fifo_data_current[`PCI_FIFO_DATA_RANGE] ;  // TEMPORARY
+  assign  two_words_avail       = pci_blue_master.request_fifo_two_words_available_meta;  // TEMPORARY
+  assign  one_word_avail        = pci_blue_master.request_fifo_data_available_meta;      // TEMPORARY
+  assign  addr_aval             = pci_blue_master.Request_FIFO_CONTAINS_ADDRESS;         // TEMPORARY
+  assign  working               = pci_blue_master.master_to_target_status_unload;        // TEMPORARY
+
 // PCI signals
   wire    pci_req_out_next, pci_req_out_oe_comb;
   reg     pci_gnt_in_prev, pci_gnt_in_comb;
@@ -144,13 +181,17 @@ module pci_test_master (
   reg     pci_trdy_in_prev, pci_trdy_in_comb;
   reg     pci_stop_in_prev, pci_stop_in_comb;
   reg     pci_perr_in_prev, pci_serr_in_prev;
-  wire    Master_Force_Address_Data, Master_Expects_TRDY, Master_Requests_PERR;
+  wire    Master_Force_AD_to_Address_Data;
+  wire    Master_Captures_Data_On_TRDY, Master_Exposes_Data_On_TRDY;
+  wire    Master_Forces_PERR;
 // Signal to control Request pin if on-chip PCI devices share it
   wire    Master_Forced_Off_Bus_By_Target_Abort;
+  wire    PERR_Detected_While_Master_Read;
 
   wire   [2:0] master_to_target_status_type;
   wire   [`PCI_FIFO_CBE_RANGE] master_to_target_status_cbe;
   wire   [`PCI_FIFO_DATA_RANGE] master_to_target_status_data;
+  wire    master_to_target_status_flush;
   wire    master_to_target_status_available;
   reg     master_to_target_status_unload;
 
@@ -166,7 +207,6 @@ module pci_test_master (
   reg     master_enable;
   reg     master_fast_b2b_en;
   reg     master_perr_enable;
-  reg     master_serr_enable;
   reg    [7:0] master_latency_value;
 
 // Wires connecting the Host FIFOs to the PCI Interface
@@ -195,25 +235,25 @@ task do_clocks;
   begin
     for (count[3:0] = delay[3:0]; count[3:0] != 4'h0; count[3:0] = count[3:0] - 4'h1)
     begin
-      #2.5;
+      #3.0;
       pci_clk = 1'b1;
       #5.0;
       pci_clk = 1'b0;
-      #2.5;
+      #2.0;
     end
   end
 endtask
 
 task do_reset;
   begin
-    #2.5;
+    #3.0;
     pci_clk = 1'b0;
     pci_gnt_in_comb = 1'b0;
     host_reset_comb = 1'b1;
     master_to_target_status_unload = 1'b0;
     #5;
     host_reset_comb = 1'b0;
-    #2.5;
+    #2.0;
   end
 endtask
 
@@ -234,7 +274,6 @@ task set_pci_idle;
     master_enable = 1'b0;
     master_fast_b2b_en = 1'b0;
     master_perr_enable = 1'b0;
-    master_serr_enable = 1'b0;
     master_latency_value[7:0] = 8'h00;
   end
 endtask
@@ -323,7 +362,27 @@ endtask
     pci_serr_in_prev <= pci_serr_in_comb;
   end
 
-// Remove signasl which are set for 1 clock by tasks to create activity
+// Remove signals which are set for 1 clock by tasks to create activity
+  initial
+  begin
+    pci_host_request_submit <= 1'b0;
+    pci_host_request_type[2:0] <= 3'hX;
+    pci_host_request_cbe[`PCI_FIFO_CBE_RANGE] <= 4'hX;
+    pci_host_request_data[`PCI_FIFO_DATA_RANGE] <= `PCI_FIFO_DATA_X;
+    pci_gnt_in_comb <= 1'b0;
+    pci_gnt_in_prev <= pci_gnt_in_comb;
+    pci_frame_in_comb <= 1'b0;
+    pci_irdy_in_comb <= 1'b0;
+    pci_devsel_in_comb <= 1'b0;
+    pci_devsel_in_prev <= pci_devsel_in_comb;
+    pci_trdy_in_comb <= 1'b0;
+    pci_trdy_in_prev <= pci_trdy_in_comb;
+    pci_stop_in_comb <= 1'b0;
+    pci_stop_in_prev <= pci_stop_in_comb;
+    pci_perr_in_prev <= 1'b0;
+    pci_serr_in_prev <= 1'b0;
+  end
+
   always @(posedge pci_clk)
   begin
     pci_host_request_submit <= 1'b0;
@@ -342,12 +401,12 @@ endtask
     pci_stop_in_prev <= pci_stop_in_comb;
     pci_perr_in_prev <= 1'b0;
     pci_serr_in_prev <= 1'b0;
-
   end
 
   initial
   begin
     $display ("Setting PCI bus to nominal, at time %t", $time);
+    do_reset;
     set_pci_idle;
     unload_target_data;
       do_clocks (4'h1);
@@ -377,10 +436,10 @@ endtask
 
     $display ("Doing Write Fence, no room in Target, at time %t", $time);
     do_reset;
-    write_fifo (`PCI_HOST_REQUEST_INSERT_WRITE_FENCE, 4'h0, 32'h00010000);
+    write_fifo (`PCI_HOST_REQUEST_INSERT_WRITE_FENCE, 4'h0, 32'h00011111);
       do_clocks (4'h1);
-    write_fifo (`PCI_HOST_REQUEST_INSERT_WRITE_FENCE, 4'h0, 32'h00000000);
-      do_clocks (4'h4);
+    write_fifo (`PCI_HOST_REQUEST_INSERT_WRITE_FENCE, 4'h0, 32'h00001111);
+      do_clocks (4'h6);
     unload_target_data;
       do_clocks (4'h4);
 
@@ -389,96 +448,92 @@ endtask
     write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_CONFIG_READ, 32'h11223344);
       do_clocks (4'h1);
     write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h55667788);
-      do_clocks (1'b1);
-    pci_grant;           // park
-      do_clocks (1'b1);
-    pci_grant;           // park
-      do_clocks (1'b1);
-    pci_grant;           // drive
-      do_clocks (1'b1);
-                         // loose arbitration
-      do_clocks (1'b1);
-    pci_grant;           // drive
-      do_clocks (1'b1);
-    pci_grant;           // drive
-      do_clocks (4'h4);
+      do_clocks (4'h1);
     unload_target_data;
-      do_clocks (4'h4);
+    pci_grant;           // park
+      do_clocks (4'h1);
+    pci_grant;           // park
+      do_clocks (4'h1);
+    pci_grant;           // drive
+      do_clocks (4'h1);
+                         // loose arbitration
+      do_clocks (4'h1);
+    pci_grant;           // drive
+      do_clocks (4'h1);
+    pci_grant;           // drive
+      do_clocks (4'h8);
 
     $display ("Doing Config Read, 2 words, Loose Arb, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_CONFIG_READ, 32'h11223344);
+    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_CONFIG_READ, 32'h21223344);
       do_clocks (4'h1);
     write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'h55667788);
       do_clocks (4'h1);
     write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h99AABBCC);
-      do_clocks (1'b1);
-    pci_grant;           // park
-      do_clocks (1'b1);
-    pci_grant;           // drive
-      do_clocks (1'b1);
-                         // loose arbitration
-      do_clocks (1'b1);
-    pci_grant;           // drive
-      do_clocks (1'b1);
-    pci_grant;           // drive
-      do_clocks (4'h4);
+      do_clocks (4'h1);
     unload_target_data;
-      do_clocks (4'h4);
+    pci_grant;           // park
+      do_clocks (4'h1);
+    pci_grant;           // drive
+      do_clocks (4'h1);
+                         // loose arbitration
+      do_clocks (4'h1);
+    pci_grant;           // drive
+      do_clocks (4'h1);
+    pci_grant;           // drive
+      do_clocks (4'h8);
 
     $display ("Doing Config Write, 1 word, Loose Arb, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_CONFIG_WRITE, 32'h11223344);
+    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_CONFIG_WRITE, 32'h31223344);
       do_clocks (4'h1);
     write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h55667788);
-      do_clocks (1'b1);
-    pci_grant;           // park
-      do_clocks (1'b1);
-    pci_grant;           // park
-      do_clocks (1'b1);
-    pci_grant;           // drive
-      do_clocks (1'b1);
-                         // loose arbitration
-      do_clocks (1'b1);
-    pci_grant;           // drive
-      do_clocks (1'b1);
-    pci_grant;           // drive
-      do_clocks (4'h4);
+      do_clocks (4'h1);
     unload_target_data;
-      do_clocks (4'h4);
+    pci_grant;           // park
+      do_clocks (4'h1);
+    pci_grant;           // park
+      do_clocks (4'h1);
+    pci_grant;           // drive
+      do_clocks (4'h1);
+                         // loose arbitration
+      do_clocks (4'h1);
+    pci_grant;           // drive
+      do_clocks (4'h1);
+    pci_grant;           // drive
+      do_clocks (4'h8);
 
     $display ("Doing Config Write, 2 words, Loose Arb, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_CONFIG_WRITE, 32'h11223344);
+    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_CONFIG_WRITE, 32'h41223344);
       do_clocks (4'h1);
     write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'h55667788);
       do_clocks (4'h1);
     write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h99AABBCC);
-      do_clocks (1'b1);
-    pci_grant;           // park
-      do_clocks (1'b1);
-    pci_grant;           // drive
-      do_clocks (1'b1);
-                         // loose arbitration
-      do_clocks (1'b1);
-    pci_grant;           // drive
-      do_clocks (1'b1);
-    pci_grant;           // drive
-      do_clocks (4'h4);
+      do_clocks (4'h1);
     unload_target_data;
-      do_clocks (4'h4);
+    pci_grant;           // park
+      do_clocks (4'h1);
+    pci_grant;           // drive
+      do_clocks (4'h1);
+                         // loose arbitration
+      do_clocks (4'h1);
+    pci_grant;           // drive
+      do_clocks (4'h1);
+    pci_grant;           // drive
+      do_clocks (4'h8);
 
 `ifdef LATER
     $display ("Doing Memory Read, 1 word, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_MEMORY_READ, 32'h11223344);
+    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_MEMORY_READ, 32'h51223344);
       do_clocks (4'h1);
     write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_0, 32'h55667788);
       do_clocks (4'h8);
 
     $display ("Doing Memory Read, 2 words, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_MEMORY_READ, 32'h11223344);
+    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_MEMORY_READ, 32'h61223344);
       do_clocks (4'h1);
     write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1, 32'h55667788);
       do_clocks (4'h1);
@@ -487,14 +542,14 @@ endtask
 
     $display ("Doing Memory Write, 1 word, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_MEMORY_WRITE, 32'h11223344);
+    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_MEMORY_WRITE, 32'h71223344);
       do_clocks (4'h1);
     write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_3, 32'h55667788);
       do_clocks (4'h8);
 
     $display ("Doing Memory Write, 2 words, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_MEMORY_WRITE, 32'h11223344);
+    write_fifo (`PCI_HOST_REQUEST_ADDRESS_COMMAND, `PCI_COMMAND_MEMORY_WRITE, 32'h81223344);
       do_clocks (4'h1);
     write_fifo (`PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_0, 32'h55667788);
       do_clocks (4'h1);
@@ -757,9 +812,11 @@ pci_blue_master pci_blue_master (
   .pci_perr_in_prev           (pci_perr_in_prev),
   .pci_serr_in_prev           (pci_serr_in_prev),
 // Signals to control shared AD bus, Parity, and SERR signals
-  .Master_Force_Address_Data  (Master_Force_Address_Data),
-  .Master_Expects_TRDY        (Master_Expects_TRDY),
-  .Master_Requests_PERR       (Master_Requests_PERR),
+  .Master_Force_AD_to_Address_Data (Master_Force_AD_to_Address_Data),
+  .Master_Captures_Data_On_TRDY (Master_Captures_Data_On_TRDY),
+  .Master_Exposes_Data_On_TRDY (Master_Exposes_Data_On_TRDY),
+  .Master_Forces_PERR         (Master_Forces_PERR),
+  .PERR_Detected_While_Master_Read (PERR_Detected_While_Master_Read),
 // Signal to control Request pin if on-chip PCI devices share it
   .Master_Forced_Off_Bus_By_Target_Abort (Master_Forced_Off_Bus_By_Target_Abort),
 // Host Interface Request FIFO used to ask the PCI Interface to initiate
@@ -772,9 +829,10 @@ pci_blue_master pci_blue_master (
   .pci_request_fifo_data_unload (pci_request_fifo_data_unload),
   .pci_request_fifo_error     (pci_request_fifo_error),
 // Signals from the Master to the Target to insert Status Info into the Response FIFO.
-  .master_to_target_status_type (master_to_target_status_type[2:0]),
-  .master_to_target_status_cbe  (master_to_target_status_cbe[`PCI_FIFO_CBE_RANGE]),
-  .master_to_target_status_data (master_to_target_status_data[`PCI_FIFO_DATA_RANGE]),
+  .master_to_target_status_type   (master_to_target_status_type[2:0]),
+  .master_to_target_status_cbe    (master_to_target_status_cbe[`PCI_FIFO_CBE_RANGE]),
+  .master_to_target_status_data   (master_to_target_status_data[`PCI_FIFO_DATA_RANGE]),
+  .master_to_target_status_flush  (master_to_target_status_flush),
   .master_to_target_status_available (master_to_target_status_available),
   .master_to_target_status_unload (master_to_target_status_unload),
 // Signals from the Master to the Target to set bits in the Status Register
@@ -789,7 +847,6 @@ pci_blue_master pci_blue_master (
   .master_enable              (master_enable),
   .master_fast_b2b_en         (master_fast_b2b_en),
   .master_perr_enable         (master_perr_enable),
-  .master_serr_enable         (master_serr_enable),
   .master_latency_value       (master_latency_value[7:0]),
   .pci_clk                    (pci_clk),
   .pci_reset_comb             (host_reset_comb)

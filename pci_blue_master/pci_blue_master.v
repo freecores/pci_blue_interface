@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_master.v,v 1.16 2001-07-03 09:21:07 bbeaver Exp $
+// $Id: pci_blue_master.v,v 1.17 2001-07-04 08:19:38 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -138,9 +138,11 @@ module pci_blue_master (
   pci_perr_in_prev,
   pci_serr_in_prev,
 // Signals to control shared AD bus, Parity, and SERR signals
-  Master_Force_Address_Data,
-  Master_Expects_TRDY,
-  Master_Requests_PERR,
+  Master_Force_AD_to_Address_Data,
+  Master_Exposes_Data_On_TRDY,
+  Master_Captures_Data_On_TRDY,
+  Master_Forces_PERR,
+  PERR_Detected_While_Master_Read,
 // Signal to control Request pin if on-chip PCI devices share it
   Master_Forced_Off_Bus_By_Target_Abort,
 // Host Interface Request FIFO used to ask the PCI Interface to initiate
@@ -156,6 +158,7 @@ module pci_blue_master (
   master_to_target_status_type,
   master_to_target_status_cbe,
   master_to_target_status_data,
+  master_to_target_status_flush,
   master_to_target_status_available,
   master_to_target_status_unload,
 // Signals from the Master to the Target to set bits in the Status Register
@@ -170,7 +173,6 @@ module pci_blue_master (
   master_enable,
   master_fast_b2b_en,
   master_perr_enable,
-  master_serr_enable,
   master_latency_value,
   pci_clk,
   pci_reset_comb
@@ -200,9 +202,11 @@ module pci_blue_master (
   input   pci_perr_in_prev;
   input   pci_serr_in_prev;
 // Signals to control shared AD bus, Parity, and SERR signals
-  output  Master_Force_Address_Data;
-  output  Master_Expects_TRDY;
-  output  Master_Requests_PERR;
+  output  Master_Force_AD_to_Address_Data;
+  output  Master_Exposes_Data_On_TRDY;
+  output  Master_Captures_Data_On_TRDY;
+  output  Master_Forces_PERR;
+  input   PERR_Detected_While_Master_Read;
 // Signal to control Request pin if on-chip PCI devices share it
   output  Master_Forced_Off_Bus_By_Target_Abort;
 // Host Interface Request FIFO used to ask the PCI Interface to initiate
@@ -216,8 +220,9 @@ module pci_blue_master (
   input   pci_request_fifo_error;  // NOTE MAKE SURE THIS IS NOTED SOMEWHERE
 // Signals from the Master to the Target to insert Status Info into the Response FIFO.
   output [2:0] master_to_target_status_type;
-  output [`PCI_BUS_CBE_RANGE] master_to_target_status_cbe;
-  output [`PCI_BUS_DATA_RANGE] master_to_target_status_data;
+  output [`PCI_FIFO_CBE_RANGE] master_to_target_status_cbe;
+  output [`PCI_FIFO_DATA_RANGE] master_to_target_status_data;
+  output  master_to_target_status_flush;
   output  master_to_target_status_available;
   input   master_to_target_status_unload;
 // Signals from the Master to the Target to set bits in the Status Register
@@ -232,89 +237,9 @@ module pci_blue_master (
   input   master_enable;
   input   master_fast_b2b_en;
   input   master_perr_enable;
-  input   master_serr_enable;
   input  [7:0] master_latency_value;
   input   pci_clk;
   input   pci_reset_comb;
-
-// Buffer Signals from the Request FIFO to the Target to insert
-// the Status Info into the Response FIFO.
-// The Master will only make progress when this Buffer between
-// Master and Target is empty.
-// NOTE: These buffers almost certainly don't need to be here.  However, by
-//       including buffers, the Master becomes very independent of the Target.
-  wire    Master_Flushing_Request_FIFO;  // forward reference
-  reg     master_to_target_status_full;  // forward reference
-  wire    master_to_target_status_room_available =  // empty, or soon empty
-              ~master_to_target_status_full | master_to_target_status_unload;
-  reg    [2:0] master_to_target_status_type_reg;
-  reg    [`PCI_BUS_CBE_RANGE] master_to_target_status_cbe_reg;
-  reg    [`PCI_BUS_DATA_RANGE] master_to_target_status_data_reg;
-
-  always @(posedge pci_clk)
-  begin
-    if (pci_request_fifo_data_available_meta
-                              & master_to_target_status_room_available)
-    begin  // latch whenever data available and not already full
-      master_to_target_status_type_reg[2:0]  <=
-                       (pci_request_fifo_type[2:0] ==  // drop SERR indication
-                          `PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR)
-                     ? `PCI_HOST_REQUEST_ADDRESS_COMMAND  // Fold ADDR_SERR to ADDR
-                     : (Master_Flushing_Request_FIFO  // Flushing; mark Data as Data_PERR
-                     ? `PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR  // _SERR indicates Flush
-                     :  pci_request_fifo_type[2:0]);    // pass through unchanged
-      master_to_target_status_cbe_reg[`PCI_BUS_CBE_RANGE]   <=
-                          pci_request_fifo_cbe[`PCI_BUS_CBE_RANGE];
-      master_to_target_status_data_reg[`PCI_BUS_DATA_RANGE] <=
-                          pci_request_fifo_data[`PCI_BUS_DATA_RANGE];
-    end
-    else
-    begin
-      master_to_target_status_type_reg[2:0]  <=
-                  master_to_target_status_type_reg[2:0];
-      master_to_target_status_cbe_reg[`PCI_BUS_CBE_RANGE]   <=
-                  master_to_target_status_cbe_reg[`PCI_BUS_CBE_RANGE];
-      master_to_target_status_data_reg[`PCI_BUS_DATA_RANGE] <=
-                  master_to_target_status_data_reg[`PCI_BUS_DATA_RANGE];
-    end
-  end
-
-// Empty/Full bit to control the use of the Master-to-Target buffer
-// NOTE: TRDY is VERY LATE.  This must be implemented to let TRDY operate quickly
-  wire    Master_Writing_Status_Now;  // forward reference
-  wire    Master_Asserting_IRDY_Now;  // forward reference
-
-  always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
-  begin
-    if (pci_reset_comb == 1'b1)
-    begin
-      master_to_target_status_full <= 1'b0;
-    end
-    else
-    begin
-      if (pci_trdy_in_comb == 1'b1)  // pci_trdy_in_comb is VERY LATE
-        master_to_target_status_full <=
-                 Master_Writing_Status_Now  // Address going out on bus, or Housekeeping
-               | (    master_to_target_status_full  // hold term if no data transfer
-                   & ~master_to_target_status_unload)  // and no Status FIFO unload
-               | Master_Asserting_IRDY_Now;  // If both IRDY and TRDY, transfer 1 item
-      else
-        master_to_target_status_full <=
-                 Master_Writing_Status_Now  // Address going out on bus, or Housekeeping
-               | (    master_to_target_status_full  // hold term if no data transfer
-                   & ~master_to_target_status_unload);  // and no Status FIFO unload
-    end
-  end
-
-
-// Send data to Target from Latches, to allow internal feedback without warning
-  assign  master_to_target_status_type[2:0] =
-                 master_to_target_status_type_reg[2:0];
-  assign  master_to_target_status_cbe[`PCI_BUS_CBE_RANGE] =
-                 master_to_target_status_cbe_reg[`PCI_BUS_CBE_RANGE];
-  assign  master_to_target_status_data[`PCI_BUS_DATA_RANGE] =
-                 master_to_target_status_data_reg[`PCI_BUS_DATA_RANGE];
-  assign  master_to_target_status_available = master_to_target_status_full;  // drive outputs
 
 // The PCI Blue Master gets commands from the pci_request_fifo.
 // There are 3 main types of entries:
@@ -363,42 +288,176 @@ module pci_blue_master (
 //   Data Byte Enables.
 //   The reference can only be retried once the late data becomes available.
 
+// Buffer Signals from the Request FIFO to the Target to insert the Status
+//   Info into the Response FIFO.
+// The data buffered here is also used by the master retry logic.
+// The Master will capture data from this buffer to act as the Retry Address
+//   and Retry Data.
+// The Master will only make progress when this Buffer between
+//   Master and Target is empty, AND the master has captured the data for
+//   retry purposes.
+  reg     master_to_target_status_full;  // forward reference
+  wire    master_to_target_status_not_full = ~master_to_target_status_full
+                                           | master_to_target_status_unload;
+  reg     master_to_bus_full;  // forward reference
+  wire    both_latches_have_room =  master_to_target_status_not_full
+                                 & ~master_to_bus_full;
+  wire    grabbing_request_fifo_data = pci_request_fifo_data_available_meta
+                                     & both_latches_have_room;
+// Unload Request FIFO when grabbing data for any reason
+  assign  pci_request_fifo_data_unload = grabbing_request_fifo_data;  // drive outputs
+
+// Bus Full bit indicates that the PCI Bus is done with the Address or Data.
+// FIFO is unloading if Master_Flushing_Request_FIFO
+//                   or Master_Captures_Request_FIFO_Unconditionally
+//                   of Master_Captures_Request_FIFO_If_TRDY and TRDY
+// If not unloading and not full and no data,  not full
+// If not unloading and not full and data,     full
+// If not unloading and full and no data,      full
+// If not unloading and full and data,         full
+// If unloading and not full and no data,      not full
+// If unloading and not full and data,         not full
+// If unloading and full and no data,          not full
+// If unloading and full and data,             full
+// NOTE: TRDY is VERY LATE.  This must be implemented to let TRDY operate quickly
+  wire    Master_Flushing_Request_FIFO;  // forward reference
+  wire    Master_Captures_Request_FIFO_Unconditionally;  // forward reference
+  wire    Master_Captures_Request_FIFO_If_TRDY;  // forward reference
+
+  wire    grabbing_bus_data = grabbing_request_fifo_data  // not housekeeping
+                      & ~(   (pci_request_fifo_type[2:0] ==
+                                      `PCI_HOST_REQUEST_INSERT_WRITE_FENCE)
+                           | (pci_request_fifo_type[2:0] ==
+                                      `PCI_HOST_REQUEST_SPARE));
+
+  always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
+  begin
+    if (pci_reset_comb == 1'b1)
+    begin
+      master_to_bus_full <= 1'b0;
+    end
+    else
+    begin
+      if (pci_trdy_in_comb == 1'b1)  // pci_trdy_in_comb is VERY LATE
+        master_to_bus_full <=
+                      (   Master_Flushing_Request_FIFO
+                        | Master_Captures_Request_FIFO_Unconditionally
+                        | Master_Captures_Request_FIFO_If_TRDY)
+                      ? (master_to_bus_full & grabbing_bus_data)   // unloading
+                      : (master_to_bus_full | grabbing_bus_data);  // not unloading
+      else  // (pci_trdy_in_comb == 1'b0)
+        master_to_bus_full <=
+                      (   Master_Flushing_Request_FIFO
+                        | Master_Captures_Request_FIFO_Unconditionally)
+                      ? (master_to_bus_full & grabbing_bus_data)   // unloading
+                      : (master_to_bus_full | grabbing_bus_data);  // not unloading
+    end
+  end
+
+// Target Status Full bit indicates when the Target is done with the Status data.
+  always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
+  begin
+    if (pci_reset_comb == 1'b1)
+    begin
+      master_to_target_status_full <= 1'b0;
+    end
+    else
+    begin
+      master_to_target_status_full <= grabbing_request_fifo_data
+                                    | (   master_to_target_status_unload
+                                        & ~master_to_target_status_unload);
+    end
+  end
+
+// Grab Data when the FIFO is unloaded for any reason
+  reg    [2:0] master_to_target_status_type_reg;
+  reg    [`PCI_FIFO_CBE_RANGE] master_to_target_status_cbe_reg;
+  reg    [`PCI_FIFO_DATA_RANGE] master_to_target_status_data_reg;
+  reg     master_to_target_status_flush_reg;
+
+  always @(posedge pci_clk)
+  begin
+    if (grabbing_request_fifo_data)
+    begin  // latch whenever data available and not already full
+      master_to_target_status_type_reg[2:0] <=
+                      pci_request_fifo_type[2:0];
+      master_to_target_status_cbe_reg[`PCI_FIFO_CBE_RANGE] <=
+                      pci_request_fifo_cbe[`PCI_FIFO_CBE_RANGE];
+      master_to_target_status_data_reg[`PCI_FIFO_DATA_RANGE] <=
+                      pci_request_fifo_data[`PCI_FIFO_DATA_RANGE];
+      master_to_target_status_flush_reg <=
+                      Master_Flushing_Request_FIFO;
+    end
+    else
+    begin
+      master_to_target_status_type_reg[2:0] <=
+                      master_to_target_status_type_reg[2:0];
+      master_to_target_status_cbe_reg[`PCI_FIFO_CBE_RANGE] <=
+                      master_to_target_status_cbe_reg[`PCI_FIFO_CBE_RANGE];
+      master_to_target_status_data_reg[`PCI_FIFO_DATA_RANGE] <=
+                      master_to_target_status_data_reg[`PCI_FIFO_DATA_RANGE];
+      master_to_target_status_flush_reg <=
+                      master_to_target_status_flush_reg;
+    end
+  end
+
+// Deliver data to the IO pads if needed.
+  wire   [2:0] pci_request_fifo_type_current =
+                        grabbing_request_fifo_data
+                      ? pci_request_fifo_type[2:0]
+                      : master_to_target_status_type_reg[2:0];
+  wire   [`PCI_FIFO_DATA_RANGE] pci_request_fifo_data_current =
+                        grabbing_request_fifo_data
+                      ? pci_request_fifo_data[`PCI_FIFO_DATA_RANGE]
+                      : master_to_target_status_cbe_reg[`PCI_FIFO_CBE_RANGE];
+  wire   [`PCI_FIFO_CBE_RANGE] pci_request_fifo_cbe_current =
+                        grabbing_request_fifo_data
+                      ? pci_request_fifo_cbe[`PCI_FIFO_CBE_RANGE]
+                      : master_to_target_status_data_reg[`PCI_FIFO_DATA_RANGE];
+
+// Send Status Data to Target
+  assign  master_to_target_status_type[2:0] =                   // drive outputs
+                      master_to_target_status_type_reg[2:0];
+  assign  master_to_target_status_cbe[`PCI_FIFO_CBE_RANGE] =    // drive outputs
+                      master_to_target_status_cbe_reg[`PCI_FIFO_CBE_RANGE];
+  assign  master_to_target_status_data[`PCI_FIFO_DATA_RANGE] =  // drive outputs
+                      master_to_target_status_data_reg[`PCI_FIFO_DATA_RANGE];
+  assign  master_to_target_status_flush = master_to_target_status_flush_reg;  // drive outputs
+  assign  master_to_target_status_available = master_to_target_status_full;  // drive outputs
+
 // State Machine keeping track of Request FIFO.
 // This module contains 2 buffers.
 // One contains the running Address.
 // The second contains the Data or Byte Enables presently being sent over the PCI Bus.
 // The PCI Interface can directly send out data from the Request FIFO, it can
-// send data from the running Address counter, or it can send data from the
-// Next Data Buffer.
-
-// Decide on when to unload an entry from the Request FIFO (into Status FIFO,
-//   and sometimes into the Address Hold or Data Hold register or the PCI Output Pads)
-// NOTE: TRDY is VERY LATE.  Try to make the logic FAST through TRDY
-  wire    Master_Unloading_Request_Now;  // forward reference
-  wire    unloading_request_fifo_now = Master_Unloading_Request_Now
-               | (Master_Asserting_IRDY_Now & pci_trdy_in_comb);  // TRDY is VERY LATE
-
-  assign  pci_request_fifo_data_unload = unloading_request_fifo_now;  // drive outputs
-  assign  Master_Expects_TRDY = Master_Asserting_IRDY_Now;  // drive outputs
-
+//   send data from the running Address counter, or it can send data from the
+//   Next Data Buffer.
   parameter NO_ADDR_NO_DATA_CAPTURED  = 2'b00;  // Neither Address nor Data captured
   parameter ADDR_BUT_NO_DATA_CAPTURED = 2'b10;  // Address but no Data captured
   parameter ADDR_DATA_CAPTURED        = 2'b11;  // Address plus Data captured
   reg    [1:0] PCI_Master_FIFO_State;
+  wire    Master_Forget_Retry_Address;  // forward reference
+  wire    Master_Forget_Retry_Data;  // forward reference
 
 // Control Data Buffers based on present state of captured data
-  wire    Master_Grab_Address = pci_request_fifo_data_available_meta
-                    & (   (pci_request_fifo_type[2:0] ==  // new address
+  wire    Master_Grab_Address = grabbing_request_fifo_data
+                    & (   (master_to_target_status_type_reg[2:0] ==  // new address
                                   `PCI_HOST_REQUEST_ADDRESS_COMMAND)
-                        | (pci_request_fifo_type[2:0] ==  // new address
+                        | (master_to_target_status_type_reg[2:0] ==  // new address
                                   `PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR));
 
-  wire    Master_Grab_Data = pci_request_fifo_data_available_meta
-              & (   (PCI_Master_FIFO_State[1:0] == ADDR_BUT_NO_DATA_CAPTURED)
-                  | 1'b0);  // NOTE: WORKING
+  wire    Master_Grab_Data = grabbing_request_fifo_data
+                    & (   (master_to_target_status_type_reg[2:0] ==  // new data
+                                  `PCI_HOST_REQUEST_W_DATA_RW_MASK)
+                        | (master_to_target_status_type_reg[2:0] ==  // new data
+                                  `PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST)
+                        | (master_to_target_status_type_reg[2:0] ==  // new data
+                                  `PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR)
+                        | (master_to_target_status_type_reg[2:0] ==  // new data
+                                  `PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR));
 
 // Keep track of how much data has been removed from the FIFO
-  always @(posedge pci_clk or posedge pci_reset_comb)
+  always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
   begin
     if (pci_reset_comb == 1'b1)
     begin
@@ -406,50 +465,33 @@ module pci_blue_master (
     end
     else
     begin
-      if (Master_Flushing_Request_FIFO)
+      if (Master_Flushing_Request_FIFO | Master_Forget_Retry_Address)
         PCI_Master_FIFO_State[1:0] <= NO_ADDR_NO_DATA_CAPTURED;
       else
       begin
         case (PCI_Master_FIFO_State[1:0])
         NO_ADDR_NO_DATA_CAPTURED:
           begin
-            if (Master_Grab_Address)
+            if (Master_Grab_Address == 1'b1)
               PCI_Master_FIFO_State[1:0] <= ADDR_BUT_NO_DATA_CAPTURED;
             else
               PCI_Master_FIFO_State[1:0] <= NO_ADDR_NO_DATA_CAPTURED;
           end
         ADDR_BUT_NO_DATA_CAPTURED:
           begin
-            if (unloading_request_fifo_now == 1'b1)  // NOTE read_remove is VERY LATE.  3 nSec before clock
-            begin
-              PCI_Master_FIFO_State[1:0] <= ADDR_BUT_NO_DATA_CAPTURED;  // grab or no grab
-// synopsys translate_off
-              if (~pci_request_fifo_data_available_meta)
-                $display ("*** %m PCI Master FIFO State Machine Unload while Empty at time %t",
-                           $time);
-// synopsys translate_on
-            end
-            else  // ~unloading_request_fifo_now
-            begin
-              if (pci_request_fifo_data_available_meta == 1'b1)
-                PCI_Master_FIFO_State[1:0] <= ADDR_DATA_CAPTURED;  // grab
-              else
-                PCI_Master_FIFO_State[1:0] <= ADDR_BUT_NO_DATA_CAPTURED;  // hold
-            end
+            if (Master_Forget_Retry_Data == 1'b1)
+              PCI_Master_FIFO_State[1:0] <= ADDR_BUT_NO_DATA_CAPTURED;
+            else if (Master_Grab_Data == 1'b1)
+              PCI_Master_FIFO_State[1:0] <= ADDR_DATA_CAPTURED;
+            else
+              PCI_Master_FIFO_State[1:0] <= ADDR_BUT_NO_DATA_CAPTURED;
           end
         ADDR_DATA_CAPTURED:
           begin
-            if (unloading_request_fifo_now == 1'b1)  // NOTE read_remove is VERY LATE.  3 nSec before clock
-            begin
-              if (pci_request_fifo_data_available_meta == 1'b1)
-                PCI_Master_FIFO_State[1:0] <= ADDR_DATA_CAPTURED;  // hold
-              else
-                PCI_Master_FIFO_State[1:0] <= ADDR_BUT_NO_DATA_CAPTURED;  // drop
-            end
-            else  // ~unloading_request_fifo_now
-            begin
-              PCI_Master_FIFO_State[1:0] <= ADDR_DATA_CAPTURED;  // hold
-            end
+            if (Master_Forget_Retry_Data == 1'b1)
+              PCI_Master_FIFO_State[1:0] <= ADDR_BUT_NO_DATA_CAPTURED;
+            else
+              PCI_Master_FIFO_State[1:0] <= ADDR_DATA_CAPTURED;
           end
         default:
           begin
@@ -465,17 +507,17 @@ module pci_blue_master (
   end
 
 // Keep track of the present PCI Address, so the Master can restart references
-// if it receives a Target Retry.
+//   if it receives a Target Retry.
 // The bottom 2 bits of a PCI Address have special meaning to the
 // PCI Master and PCI Target.  See the PCI Local Bus Spec
 // Revision 2.2 section 3.2.2.1 and 3.2.2.2 for details.
 // The PCI Master will never do a Burst when the command is an IO command.
 // NOTE: WORKING: if 64-bit addressing implemented, need to capture BOTH
-// halves of the address before data can be allowed to proceed.
+//   halves of the address before data can be allowed to proceed.
   wire    Master_Inc_Address;  // forward reference
   wire    Master_Got_Retry;  // forward reference
   reg    [31:2] Master_Retry_Address;
-  reg    [3:0] Master_Retry_Command;
+  reg    [`PCI_FIFO_CBE_RANGE] Master_Retry_Command;
   reg    [2:0] Master_Retry_Address_Type;
   reg     Master_Write;
 
@@ -483,12 +525,12 @@ module pci_blue_master (
   begin
     if (Master_Grab_Address == 1'b1)  // hold or increment the Burst Address
     begin
-      Master_Retry_Address_Type[2:0] <= pci_request_fifo_type[2:0];
-      Master_Retry_Address[31:2]     <= pci_request_fifo_data[31:2];
-      Master_Retry_Command[`PCI_BUS_CBE_RANGE] <=
-                       pci_request_fifo_cbe[`PCI_BUS_CBE_RANGE];
-      Master_Write <=
-          (pci_request_fifo_cbe[3:0] & `PCI_COMMAND_ANY_WRITE_MASK) != 4'h0;
+      Master_Retry_Address_Type[2:0] <= master_to_target_status_type_reg[2:0];
+      Master_Retry_Address[31:2]     <= master_to_target_status_data_reg[31:2];
+      Master_Retry_Command[`PCI_FIFO_CBE_RANGE] <=
+                      master_to_target_status_cbe_reg[`PCI_FIFO_CBE_RANGE];
+      Master_Write <= (   master_to_target_status_cbe_reg[`PCI_FIFO_CBE_RANGE]
+                        & `PCI_COMMAND_ANY_WRITE_MASK) != `PCI_FIFO_CBE_ZERO;
     end
     else
     begin
@@ -502,48 +544,38 @@ module pci_blue_master (
 // NOTE:   the reference should be retried as a normal Memory Write.
 //         See the PCI Local Bus Spec Revision 2.2 section 3.3.3.2.1 for details.
       if ((Master_Got_Retry == 1'b1)
-           & (Master_Retry_Command[`PCI_BUS_CBE_RANGE] ==
+           & (Master_Retry_Command[`PCI_FIFO_CBE_RANGE] ==
                  `PCI_COMMAND_MEMORY_WRITE_INVALIDATE))
-        Master_Retry_Command[`PCI_BUS_CBE_RANGE] <= `PCI_COMMAND_MEMORY_WRITE;
+        Master_Retry_Command[`PCI_FIFO_CBE_RANGE] <= `PCI_COMMAND_MEMORY_WRITE;
       else
-        Master_Retry_Command[`PCI_BUS_CBE_RANGE] <=
-                             Master_Retry_Command[`PCI_BUS_CBE_RANGE];
+        Master_Retry_Command[`PCI_FIFO_CBE_RANGE] <=
+                      Master_Retry_Command[`PCI_FIFO_CBE_RANGE];
       Master_Write <= Master_Write;
     end
   end
 
-// Capture the PCI Data, so that if a retry is needed the data will be available.
-  reg    [`PCI_BUS_DATA_RANGE] Master_Retry_Data_Dly;
-  reg    [`PCI_BUS_CBE_RANGE] Master_Retry_Byte_Enables_Dly;
-  reg    [2:0] Master_Retry_Data_Type_Dly;
-
-  reg    [`PCI_BUS_DATA_RANGE] Master_Retry_Data;
-  reg    [`PCI_BUS_CBE_RANGE] Master_Retry_Byte_Enables;
+// Grab Data to allow retries if disconnect without data
+  reg    [`PCI_FIFO_DATA_RANGE] Master_Retry_Data;
+  reg    [`PCI_FIFO_CBE_RANGE] Master_Retry_Data_Byte_Enables;
   reg    [2:0] Master_Retry_Data_Type;
 
   always @(posedge pci_clk)
   begin
-// Delay FIFO outputs, so that the Latch Enable here can avoid using TRDY_comb
-    Master_Retry_Data_Type_Dly[2:0]    <= pci_request_fifo_type[2:0];
-    Master_Retry_Data_Dly[`PCI_BUS_DATA_RANGE] <=
-                          pci_request_fifo_data[`PCI_BUS_DATA_RANGE];
-    Master_Retry_Byte_Enables_Dly[`PCI_BUS_CBE_RANGE] <=
-                          pci_request_fifo_cbe[`PCI_BUS_CBE_RANGE];
-    if (Master_Grab_Data == 1'b1)  // grab Burst Data in case of retry
+    if (Master_Grab_Data == 1'b1)  // hold or increment the Burst Address
     begin
-      Master_Retry_Data_Type[2:0]      <= Master_Retry_Data_Type_Dly[2:0];
-      Master_Retry_Data[`PCI_BUS_DATA_RANGE] <=
-                          Master_Retry_Data_Dly[`PCI_BUS_DATA_RANGE];
-      Master_Retry_Byte_Enables[`PCI_BUS_CBE_RANGE] <=
-                          Master_Retry_Byte_Enables_Dly[`PCI_BUS_CBE_RANGE];
+      Master_Retry_Data_Type[2:0] <= master_to_target_status_type_reg[2:0];
+      Master_Retry_Data[`PCI_FIFO_DATA_RANGE] <=
+                      master_to_target_status_data_reg[`PCI_FIFO_DATA_RANGE];
+      Master_Retry_Data_Byte_Enables[`PCI_FIFO_CBE_RANGE] <=
+                      master_to_target_status_cbe_reg[`PCI_FIFO_CBE_RANGE];
     end
     else
     begin
-      Master_Retry_Data_Type[2:0]      <= Master_Retry_Data_Type[2:0];
-      Master_Retry_Data[`PCI_BUS_DATA_RANGE] <=
-                          Master_Retry_Data[`PCI_BUS_DATA_RANGE];
-      Master_Retry_Byte_Enables[`PCI_BUS_CBE_RANGE] <=
-                          Master_Retry_Byte_Enables[`PCI_BUS_CBE_RANGE];
+      Master_Retry_Data_Type[2:0] <= Master_Retry_Data_Type[2:0];
+      Master_Retry_Data[`PCI_FIFO_DATA_RANGE] <=
+                      Master_Retry_Data[`PCI_FIFO_DATA_RANGE];
+      Master_Retry_Data_Byte_Enables[`PCI_FIFO_CBE_RANGE] <=
+                      Master_Retry_Data_Byte_Enables[`PCI_FIFO_CBE_RANGE];
     end
   end
 
@@ -555,28 +587,36 @@ module pci_blue_master (
 // NOTE: In the case of Master Abort, this FIFO needs to be flushed till Data_Last
 // NOTE: Other logic will mix in the various timeouts which can happen.
   wire   [2:0] Next_Request_Type =
-                       (PCI_Master_FIFO_State[1:0] == NO_ADDR_NO_DATA_CAPTURED)
-                     ? pci_request_fifo_type[2:0]
-                     : Master_Retry_Address_Type[2:0];
-  wire   [`PCI_BUS_CBE_RANGE] Next_Request_Command =
-                       (PCI_Master_FIFO_State[1:0] == NO_ADDR_NO_DATA_CAPTURED)
-                     ? pci_request_fifo_cbe[`PCI_BUS_CBE_RANGE]
-                     : Master_Retry_Command[`PCI_BUS_CBE_RANGE];
+                        (PCI_Master_FIFO_State[1:0] == NO_ADDR_NO_DATA_CAPTURED)
+                      ? pci_request_fifo_type_current[2:0]
+                      : Master_Retry_Address_Type[2:0];
+  wire   [`PCI_FIFO_CBE_RANGE] Next_Request_Command =
+                        (PCI_Master_FIFO_State[1:0] == NO_ADDR_NO_DATA_CAPTURED)
+                      ? pci_request_fifo_cbe_current[`PCI_FIFO_CBE_RANGE]
+                      : Master_Retry_Command[`PCI_FIFO_CBE_RANGE];
   wire   [2:0] Next_Data_Type =
-                       (PCI_Master_FIFO_State[1:0] == ADDR_BUT_NO_DATA_CAPTURED)
-                     ? pci_request_fifo_type[2:0]
-                     : Master_Retry_Data_Type[2:0];
-  wire    Master_Disconnect_Being_Forced;  // forward reference
+                        (PCI_Master_FIFO_State[1:0] == ADDR_BUT_NO_DATA_CAPTURED)
+                      ? pci_request_fifo_type_current[2:0]
+                      : Master_Retry_Data_Type[2:0];
 
 // Either new Address in FIFO PLUS next item containing Byte Strobes, or
 //   Stored Address plus FIFO contains next item containing Byte Strobes
+  wire    Master_Disconnect_Being_Forced;  // forward reference
+  wire    request_fifo_data_available_meta =
+                        pci_request_fifo_data_available_meta
+                      | master_to_bus_full;
+  wire    request_fifo_two_words_available_meta =
+                         pci_request_fifo_two_words_available_meta
+                      | (   pci_request_fifo_data_available_meta
+                          & master_to_bus_full);
+
   wire    Request_FIFO_CONTAINS_ADDRESS =
-               master_to_target_status_room_available  // target ready for status
+               both_latches_have_room  // target ready for status
              & master_enable  // only start (or retry) a reference if enabled
              & (   (   (PCI_Master_FIFO_State[1:0] == NO_ADDR_NO_DATA_CAPTURED)
-                     &  pci_request_fifo_two_words_available_meta)  // address plus data
+                     &  request_fifo_two_words_available_meta)  // address plus data
                  | (   (PCI_Master_FIFO_State[1:0] == ADDR_BUT_NO_DATA_CAPTURED)
-                     &  pci_request_fifo_data_available_meta)  // stored address plus data
+                     &  request_fifo_data_available_meta)  // stored address plus data
                  | (PCI_Master_FIFO_State[1:0] == ADDR_DATA_CAPTURED))  // both stored
              & (   (Next_Request_Type[2:0] ==
                                 `PCI_HOST_REQUEST_ADDRESS_COMMAND)
@@ -588,31 +628,31 @@ module pci_blue_master (
                  | (Next_Request_Command[`PCI_BUS_CBE_RANGE] ==
                                 `PCI_COMMAND_CONFIG_WRITE));  // captured data used
   wire    Request_FIFO_CONTAINS_DATA_MORE =  // could happen at dame time as FIFO_CONTAINS_ADDRESS
-               master_to_target_status_room_available  // target ready for status
+               both_latches_have_room  // target ready for status
              & ~Master_Disconnect_Being_Forced  // Master Data Latency Timeout
              & (   (   (   (PCI_Master_FIFO_State[1:0] == ADDR_BUT_NO_DATA_CAPTURED)
-                         &  pci_request_fifo_data_available_meta)  // stored address plus data
+                         &  request_fifo_data_available_meta)  // stored address plus data
                      | (PCI_Master_FIFO_State[1:0] == ADDR_DATA_CAPTURED))
                  & (   (Next_Data_Type[2:0] ==
                                 `PCI_HOST_REQUEST_W_DATA_RW_MASK)
                      | (Next_Data_Type[2:0] ==
                                 `PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR)));
   wire    Request_FIFO_CONTAINS_DATA_LAST =  // could happen with FIFO_CONTAINS_ADDRESS
-               master_to_target_status_room_available  // target ready for status
+               both_latches_have_room  // target ready for status
              & (   Master_Disconnect_Being_Forced  // Master Data Latency Timeout
                  | (   (   (   (PCI_Master_FIFO_State[1:0] == ADDR_BUT_NO_DATA_CAPTURED)
-                             &  pci_request_fifo_data_available_meta)  // stored address plus data
+                             &  request_fifo_data_available_meta)  // stored address plus data
                          | (PCI_Master_FIFO_State[1:0] == ADDR_DATA_CAPTURED))
                      & (   (Next_Data_Type[2:0] ==
                                 `PCI_HOST_REQUEST_W_DATA_RW_MASK)
                          | (Next_Data_Type[2:0] ==
                                 `PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR))));
   wire    Request_FIFO_CONTAINS_HOUSEKEEPING_DATA =
-                  master_to_target_status_room_available  // target ready for status
-               &  pci_request_fifo_data_available_meta  // only 1 word
-               & (   (pci_request_fifo_type[2:0] ==
+                  both_latches_have_room  // target ready for status
+               &  request_fifo_data_available_meta  // only 1 word
+               & (   (pci_request_fifo_type_current[2:0] ==
                                       `PCI_HOST_REQUEST_INSERT_WRITE_FENCE)  // also Reg Refs
-                   | (pci_request_fifo_type[2:0] ==
+                   | (pci_request_fifo_type_current[2:0] ==
                                       `PCI_HOST_REQUEST_SPARE));
 
 // Master Aborts are detected when the Master asserts FRAME, and does
@@ -661,8 +701,8 @@ module pci_blue_master (
   end
 
 // The Master Bus Latency Counter is needed to force the Master off the bus
-// in a timely fashion if it is in the middle of a burst when it's Grant is
-// removed.  See the PCI Local Bus Spec Revision 2.2 section 3.5.4 for details.
+//   in a timely fashion if it is in the middle of a burst when it's Grant is
+//   removed.  See the PCI Local Bus Spec Revision 2.2 section 3.5.4 for details.
   reg    [7:0] Master_Bus_Latency_Timer;
   wire    Master_Clear_Bus_Latency_Timer;  // forward reference
   reg     Master_Bus_Latency_Time_Exceeded;
@@ -936,7 +976,7 @@ module pci_blue_master (
             PCI_Master_State[9:0] <= PCI_MASTER_PARK;
           else if (Master_Doing_Config_Reference == 1'b1)
             PCI_Master_State[9:0] <= PCI_MASTER_STEP;
-          else
+          else  // must be regular reference.
             PCI_Master_State[9:0] <= PCI_MASTER_ADDR;
         end
       PCI_MASTER_PARK:
@@ -1156,7 +1196,7 @@ module pci_blue_master (
         end
       PCI_MASTER_FLUSHING:
         begin
-          if (pci_request_fifo_data_available_meta == 1'b0)
+          if (request_fifo_data_available_meta == 1'b0)
             PCI_Master_State[9:0] <= PCI_MASTER_FLUSHING;  // NOTE: WORKING
           else if (Request_FIFO_CONTAINS_DATA_MORE == 1'b1)
             PCI_Master_State[9:0] <= PCI_MASTER_FLUSHING;  // NOTE: WORKING
@@ -1177,51 +1217,111 @@ module pci_blue_master (
     end
   end
 
-  assign  Master_Unloading_Request_Now =
-                      Request_FIFO_CONTAINS_HOUSEKEEPING_DATA  // transfer now
-                    | 1'b0;  // NOTE: WORKING
-
-  assign  Master_Writing_Status_Now =
-                      Request_FIFO_CONTAINS_HOUSEKEEPING_DATA  // transfer now
-                    | 1'b0;  // NOTE: WORKING
-
-// State Machine to keep track of the Running Address
-// Address becomes valid as Address is unloaded from Request FIFO
-// Address stays valid until last Data is ACKed, or Flush is finished.
+// Calculate several control signals used to direct data and control
+// These signals depend on the present state of the PCI Master State
+//   Machine and the LATCHED versions of DEVSEL, TRDY, STOP, PERR, SERR
+// The un-latched versions can't be used, because they are too late.
   wire    Master_Select_Stored_Address;  // forward reference
   wire    Master_Select_Stored_Data;  // forward reference
 
-  assign  Master_Select_Stored_Address = 1'b0;  // NOTE WORKING
-  assign  Master_Select_Stored_Data = 1'b0;  // NOTE WORKING
+  assign  Master_Captures_Request_FIFO_Unconditionally =
+                      (PCI_Master_State[9:0] == PCI_MASTER_IDLE)
+                    | (PCI_Master_State[9:0] == PCI_MASTER_PARK)
+                    | (PCI_Master_State[9:0] == PCI_MASTER_STEP)
+                    | 1'b0;  // NOTE: WORKING add fast back-to-back
 
-// Whenever the Master is told to get off the bus due to a Target Termination,
-// it must remove it's Request for one clock when the bus goes idle and
-// one other clock, either before or after the time the bus goes idle.
-// See the PCI Local Bus Spe Revision 2.2 section 3.4.1 for details.
+  assign  Master_Force_AD_to_Address_Data =  // drive outputs
+                      Master_Captures_Request_FIFO_Unconditionally;
 
-// 
-  wire    PCI_REQ_HOLDOFF;  // forward reference
+  assign  Master_Captures_Request_FIFO_If_TRDY = 1'b0;  // NOTE: WORKING
 
+  assign  Master_Exposes_Data_On_TRDY = Master_Captures_Request_FIFO_If_TRDY;  // drive outputs  // NOTE: WORKING  Only on READS!
 
-  assign  PCI_REQ_HOLDOFF = 1'b0;  // NOTE: WORKING
+  assign  Master_Captures_Data_On_TRDY = Master_Captures_Request_FIFO_If_TRDY;  // drive outputs  // NOTE: WORKING  Only on READS!
+
+  assign  Master_Select_Stored_Address =
+                  (   (PCI_Master_FIFO_State[1:0] == ADDR_BUT_NO_DATA_CAPTURED)
+                    | (PCI_Master_FIFO_State[1:0] == ADDR_DATA_CAPTURED))
+                & (   (PCI_Master_State[9:0] == PCI_MASTER_IDLE)
+                    | (PCI_Master_State[9:0] == PCI_MASTER_PARK)
+                    | (PCI_Master_State[9:0] == PCI_MASTER_STEP));  // NOTE: WORKING add fast back-to-back
+
+  assign  Master_Select_Stored_Data =
+                        (PCI_Master_FIFO_State[1:0] == ADDR_DATA_CAPTURED)
+                      & (PCI_Master_State[9:0] == PCI_MASTER_ADDR);
+
   assign  Master_Flushing_Request_FIFO = 1'b0;  // NOTE: WORKING
-  assign  Master_Asserting_IRDY_Now = 1'b0;  // NOTE: WORKING
-  assign  Fast_Back_to_Back_Possible = 1'b0;  // NOTE: WORKING
+  assign  Master_Forget_Retry_Address = 1'b0;  // NOTE: WORKING
+  assign  Master_Forget_Retry_Data = 1'b0;  // NOTE: WORKING
   assign  Master_Inc_Address = 1'b0;  // NOTE WORKING
   assign  Master_Got_Retry = 1'b0;  // NOTE WORKING
   assign  Master_Disconnect_Being_Forced = 1'b0;  // NOTE WORKING
+  assign  Fast_Back_to_Back_Possible = 1'b0;  // NOTE: WORKING
   assign  Master_Clear_Bus_Latency_Timer = 1'b0;  // NOTE WORKING
   assign  Master_Start_Master_Abort_Counter = 1'b0;  // NOTE WORKING
-
   assign  Master_Forced_Off_Bus_By_Target_Abort = 1'b0;  // NOTE: WORKING
-  assign  Master_Force_Address_Data = 1'b0;  // NOTE WORKING
-  assign  Master_Requests_PERR = 1'b0;  // NOTE WORKING
+  assign  Master_Forces_PERR = 1'b0;  // NOTE WORKING
+
   assign  master_got_parity_error = 1'b0;  // NOTE WORKING
   assign  master_caused_serr = 1'b0;  // NOTE WORKING
   assign  master_caused_master_abort = 1'b0;  // NOTE WORKING
   assign  master_got_target_abort = 1'b0;  // NOTE WORKING
   assign  master_caused_parity_error = 1'b0;  // NOTE WORKING
   assign  master_asked_to_retry = 1'b0;  // NOTE WORKING
+
+// Whenever the Master is told to get off the bus due to a Target Termination,
+// it must remove it's Request for one clock when the bus goes idle and
+// one other clock, either before or after the time the bus goes idle.
+// See the PCI Local Bus Spe Revision 2.2 section 3.4.1 for details.
+// Request whenever enabled, and an Address is available in the Master FIFO
+// or a retried address is available.
+  assign  pci_req_out_next = Request_FIFO_CONTAINS_ADDRESS
+                           & (   (PCI_Master_State[9:0] == PCI_MASTER_IDLE)
+                               | (PCI_Master_State[9:0] == PCI_MASTER_PARK)
+                               | (PCI_Master_State[9:0] == PCI_MASTER_STEP));
+
+// NOTE:  PCI Request is tri-stated when Reset asserted.  See the
+// NOTE:  PCI Local Bus Spec Revision 2.2 section 2.2.4 for details.
+  assign  pci_req_out_oe_comb = ~pci_reset_comb;
+
+// The PCI Bus gets either data directly from the FIFO or it gets the stored
+//   address which has been incrementing until the previous Target Retry was received
+//   or the stored data if the reference ended without data.
+
+  assign  pci_master_ad_out_next[`PCI_BUS_DATA_RANGE] =
+                         Master_Select_Stored_Address
+                      ? {Master_Retry_Address[31:2], 2'h0}
+                      : (Master_Select_Stored_Data
+                      ?  Master_Retry_Data[`PCI_FIFO_DATA_RANGE]
+                      :  pci_request_fifo_data_current[`PCI_FIFO_DATA_RANGE]);
+  assign  pci_master_ad_out_oe_comb = 
+                        (PCI_Master_State[9:0] == PCI_MASTER_PARK)
+                      | (PCI_Master_State[9:0] == PCI_MASTER_STEP)
+                      | (PCI_Master_State[9:0] == PCI_MASTER_ADDR)
+                      | (PCI_Master_State[9:0] == PCI_MASTER_ADDR2)
+                      | (   (PCI_Master_State[9:0] == PCI_MASTER_WAIT)
+                          & Master_Write)
+                      | (   (PCI_Master_State[9:0] == PCI_MASTER_DATA_MORE)
+                          & Master_Write)
+                      | (   (PCI_Master_State[9:0] == PCI_MASTER_DATA_LAST)
+                          & Master_Write)
+                      | 1'b0;  // NOTE: WORKING
+
+  assign  pci_cbe_l_out_next[`PCI_BUS_CBE_RANGE] =
+                         Master_Select_Stored_Address
+                      ?  Master_Retry_Command[`PCI_FIFO_CBE_RANGE]
+                      : (Master_Select_Stored_Data
+                      ?  Master_Retry_Data_Byte_Enables[`PCI_FIFO_CBE_RANGE]
+                      :  pci_request_fifo_cbe_current[`PCI_FIFO_CBE_RANGE]);
+  assign  pci_cbe_out_oe_comb =
+                        (PCI_Master_State[9:0] == PCI_MASTER_PARK)
+                      | (PCI_Master_State[9:0] == PCI_MASTER_STEP)
+                      | (PCI_Master_State[9:0] == PCI_MASTER_ADDR)
+                      | (PCI_Master_State[9:0] == PCI_MASTER_ADDR2)
+                      | (PCI_Master_State[9:0] == PCI_MASTER_WAIT)
+                      | (PCI_Master_State[9:0] == PCI_MASTER_DATA_MORE)
+                      | (PCI_Master_State[9:0] == PCI_MASTER_DATA_LAST)
+                      | 1'b0;  // NOTE: WORKING
 
 // As quickly as possible, decide whether to present new Master Control Info
 //   on Master Control bus, or to continue sending old data.  The state machine
@@ -1231,82 +1331,22 @@ module pci_blue_master (
 // NOTE: The FRAME_Next and IRDY_Next signals are latched in the
 //       outputs pad in the IO pad module.
 
-// Request whenever enabled, and an Address is available in the Master FIFO
-// or a retried address is available.
-  assign  pci_req_out_next = Request_FIFO_CONTAINS_ADDRESS & ~PCI_REQ_HOLDOFF;
-
-// NOTE:  PCI Request is tri-stated when Reset asserted.  See the
-// NOTE:  PCI Local Bus Spec Revision 2.2 section 2.2.4 for details.
-  assign  pci_req_out_oe_comb = ~pci_reset_comb;
-
-// The PCI Bus gets either data directly from the FIFO or it gets the stored
-// address, which has been incrementing until the previous Target Retry was received.
-
-  assign  pci_master_ad_out_next[`PCI_BUS_DATA_RANGE] =
-                       Master_Select_Stored_Address
-                    ? {Master_Retry_Address[31:2], 2'h0}
-                    : (Master_Select_Stored_Data
-                    ?  Master_Retry_Data[`PCI_BUS_DATA_RANGE]
-                    :  pci_request_fifo_data[`PCI_BUS_DATA_RANGE]);
-  assign  pci_master_ad_out_oe_comb = 
-              (PCI_Master_State[9:0] == PCI_MASTER_PARK)
-            | (PCI_Master_State[9:0] == PCI_MASTER_STEP)
-            | (PCI_Master_State[9:0] == PCI_MASTER_ADDR)
-            | (PCI_Master_State[9:0] == PCI_MASTER_ADDR2)
-            | ((PCI_Master_State[9:0] == PCI_MASTER_WAIT) & Master_Write)
-            | ((PCI_Master_State[9:0] == PCI_MASTER_DATA_MORE) & Master_Write)
-            | ((PCI_Master_State[9:0] == PCI_MASTER_DATA_LAST) & Master_Write)
-            | 1'b0;  // NOTE: WORKING
-
-  assign  pci_cbe_l_out_next[`PCI_BUS_CBE_RANGE] =
-                       Master_Select_Stored_Address
-                    ?  Master_Retry_Command[`PCI_BUS_CBE_RANGE]
-                    : (Master_Select_Stored_Data
-                    ?  Master_Retry_Byte_Enables[`PCI_BUS_CBE_RANGE]
-                    :  pci_request_fifo_cbe[`PCI_BUS_CBE_RANGE]);
-  assign  pci_cbe_out_oe_comb =
-                      (PCI_Master_State[9:0] == PCI_MASTER_PARK)
-                    | (PCI_Master_State[9:0] == PCI_MASTER_STEP)
-                    | (PCI_Master_State[9:0] == PCI_MASTER_ADDR)
-                    | (PCI_Master_State[9:0] == PCI_MASTER_ADDR2)
-                    | (PCI_Master_State[9:0] == PCI_MASTER_WAIT)
-                    | (PCI_Master_State[9:0] == PCI_MASTER_DATA_MORE)
-                    | (PCI_Master_State[9:0] == PCI_MASTER_DATA_LAST)
-                    | 1'b0;  // NOTE: WORKING
-
   wire   [2:0] PCI_Next_FRAME_Code =  // NOTE: WORKING
-                       (PCI_Master_State[9:0] == PCI_MASTER_IDLE) ? 3'h0
-                    : ((PCI_Master_State[9:0] == PCI_MASTER_PARK) ? 3'h0
-                    : ((PCI_Master_State[9:0] == PCI_MASTER_STEP) ? 3'h0
-                    : ((PCI_Master_State[9:0] == PCI_MASTER_ADDR) ? 3'h0
-                    : ((PCI_Master_State[9:0] == PCI_MASTER_ADDR2) ? 3'h0
-                    : ((PCI_Master_State[9:0] == PCI_MASTER_WAIT) ? 3'h0
-                    : ((PCI_Master_State[9:0] == PCI_MASTER_DATA_MORE) ? 3'h0
-                    : ((PCI_Master_State[9:0] == PCI_MASTER_DATA_LAST) ? 3'h0
-                    : ((PCI_Master_State[9:0] == PCI_MASTER_STOP_TURN) ? 3'h0
-                    : 3'h0))))))));  // ((PCI_Master_State[9:0] == PCI_MASTER_FLUSHING)
+                         (PCI_Master_State[9:0] == PCI_MASTER_IDLE)      ? 3'h0
+                      : ((PCI_Master_State[9:0] == PCI_MASTER_PARK)      ? 3'h0
+                      : ((PCI_Master_State[9:0] == PCI_MASTER_STEP)      ? 3'h0
+                      : ((PCI_Master_State[9:0] == PCI_MASTER_ADDR)      ? 3'h0
+                      : ((PCI_Master_State[9:0] == PCI_MASTER_ADDR2)     ? 3'h0
+                      : ((PCI_Master_State[9:0] == PCI_MASTER_WAIT)      ? 3'h0
+                      : ((PCI_Master_State[9:0] == PCI_MASTER_DATA_MORE) ? 3'h0
+                      : ((PCI_Master_State[9:0] == PCI_MASTER_DATA_LAST) ? 3'h0
+                      : ((PCI_Master_State[9:0] == PCI_MASTER_STOP_TURN) ? 3'h0
+                      : 3'h0))))))));  // ((PCI_Master_State[9:0] == PCI_MASTER_FLUSHING)
   assign  pci_frame_out_oe_comb =
-                      (PCI_Master_State[9:0] == PCI_MASTER_ADDR)
-                    | (PCI_Master_State[9:0] == PCI_MASTER_ADDR2)
-                    | (PCI_Master_State[9:0] == PCI_MASTER_WAIT)
-                    | (PCI_Master_State[9:0] == PCI_MASTER_DATA_MORE);  // NOTE: WORKING
-
-  wire   [2:0] PCI_Next_IRDY_Code =  // NOTE: WORKING
-                       (PCI_Master_State[9:0] == PCI_MASTER_IDLE) ? 3'h0
-                    : ((PCI_Master_State[9:0] == PCI_MASTER_PARK) ? 3'h0
-                    : ((PCI_Master_State[9:0] == PCI_MASTER_STEP) ? 3'h0
-                    : ((PCI_Master_State[9:0] == PCI_MASTER_ADDR) ? 3'h0
-                    : ((PCI_Master_State[9:0] == PCI_MASTER_ADDR2) ? 3'h0
-                    : ((PCI_Master_State[9:0] == PCI_MASTER_WAIT) ? 3'h0
-                    : ((PCI_Master_State[9:0] == PCI_MASTER_DATA_MORE) ? 3'h0
-                    : ((PCI_Master_State[9:0] == PCI_MASTER_DATA_LAST) ? 3'h0
-                    : ((PCI_Master_State[9:0] == PCI_MASTER_STOP_TURN) ? 3'h0
-                    : 3'h0))))))));  // ((PCI_Master_State[9:0] == PCI_MASTER_FLUSHING)
-  assign  pci_irdy_out_oe_comb =
-                      (PCI_Master_State[9:0] == PCI_MASTER_ADDR2)
-                    | (PCI_Master_State[9:0] == PCI_MASTER_WAIT)
-                    | (PCI_Master_State[9:0] == PCI_MASTER_DATA_MORE)
-                    | (PCI_Master_State[9:0] == PCI_MASTER_DATA_LAST);  // NOTE: WORKING
+                        (PCI_Master_State[9:0] == PCI_MASTER_ADDR)
+                      | (PCI_Master_State[9:0] == PCI_MASTER_ADDR2)
+                      | (PCI_Master_State[9:0] == PCI_MASTER_WAIT)
+                      | (PCI_Master_State[9:0] == PCI_MASTER_DATA_MORE);  // NOTE: WORKING
 
 pci_critical_next_frame pci_critical_next_frame (
   .PCI_Next_FRAME_Code        (PCI_Next_FRAME_Code[2:0]),
@@ -1314,6 +1354,23 @@ pci_critical_next_frame pci_critical_next_frame (
   .pci_stop_in_comb           (pci_stop_in_comb),
   .pci_frame_out_next         (pci_frame_out_next)
 );
+
+  wire   [2:0] PCI_Next_IRDY_Code =  // NOTE: WORKING
+                         (PCI_Master_State[9:0] == PCI_MASTER_IDLE)      ? 3'h0
+                      : ((PCI_Master_State[9:0] == PCI_MASTER_PARK)      ? 3'h0
+                      : ((PCI_Master_State[9:0] == PCI_MASTER_STEP)      ? 3'h0
+                      : ((PCI_Master_State[9:0] == PCI_MASTER_ADDR)      ? 3'h0
+                      : ((PCI_Master_State[9:0] == PCI_MASTER_ADDR2)     ? 3'h0
+                      : ((PCI_Master_State[9:0] == PCI_MASTER_WAIT)      ? 3'h0
+                      : ((PCI_Master_State[9:0] == PCI_MASTER_DATA_MORE) ? 3'h0
+                      : ((PCI_Master_State[9:0] == PCI_MASTER_DATA_LAST) ? 3'h0
+                      : ((PCI_Master_State[9:0] == PCI_MASTER_STOP_TURN) ? 3'h0
+                      : 3'h0))))))));  // ((PCI_Master_State[9:0] == PCI_MASTER_FLUSHING)
+  assign  pci_irdy_out_oe_comb =
+                        (PCI_Master_State[9:0] == PCI_MASTER_ADDR2)
+                      | (PCI_Master_State[9:0] == PCI_MASTER_WAIT)
+                      | (PCI_Master_State[9:0] == PCI_MASTER_DATA_MORE)
+                      | (PCI_Master_State[9:0] == PCI_MASTER_DATA_LAST);  // NOTE: WORKING
 
 pci_critical_next_irdy pci_critical_next_irdy (
   .PCI_Next_IRDY_Code         (PCI_Next_IRDY_Code[2:0]),
@@ -1332,7 +1389,7 @@ pci_critical_next_irdy pci_critical_next_irdy (
   reg     request_fifo_state;  // tracks no_address, address, data, data_last;
   reg     master_request_fifo_error;  // Notices FIFO error, or FIFO Contents out of sequence
 
-  always @(posedge pci_clk or posedge pci_reset_comb)
+  always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
   begin
     if (pci_reset_comb == 1'b1)
     begin
@@ -1341,23 +1398,23 @@ pci_critical_next_irdy pci_critical_next_irdy (
     end
     else
     begin
-      if (pci_request_fifo_data_unload == 1'b1)  // & pci_request_fifo_data_available_meta
+      if (grabbing_request_fifo_data == 1'b1)
       begin
         if (request_fifo_state == PCI_REQUEST_FIFO_WAITING_FOR_ADDRESS)
         begin
-          if (  (pci_request_fifo_type[2:0] == `PCI_HOST_REQUEST_SPARE)
-              | (pci_request_fifo_type[2:0] == `PCI_HOST_REQUEST_W_DATA_RW_MASK)
-              | (pci_request_fifo_type[2:0]
+          if (  (pci_request_fifo_type_current[2:0] == `PCI_HOST_REQUEST_SPARE)
+              | (pci_request_fifo_type_current[2:0] == `PCI_HOST_REQUEST_W_DATA_RW_MASK)
+              | (pci_request_fifo_type_current[2:0]
                                 == `PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST)
-              | (pci_request_fifo_type[2:0]
+              | (pci_request_fifo_type_current[2:0]
                                 == `PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR) 
-              | (pci_request_fifo_type[2:0]
+              | (pci_request_fifo_type_current[2:0]
                                 == `PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR) )
           begin
             master_request_fifo_error <= 1'b1;
             request_fifo_state <= PCI_REQUEST_FIFO_WAITING_FOR_ADDRESS;
           end
-          else if (pci_request_fifo_type[2:0]
+          else if (pci_request_fifo_type_current[2:0]
                                 == `PCI_HOST_REQUEST_INSERT_WRITE_FENCE)
           begin
             master_request_fifo_error <= pci_request_fifo_error;
@@ -1371,19 +1428,19 @@ pci_critical_next_irdy pci_critical_next_irdy (
         end
         else  // PCI_FIFO_WAITING_FOR_LAST
         begin
-          if (  (pci_request_fifo_type[2:0] == `PCI_HOST_REQUEST_SPARE)
-              | (pci_request_fifo_type[2:0] == `PCI_HOST_REQUEST_ADDRESS_COMMAND)
-              | (pci_request_fifo_type[2:0]
+          if (  (pci_request_fifo_type_current[2:0] == `PCI_HOST_REQUEST_SPARE)
+              | (pci_request_fifo_type_current[2:0] == `PCI_HOST_REQUEST_ADDRESS_COMMAND)
+              | (pci_request_fifo_type_current[2:0]
                                 == `PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR)
-              | (pci_request_fifo_type[2:0]
+              | (pci_request_fifo_type_current[2:0]
                                 == `PCI_HOST_REQUEST_INSERT_WRITE_FENCE) )
           begin
             master_request_fifo_error <= 1'b1;
             request_fifo_state <= PCI_REQUEST_FIFO_WAITING_FOR_ADDRESS;
           end
-          else if (  (pci_request_fifo_type[2:0]
+          else if (  (pci_request_fifo_type_current[2:0]
                          == `PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST)
-                   | (pci_request_fifo_type[2:0]
+                   | (pci_request_fifo_type_current[2:0]
                          == `PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR) )
           begin
             master_request_fifo_error <= pci_request_fifo_error;
@@ -1396,7 +1453,7 @@ pci_critical_next_irdy pci_critical_next_irdy (
           end
         end
       end
-      else  // either FIFO empty or not unloaded this time
+      else  // (grabbing_request_fifo_data == 1'b0)
       begin
         master_request_fifo_error <= pci_request_fifo_error;
         request_fifo_state <= request_fifo_state;
@@ -1411,6 +1468,16 @@ pci_critical_next_irdy pci_critical_next_irdy (
       $display ("*** %m PCI Master Request Fifo Unload Error at time %t", $time);
     end
   end
+/*
+  initial
+    $monitor ("request_fifo_data 0x%x, 1_word_avail %x, 2_word_available %x, req %x, gnt %x, frame_in %x, irdy_in %x\n ad_out %x, ad_out_oe %x, cbe_out %x, cbe_oe %x,\n frame_out %x, frame_oe %x, irdy_out %x, irdy_oe %x\n devsel_in %x, trdy_in %x, stop_in %x",
+               pci_request_fifo_data[31:0], request_fifo_data_available_meta,
+               request_fifo_two_words_available_meta, pci_request_fifo_data_unload,
+               pci_req_out_next, pci_gnt_in_comb, pci_frame_in_comb, pci_irdy_in_comb,
+               pci_master_ad_out_next, pci_master_ad_out_oe_comb, pci_cbe_l_out_next, pci_cbe_out_oe_comb,
+               pci_frame_out_next, pci_frame_out_oe_comb, pci_irdy_out_next, pci_irdy_out_oe_comb,
+               pci_devsel_in_comb, pci_trdy_in_comb, pci_stop_in_comb);
+*/
 // synopsys translate_on
 endmodule
 

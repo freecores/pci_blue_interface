@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_example_chip.v,v 1.8 2001-07-03 09:21:30 bbeaver Exp $
+// $Id: pci_example_chip.v,v 1.9 2001-07-04 08:19:52 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -589,8 +589,8 @@ pci_blue_interface pci_blue_interface (
 // PCI_Error_Report.
   .pci_interface_reports_errors (pci_interface_reports_errors[9:0]),
   .pci_config_reg_reports_errors (pci_config_reg_reports_errors),
-  .pci_host_sees_pci_reset    (pci_host_sees_pci_reset),
 // Generic host interface wires
+  .pci_host_sees_pci_reset    (pci_host_sees_pci_reset),
   .host_reset_to_PCI_interface (host_reset),
   .host_clk                   (host_clk),
   .host_sync_clk              (host_clk),

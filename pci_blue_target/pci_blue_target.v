@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_target.v,v 1.13 2001-07-03 09:21:21 bbeaver Exp $
+// $Id: pci_blue_target.v,v 1.14 2001-07-04 08:19:47 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -134,9 +134,11 @@ module pci_blue_target (
   pci_serr_in_prev,
   pci_target_serr_out_oe_comb,
 // Signals to control shared AD bus, Parity, and SERR signals
-  Target_Force_Data,
-  Target_Expects_IRDY,
-  Target_Requests_PERR,
+  Target_Force_AD_to_Data,
+  Target_Exposes_Data_On_IRDY,
+  Target_Forces_PERR,
+// Signal from Master to say that DMA data should be captured into Response FIFO
+  Master_Captures_Data_On_TRDY,
 // Host Interface Response FIFO used to ask the Host Interface to service
 //   PCI References initiated by an external PCI Master.
 // This FIFO also sends status info back from the master about PCI
@@ -158,6 +160,7 @@ module pci_blue_target (
   master_to_target_status_type,
   master_to_target_status_cbe,
   master_to_target_status_data,
+  master_to_target_status_flush,
   master_to_target_status_available,
   master_to_target_status_unload,
 // Signals from the Master to the Target to set bits in the Status Register
@@ -205,9 +208,11 @@ module pci_blue_target (
   input   pci_serr_in_prev;
   output  pci_target_serr_out_oe_comb;
 // Signals to control shared AD bus, Parity, and SERR signals
-  output  Target_Force_Data;
-  output  Target_Expects_IRDY;
-  output  Target_Requests_PERR;
+  output  Target_Force_AD_to_Data;
+  output  Target_Exposes_Data_On_IRDY;
+  output  Target_Forces_PERR;
+// Signal from Master to say that DMA data should be captured into Response FIFO
+  input   Master_Captures_Data_On_TRDY;
 // Host Interface Response FIFO used to ask the Host Interface to service
 //   PCI References initiated by an external PCI Master.
 // This FIFO also sends status info back from the master about PCI
@@ -229,6 +234,7 @@ module pci_blue_target (
   input  [2:0] master_to_target_status_type;
   input  [`PCI_BUS_CBE_RANGE] master_to_target_status_cbe;
   input  [`PCI_BUS_DATA_RANGE] master_to_target_status_data;
+  input   master_to_target_status_flush;
   input   master_to_target_status_available;
   output  master_to_target_status_unload;
 // Signals from the Master to the Target to set bits in the Status Register
@@ -874,9 +880,9 @@ module pci_blue_target (
   assign  pci_target_perr_out_oe_comb = 1'b0;  // NOTE: WORKING
   assign  pci_target_serr_out_oe_comb = 1'b0;  // NOTE: WORKING
 
-  assign  Target_Force_Data = 1'b0;  // NOTE: WORKING
-  assign  Target_Expects_IRDY = 1'b0;  // NOTE: WORKING
-  assign  Target_Requests_PERR = 1'b0;  // NOTE: WORKING
+  assign  Target_Force_AD_to_Data = 1'b0;  // NOTE: WORKING
+  assign  Target_Exposes_Data_On_IRDY = 1'b0;  // NOTE: WORKING
+  assign  Target_Forces_PERR = 1'b0;  // NOTE: WORKING
 
   assign  pci_delayed_read_fifo_data_unload = 1'b0;  // NOTE: WORKING
 
