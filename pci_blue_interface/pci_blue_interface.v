@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_interface.v,v 1.12 2001-06-25 08:49:45 bbeaver Exp $
+// $Id: pci_blue_interface.v,v 1.13 2001-06-27 08:41:21 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -1320,6 +1320,7 @@ pci_blue_master pci_blue_master (
 // Signals driven to control the external PCI interface
   .pci_req_out_next           (pci_req_out_next),
   .pci_req_out_oe_comb        (pci_req_out_oe_comb),
+  .pci_gnt_in_prev            (pci_gnt_in_prev),
   .pci_gnt_in_comb            (pci_gnt_in_comb),
   .pci_ad_in_prev             (pci_ad_in_prev[31:0]),
   .pci_master_ad_out_next     (pci_master_ad_out_next[31:0]),
@@ -1328,13 +1329,8 @@ pci_blue_master pci_blue_master (
   .pci_cbe_l_out_next         (pci_cbe_l_out_next[3:0]),
   .pci_cbe_out_en_next        (pci_cbe_out_en_next),
   .pci_cbe_out_oe_comb        (pci_cbe_out_oe_comb),
-  .pci_par_in_prev            (pci_par_in_prev),
-  .pci_par_in_comb            (pci_par_in_comb),
-  .pci_master_par_out_next    (pci_master_par_out_next),
-  .pci_master_par_out_oe_comb (pci_master_par_out_oe_comb),
   .pci_frame_out_next         (pci_frame_out_next),
   .pci_frame_out_oe_comb      (pci_frame_out_oe_comb),
-  .pci_frame_in_prev          (pci_frame_in_prev),
   .pci_irdy_out_next          (pci_irdy_out_next),
   .pci_irdy_out_oe_comb       (pci_irdy_out_oe_comb),
   .pci_devsel_in_prev         (pci_devsel_in_prev),
@@ -1344,10 +1340,7 @@ pci_blue_master pci_blue_master (
   .pci_stop_in_prev           (pci_stop_in_prev),
   .pci_stop_in_comb           (pci_stop_in_comb),
   .pci_perr_in_prev           (pci_perr_in_prev),
-  .pci_master_perr_out_next   (pci_master_perr_out_next),
-  .pci_master_perr_out_oe_comb (pci_master_perr_out_oe_comb),
   .pci_serr_in_prev           (pci_serr_in_prev),
-  .pci_master_serr_out_oe_comb (pci_master_serr_out_oe_comb),
 // Signals to control shared AD bus, Parity, and SERR signals
   .Master_Force_Address_Data  (Master_Force_Address_Data),
   .Master_Expects_TRDY        (Master_Expects_TRDY),
