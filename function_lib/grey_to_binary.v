@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: grey_to_binary.v,v 1.2 2001-08-19 13:49:08 bbeaver Exp $
+// $Id: grey_to_binary.v,v 1.3 2001-08-20 06:27:56 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -211,6 +211,7 @@ module grey_code_to_bin (
   end
 endmodule
 
+// `define TEST_GREY_CODE
 `ifdef TEST_GREY_CODE
 module test;
   reg    [7:0] test_val;
@@ -227,16 +228,22 @@ module test;
     for (test_val = 8'h00; test_val < 8'h04; test_val = test_val + 8'h01)
     begin
       # 0; $display ("test val, result %x %x %x", test_val[1:0], grey_2[1:0], bin_2[1:0]);
+      if (test_val[1:0] != bin_2[1:0])
+        $display ("*** Encode, Decode failed %x %x", test_val[1:0], bin_2[1:0]);
     end
     $display (" ");
     for (test_val = 8'h00; test_val < 8'h08; test_val = test_val + 8'h01)
     begin
       # 0; $display ("test val, result %x %x %x", test_val[2:0], grey_3[2:0], bin_3[2:0]);
+      if (test_val[2:0] != bin_3[2:0])
+        $display ("*** Encode, Decode failed %x %x", test_val[2:0], bin_3[2:0]);
     end
     $display (" ");
     for (test_val = 8'h00; test_val < 8'h10; test_val = test_val + 8'h01)
     begin
       # 0; $display ("test val, result %x %x %x", test_val[3:0], grey_4[3:0], bin_4[3:0]);
+      if (test_val[3:0] != bin_4[3:0])
+        $display ("*** Encode, Decode failed %x %x", test_val[3:0], bin_4[3:0]);
     end
 
   end

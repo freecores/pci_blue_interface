@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: ecc_hamming.v,v 1.3 2001-08-20 06:15:57 bbeaver Exp $
+// $Id: ecc_hamming.v,v 1.4 2001-08-20 06:27:56 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -449,7 +449,7 @@ ecc_hamming_calculate_check_bits_private check_ecc_bits (
   end
 endmodule
 
-//  `define TEST_ECC_CODE
+// `define TEST_ECC_CODE
 `ifdef TEST_ECC_CODE
 module test_ecc ();
 
@@ -507,14 +507,14 @@ endtask
       make_clk;
       make_clk;
       if (data_in !== corrected_data_out)
-        $display ("Data In != Data Out %x %x", data_in, corrected_data_out);
+        $display ("*** Data In != Data Out %x %x", data_in, corrected_data_out);
       if (original_check_bits !== corrected_check_bits_out)
-        $display ("Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
+        $display ("*** Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
       if (single_bit_error_corrected !== 1'b0)
-        $display ("Unexpected Single Bit Error Detected %x %x %x",
+        $display ("*** Unexpected Single Bit Error Detected %x %x %x",
                    single_bit_error_corrected, data_pattern, data_plus_ecc_in);
       if (double_bit_error_detected !== 1'b0)
-        $display ("Unexpected Double Bit Error Detected %x %x %x",
+        $display ("*** Unexpected Double Bit Error Detected %x %x %x",
                    double_bit_error_detected, data_pattern, data_plus_ecc_in);
     end
 
@@ -529,14 +529,14 @@ endtask
       make_clk;
       make_clk;
       if (corrected_data_out !== data_in)
-        $display ("Data In != Data Out %x %x", data_in, corrected_data_out);
+        $display ("*** Data In != Data Out %x %x", data_in, corrected_data_out);
       if (original_check_bits !== corrected_check_bits_out)
-        $display ("Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
+        $display ("*** Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
       if (single_bit_error_corrected !== 1'b0)
-        $display ("Unexpected Single Bit Error Detected %x %x %x",
+        $display ("*** Unexpected Single Bit Error Detected %x %x %x",
                    single_bit_error_corrected, data_pattern, data_plus_ecc_in);
       if (double_bit_error_detected !== 1'b0)
-        $display ("Unexpected Double Bit Error Detected %x %x %x",
+        $display ("*** Unexpected Double Bit Error Detected %x %x %x",
                    double_bit_error_detected, data_pattern, data_plus_ecc_in);
     end
 
@@ -549,14 +549,14 @@ endtask
       make_clk;
       make_clk;
       if (corrected_data_out !== data_in)
-        $display ("Data In != Data Out %x %x", data_in, corrected_data_out);
+        $display ("*** Data In != Data Out %x %x", data_in, corrected_data_out);
       if (original_check_bits !== corrected_check_bits_out)
-        $display ("Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
+        $display ("*** Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
       if (single_bit_error_corrected !== 1'b0)
-        $display ("Unexpected Single Bit Error Detected %x %x %x",
+        $display ("*** Unexpected Single Bit Error Detected %x %x %x",
                    single_bit_error_corrected, data_pattern, data_plus_ecc_in);
       if (double_bit_error_detected !== 1'b0)
-        $display ("Unexpected Double Bit Error Detected %x %x %x",
+        $display ("*** Unexpected Double Bit Error Detected %x %x %x",
                    double_bit_error_detected, data_pattern, data_plus_ecc_in);
     end
 
@@ -571,26 +571,26 @@ endtask
       make_clk;
       make_clk;
       if (corrected_data_out !== data_in)
-        $display ("Data In != Data Out %x %x", data_in, corrected_data_out);
+        $display ("*** Data In != Data Out %x %x", data_in, corrected_data_out);
       if (original_check_bits !== corrected_check_bits_out)
-        $display ("Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
+        $display ("*** Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
       if (single_bit_error_corrected !== 1'b1)
-        $display ("Expected Single Bit Error Missed %x %x %x",
+        $display ("*** Expected Single Bit Error Missed %x %x %x",
                    single_bit_error_corrected, error_mask_1, data_plus_ecc_in);
       if (double_bit_error_detected !== 1'b0)
-        $display ("Unexpected Double Bit Error Detected %x %x %x",
+        $display ("*** Unexpected Double Bit Error Detected %x %x %x",
                    double_bit_error_detected, error_mask_1, data_plus_ecc_in);
       if (   (error_mask_1 == 72'h00_00000000_00000001)
            & (error_address != 8'h48) )
-        $display ("Parity Error calls out wrong bit offset %x %x",
+        $display ("*** Parity Error calls out wrong bit offset %x %x",
                    error_address, data_plus_ecc_in);
       if (   (error_mask_1 == 72'h00_00000000_00000001)
            & (error_address != 8'h48) )
-        $display ("Bit 0 calls out wrong bit offset %x %x",
+        $display ("*** Bit 0 calls out wrong bit offset %x %x",
                    error_address, data_plus_ecc_in);
       if (   (error_mask_1 == 72'h80_00000000_00000000)
            & (error_address != 8'h47) )
-        $display ("Bit 71 calls out wrong bit offset %x %x",
+        $display ("*** Bit 71 calls out wrong bit offset %x %x",
                    error_address, data_plus_ecc_in);
     end
 
@@ -605,26 +605,26 @@ endtask
       make_clk;
       make_clk;
       if (corrected_data_out !== data_in)
-        $display ("Data In != Data Out %x %x", data_in, corrected_data_out);
+        $display ("*** Data In != Data Out %x %x", data_in, corrected_data_out);
       if (original_check_bits !== corrected_check_bits_out)
-        $display ("Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
+        $display ("*** Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
       if (single_bit_error_corrected !== 1'b1)
-        $display ("Expected Single Bit Error Missed %x %x %x",
+        $display ("*** Expected Single Bit Error Missed %x %x %x",
                    single_bit_error_corrected, error_mask_1, data_plus_ecc_in);
       if (double_bit_error_detected !== 1'b0)
-        $display ("Unexpected Double Bit Error Detected %x %x %x",
+        $display ("*** Unexpected Double Bit Error Detected %x %x %x",
                    double_bit_error_detected, error_mask_1, data_plus_ecc_in);
       if (   (error_mask_1 == 72'h00_00000000_00000001)
            & (error_address != 8'h48) )
-        $display ("Parity Error calls out wrong bit offset %x %x",
+        $display ("*** Parity Error calls out wrong bit offset %x %x",
                    error_address, data_plus_ecc_in);
       if (   (error_mask_1 == 72'h00_00000000_00000001)
            & (error_address != 8'h48) )
-        $display ("Bit 0 calls out wrong bit offset %x %x",
+        $display ("*** Bit 0 calls out wrong bit offset %x %x",
                    error_address, data_plus_ecc_in);
       if (   (error_mask_1 == 72'h80_00000000_00000000)
            & (error_address != 8'h47) )
-        $display ("Bit 71 calls out wrong bit offset %x %x",
+        $display ("*** Bit 71 calls out wrong bit offset %x %x",
                    error_address, data_plus_ecc_in);
     end
 
@@ -639,26 +639,26 @@ endtask
       make_clk;
       make_clk;
       if (corrected_data_out !== data_in)
-        $display ("Data In != Data Out %x %x", data_in, corrected_data_out);
+        $display ("*** Data In != Data Out %x %x", data_in, corrected_data_out);
       if (original_check_bits !== corrected_check_bits_out)
-        $display ("Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
+        $display ("*** Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
       if (single_bit_error_corrected !== 1'b1)
-        $display ("Expected Single Bit Error Missed %x %x %x",
+        $display ("*** Expected Single Bit Error Missed %x %x %x",
                    single_bit_error_corrected, error_mask_1, data_plus_ecc_in);
       if (double_bit_error_detected !== 1'b0)
-        $display ("Unexpected Double Bit Error Detected %x %x %x",
+        $display ("*** Unexpected Double Bit Error Detected %x %x %x",
                    double_bit_error_detected, error_mask_1, data_plus_ecc_in);
       if (   (error_mask_1 == 72'h00_00000000_00000001)
            & (error_address != 8'h48) )
-        $display ("Parity Error calls out wrong bit offset %x %x",
+        $display ("*** Parity Error calls out wrong bit offset %x %x",
                    error_address, data_plus_ecc_in);
       if (   (error_mask_1 == 72'h00_00000000_00000001)
            & (error_address != 8'h48) )
-        $display ("Bit 0 calls out wrong bit offset %x %x",
+        $display ("*** Bit 0 calls out wrong bit offset %x %x",
                    error_address, data_plus_ecc_in);
       if (   (error_mask_1 == 72'h80_00000000_00000000)
            & (error_address != 8'h47) )
-        $display ("Bit 71 calls out wrong bit offset %x %x",
+        $display ("*** Bit 71 calls out wrong bit offset %x %x",
                    error_address, data_plus_ecc_in);
     end
 
@@ -673,26 +673,26 @@ endtask
       make_clk;
       make_clk;
       if (corrected_data_out !== data_in)
-        $display ("Data In != Data Out %x %x", data_in, corrected_data_out);
+        $display ("*** Data In != Data Out %x %x", data_in, corrected_data_out);
       if (original_check_bits !== corrected_check_bits_out)
-        $display ("Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
+        $display ("*** Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
       if (single_bit_error_corrected !== 1'b1)
-        $display ("Expected Single Bit Error Missed %x %x %x",
+        $display ("*** Expected Single Bit Error Missed %x %x %x",
                    single_bit_error_corrected, error_mask_1, data_plus_ecc_in);
       if (double_bit_error_detected !== 1'b0)
-        $display ("Unexpected Double Bit Error Detected %x %x %x",
+        $display ("*** Unexpected Double Bit Error Detected %x %x %x",
                    double_bit_error_detected, error_mask_1, data_plus_ecc_in);
       if (   (error_mask_1 == 72'h00_00000000_00000001)
            & (error_address != 8'h48) )
-        $display ("Parity Error calls out wrong bit offset %x %x",
+        $display ("*** Parity Error calls out wrong bit offset %x %x",
                    error_address, data_plus_ecc_in);
       if (   (error_mask_1 == 72'h00_00000000_00000001)
            & (error_address != 8'h48) )
-        $display ("Bit 0 calls out wrong bit offset %x %x",
+        $display ("*** Bit 0 calls out wrong bit offset %x %x",
                    error_address, data_plus_ecc_in);
       if (   (error_mask_1 == 72'h80_00000000_00000000)
            & (error_address != 8'h47) )
-        $display ("Bit 71 calls out wrong bit offset %x %x",
+        $display ("*** Bit 71 calls out wrong bit offset %x %x",
                    error_address, data_plus_ecc_in);
     end
 
@@ -709,26 +709,26 @@ endtask
         make_clk;
         make_clk;
         if (corrected_data_out !== data_in)
-          $display ("Data In != Data Out %x %x", data_in, corrected_data_out);
+          $display ("*** Data In != Data Out %x %x", data_in, corrected_data_out);
         if (original_check_bits !== corrected_check_bits_out)
-          $display ("Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
+          $display ("*** Check Bits In != Check Bits Out %x %x", original_check_bits, corrected_check_bits_out);
         if (single_bit_error_corrected !== 1'b1)
-          $display ("Expected Single Bit Error Missed %x %x %x",
+          $display ("*** Expected Single Bit Error Missed %x %x %x",
                      single_bit_error_corrected, error_mask_1, data_plus_ecc_in);
         if (double_bit_error_detected !== 1'b0)
-          $display ("Unexpected Double Bit Error Detected %x %x %x",
+          $display ("*** Unexpected Double Bit Error Detected %x %x %x",
                      double_bit_error_detected, error_mask_1, data_plus_ecc_in);
       if (   (error_mask_1 == 72'h00_00000000_00000001)
            & (error_address != 8'h48) )
-        $display ("Parity Error calls out wrong bit offset %x %x",
+        $display ("*** Parity Error calls out wrong bit offset %x %x",
                    error_address, data_plus_ecc_in);
       if (   (error_mask_1 == 72'h00_00000000_00000001)
            & (error_address != 8'h48) )
-        $display ("Bit 0 calls out wrong bit offset %x %x",
+        $display ("*** Bit 0 calls out wrong bit offset %x %x",
                    error_address, data_plus_ecc_in);
       if (   (error_mask_1 == 72'h80_00000000_00000000)
            & (error_address != 8'h47) )
-        $display ("Bit 71 calls out wrong bit offset %x %x",
+        $display ("*** Bit 71 calls out wrong bit offset %x %x",
                    error_address, data_plus_ecc_in);
       end
     end
@@ -750,10 +750,10 @@ endtask
           make_clk;
           make_clk;
           if (single_bit_error_corrected !== 1'b0)
-            $display ("Unexpected Single Bit Error Detected %x %x %x",
+            $display ("*** Unexpected Single Bit Error Detected %x %x %x",
                        single_bit_error_corrected, error_mask_1, data_plus_ecc_in);
           if (double_bit_error_detected !== 1'b1)
-            $display ("Expected Double Bit Error Missed %x %x %x",
+            $display ("*** Expected Double Bit Error Missed %x %x %x",
                        double_bit_error_detected, error_mask_1, data_plus_ecc_in);
         end
       end
