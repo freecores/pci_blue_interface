@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_example_host_controller.v,v 1.9 2001-07-06 10:51:23 bbeaver Exp $
+// $Id: pci_example_host_controller.v,v 1.10 2001-08-05 06:35:43 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -104,12 +104,12 @@ module pci_example_host_controller (
   input   pci_target_requests_write_fence;
   output  host_allows_write_fence;
 // Host uses these wires to request PCI activity.
-  output [PCI_FIFO_DATA_RANGE:0] pci_master_ref_address;
+  output [PCI_BUS_DATA_RANGE:0] pci_master_ref_address;
   output [3:0] pci_master_ref_command;
   output  pci_master_ref_config;
-  output [PCI_FIFO_CBE_RANGE:0] pci_master_byte_enables_l;
-  output [PCI_FIFO_DATA_RANGE:0] pci_master_write_data;
-  input  [PCI_FIFO_DATA_RANGE:0] pci_master_read_data;
+  output [PCI_BUS_CBE_RANGE:0] pci_master_byte_enables_l;
+  output [PCI_BUS_DATA_RANGE:0] pci_master_write_data;
+  input  [PCI_BUS_DATA_RANGE:0] pci_master_read_data;
   output  pci_master_addr_valid, pci_master_data_valid;
   output  pci_master_requests_serr, pci_master_requests_perr;
   output  pci_master_requests_last;
@@ -135,10 +135,10 @@ module pci_example_host_controller (
   input   host_clk;
 // Signals used by the test bench instead of using "." notation
   input  [2:0] test_master_number;
-  input  [PCI_FIFO_DATA_RANGE:0] test_address;
+  input  [PCI_BUS_DATA_RANGE:0] test_address;
   input  [3:0] test_command;
-  input  [PCI_FIFO_DATA_RANGE:0] test_data;
-  input  [PCI_FIFO_CBE_RANGE:0] test_byte_enables_l;
+  input  [PCI_BUS_DATA_RANGE:0] test_data;
+  input  [PCI_BUS_CBE_RANGE:0] test_byte_enables_l;
   input  [3:0] test_size;
   input   test_make_addr_par_error, test_make_data_par_error;
   input  [3:0] test_master_initial_wait_states;
@@ -217,7 +217,7 @@ task Clear_Example_Host_Command;
     hold_master_expect_master_abort <= 1'b0;
     hold_master_size[3:0] <= 4'h0;
     hold_master_target_termination[2:0] <= 3'h0;
-    modified_master_address[PCI_BUS_DATA_RANGE:0] <= `PCI_FIFO_DATA_ZERO;
+    modified_master_address[PCI_BUS_DATA_RANGE:0] <= `PCI_BUS_DATA_ZERO;
   end
 endtask
 
@@ -247,7 +247,7 @@ endtask
 // Grab address and data in case it takes a while to get bus mastership
         hold_master_address[PCI_BUS_DATA_RANGE:0] <= test_address[PCI_BUS_DATA_RANGE:0];
         hold_master_command[3:0] <= test_command[3:0];
-        hold_master_data[PCI_BUS_DATA_RANGE:0] <= test_data[PCI_FIFO_DATA_RANGE:0];
+        hold_master_data[PCI_BUS_DATA_RANGE:0] <= test_data[PCI_BUS_DATA_RANGE:0];
         hold_master_byte_enables_l[PCI_BUS_CBE_RANGE:0] <= test_byte_enables_l[PCI_BUS_CBE_RANGE:0];
         hold_master_addr_par_err <= test_make_addr_par_error;
         hold_master_data_par_err <= test_make_data_par_error;
@@ -449,7 +449,7 @@ endtask
   wire    PCI_Bus_Mem_Read_Request, PCI_Bus_Mem_Write_Request;
   wire   [7:2] PCI_Bus_Mem_Address;
   wire   [PCI_BUS_DATA_RANGE:0] PCI_Bus_Mem_Write_Data;
-  wire   [PCI_FIFO_CBE_RANGE:0] PCI_Bus_Mem_Write_Byte_Enables_l;
+  wire   [PCI_BUS_CBE_RANGE:0] PCI_Bus_Mem_Write_Byte_Enables_l;
   reg     PCI_Bus_Mem_Grant;
 
   wire   [PCI_BUS_DATA_RANGE:0] mem_write_data = Host_Mem_Write_Request
@@ -524,7 +524,7 @@ endtask
                   ? {22'h000000, Host_Interface_Status_Register[9:0]}  // read status register
                   : {Example_Host_Mem_3[7:0], Example_Host_Mem_2[7:0],
                      Example_Host_Mem_1[7:0], Example_Host_Mem_0[7:0]})
-             : `PCI_FIFO_DATA_X;
+             : `PCI_BUS_DATA_X;
 `endif  // VERILOGGER_BUG
 
     Reset_Host_Status_Register <= mem_write_enable & (mem_address[7:2] == 6'h3F);
@@ -661,7 +661,7 @@ endtask
 //   a combinational MUX on the write data bus.
 
   wire    host_doing_write_now = (hold_master_command[PCI_BUS_CBE_RANGE:0]
-                               & PCI_COMMAND_ANY_WRITE_MASK) != `PCI_FIFO_CBE_ZERO;
+                               & PCI_COMMAND_ANY_WRITE_MASK) != `PCI_BUS_CBE_ZERO;
   reg     host_working_on_pci_reference, host_doing_write;
   reg    [PCI_BUS_DATA_RANGE:0] pci_master_updated_data;
   reg    [3:0] pci_master_updated_burst_size;

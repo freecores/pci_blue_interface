@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_target.v,v 1.17 2001-07-07 03:11:59 bbeaver Exp $
+// $Id: pci_blue_target.v,v 1.18 2001-08-05 06:35:43 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -160,6 +160,7 @@ module pci_blue_target (
   master_to_target_status_data,
   master_to_target_status_flush,
   master_to_target_status_available,
+  master_to_target_status_two_words_free,
   master_to_target_status_unload,
 // Signals from the Master to the Target to set bits in the Status Register
   master_got_parity_error,
@@ -218,16 +219,16 @@ module pci_blue_target (
 //   PCI References initiated by an external PCI Master.
 // This FIFO also sends status info back from the master about PCI
 //   References this interface acts as the PCI Master for.
-  output [PCI_FIFO_CBE_RANGE:0] pci_response_fifo_type;
-  output [PCI_FIFO_CBE_RANGE:0] pci_response_fifo_cbe;
-  output [PCI_FIFO_DATA_RANGE:0] pci_response_fifo_data;
+  output [PCI_BUS_CBE_RANGE:0] pci_response_fifo_type;
+  output [PCI_BUS_CBE_RANGE:0] pci_response_fifo_cbe;
+  output [PCI_BUS_DATA_RANGE:0] pci_response_fifo_data;
   input   pci_response_fifo_room_available_meta;
   output  pci_response_fifo_data_load;
   input   pci_response_fifo_error;
 // Host Interface Delayed Read Data FIFO used to pass the results of a
 //   Delayed Read on to the external PCI Master which started it.
   input  [2:0] pci_delayed_read_fifo_type;
-  input  [PCI_FIFO_DATA_RANGE:0] pci_delayed_read_fifo_data;
+  input  [PCI_BUS_DATA_RANGE:0] pci_delayed_read_fifo_data;
   input   pci_delayed_read_fifo_data_available_meta;
   output  pci_delayed_read_fifo_data_unload;
   input   pci_delayed_read_fifo_error;
@@ -237,6 +238,7 @@ module pci_blue_target (
   input  [PCI_BUS_DATA_RANGE:0] master_to_target_status_data;
   input   master_to_target_status_flush;
   input   master_to_target_status_available;
+  output  master_to_target_status_two_words_free;
   output  master_to_target_status_unload;
 // Signals from the Master to the Target to set bits in the Status Register
   input   master_got_parity_error;
@@ -898,6 +900,8 @@ module pci_blue_target (
 
   assign  master_to_target_status_unload = 1'b1;  // NOTE: WORKING.  Debugging Master
 
+// NOTE: WORKING
+`ifdef WORKING
 pci_critical_next_devsel pci_critical_next_devsel (
   .PCI_Next_DEVSEL_Code       (PCI_Next_DEVSEL_Code[2:0]),
   .pci_frame_in_critical      (pci_frame_in_critical),
@@ -918,6 +922,7 @@ pci_critical_next_stop pci_critical_next_stop (
   .pci_irdy_in_critical       (pci_irdy_in_critical),
   .pci_stop_out_next          (pci_stop_out_next)
 );
+`endif  // working
 
 // Instantiate Configuration Registers.
 pci_blue_config_regs pci_blue_config_regs (

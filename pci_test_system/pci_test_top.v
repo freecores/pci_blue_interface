@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_test_top.v,v 1.8 2001-07-06 10:51:24 bbeaver Exp $
+// $Id: pci_test_top.v,v 1.9 2001-08-05 06:35:43 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -103,10 +103,10 @@ module pci_test_top (
 // signals which are used by test modules to know what to do
   input  [3:0] test_sequence;
   output [2:0] test_master_number;
-  output [PCI_FIFO_DATA_RANGE:0] test_address;
+  output [PCI_BUS_DATA_RANGE:0] test_address;
   output [3:0] test_command;
-  output [PCI_FIFO_DATA_RANGE:0] test_data;
-  output [PCI_FIFO_CBE_RANGE:0] test_byte_enables_l;
+  output [PCI_BUS_DATA_RANGE:0] test_data;
+  output [PCI_BUS_CBE_RANGE:0] test_byte_enables_l;
   output [3:0] test_size;
   output  test_make_addr_par_error, test_make_data_par_error;
   output [3:0] test_master_initial_wait_states;
@@ -117,7 +117,7 @@ module pci_test_top (
   output  test_fast_back_to_back;
   output [2:0] test_target_termination;
   output  test_expect_master_abort;
-  output [PCI_FIFO_DATA_RANGE:0] test_result;
+  output [PCI_BUS_DATA_RANGE:0] test_result;
   output  test_start, test_accepted, test_error_event, test_idle_event;
   output [3:0] pci_test_observe_frame_oe;
   output [3:0] pci_test_observe_devsel_oe;
@@ -360,10 +360,10 @@ pci_example_chip pci_example_chip (
 // Everything below this would be gone in a real use of the interface.
   .test_observe_oe_sigs       (test_observe_real_oe_sigs[5:0]),
   .test_master_number         (test_master_number[2:0]),
-  .test_address               (test_address[PCI_FIFO_DATA_RANGE:0]),
+  .test_address               (test_address[PCI_BUS_DATA_RANGE:0]),
   .test_command               (test_command[3:0]),
-  .test_data                  (test_data[PCI_FIFO_DATA_RANGE:0]),
-  .test_byte_enables_l        (test_byte_enables_l[PCI_FIFO_CBE_RANGE:0]),
+  .test_data                  (test_data[PCI_BUS_DATA_RANGE:0]),
+  .test_byte_enables_l        (test_byte_enables_l[PCI_BUS_CBE_RANGE:0]),
   .test_size                  (test_size[3:0]),
   .test_make_addr_par_error   (test_make_addr_par_error),
   .test_make_data_par_error   (test_make_data_par_error),
@@ -403,10 +403,10 @@ pci_behaviorial_device pci_behaviorial_device_0 (
 // Everything below this would be gone in a real use of the interface.
   .test_observe_oe_sigs       (test_observe_0_oe_sigs[5:0]),
   .test_master_number         (test_master_number[2:0]),
-  .test_address               (test_address[PCI_FIFO_DATA_RANGE:0]),
+  .test_address               (test_address[PCI_BUS_DATA_RANGE:0]),
   .test_command               (test_command[3:0]),
-  .test_data                  (test_data[PCI_FIFO_DATA_RANGE:0]),
-  .test_byte_enables_l        (test_byte_enables_l[PCI_FIFO_CBE_RANGE:0]),
+  .test_data                  (test_data[PCI_BUS_DATA_RANGE:0]),
+  .test_byte_enables_l        (test_byte_enables_l[PCI_BUS_CBE_RANGE:0]),
   .test_size                  (test_size[3:0]),
   .test_make_addr_par_error   (test_make_addr_par_error),
   .test_make_data_par_error   (test_make_data_par_error),
@@ -446,10 +446,10 @@ pci_behaviorial_device pci_behaviorial_device_1 (
 // Everything below this would be gone in a real use of the interface.
   .test_observe_oe_sigs       (test_observe_1_oe_sigs[5:0]),
   .test_master_number         (test_master_number[2:0]),
-  .test_address               (test_address[PCI_FIFO_DATA_RANGE:0]),
+  .test_address               (test_address[PCI_BUS_DATA_RANGE:0]),
   .test_command               (test_command[3:0]),
-  .test_data                  (test_data[PCI_FIFO_DATA_RANGE:0]),
-  .test_byte_enables_l        (test_byte_enables_l[PCI_FIFO_CBE_RANGE:0]),
+  .test_data                  (test_data[PCI_BUS_DATA_RANGE:0]),
+  .test_byte_enables_l        (test_byte_enables_l[PCI_BUS_CBE_RANGE:0]),
   .test_size                  (test_size[3:0]),
   .test_make_addr_par_error   (test_make_addr_par_error),
   .test_make_data_par_error   (test_make_data_par_error),
@@ -511,10 +511,10 @@ pci_test_commander pci_test_commander (
   .pci_reset_comb             (~pci_ext_reset_l),
   .pci_ext_clk                (pci_ext_clk),
   .test_master_number         (test_master_number[2:0]),
-  .test_address               (test_address[PCI_FIFO_DATA_RANGE:0]),
+  .test_address               (test_address[PCI_BUS_DATA_RANGE:0]),
   .test_command               (test_command[3:0]),
-  .test_data                  (test_data[PCI_FIFO_DATA_RANGE:0]),
-  .test_byte_enables_l        (test_byte_enables_l[PCI_FIFO_CBE_RANGE:0]),
+  .test_data                  (test_data[PCI_BUS_DATA_RANGE:0]),
+  .test_byte_enables_l        (test_byte_enables_l[PCI_BUS_CBE_RANGE:0]),
   .test_size                  (test_size[3:0]),
   .test_make_addr_par_error   (test_make_addr_par_error),
   .test_make_data_par_error   (test_make_data_par_error),
@@ -528,7 +528,7 @@ pci_test_commander pci_test_commander (
   .test_expect_master_abort   (test_expect_master_abort),
   .test_start                 (test_start),
   .test_accepted_l            (test_accepted_l_int),
-  .test_result                (test_result[PCI_FIFO_DATA_RANGE:0]),
+  .test_result                (test_result[PCI_BUS_DATA_RANGE:0]),
   .test_error_event           (error_event_int),
   .present_test_name          (next_test_name[79:0]),
   .total_errors_detected      (total_errors_detected[31:0])

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_master_pads.v,v 1.11 2001-07-14 09:08:42 bbeaver Exp $
+// $Id: pci_master_pads.v,v 1.12 2001-08-05 06:35:43 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_master.v,v 1.12 2001-07-28 11:21:59 bbeaver Exp $
+// $Id: test_pci_master.v,v 1.13 2001-08-05 06:35:43 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -162,7 +162,6 @@ module pci_test_master (
 
 // GROSS debugging signal. Only here to put signal in waveform.
   assign  pci_state[4:0]        = pci_blue_master.PCI_Master_State[4:0];                  // TEMPORARY
-  assign  pci_fifo_state[1:0]   = pci_blue_master.PCI_Master_Retry_State[1:0];            // TEMPORARY
   assign  pci_retry_address[31:0] = {pci_blue_master.Master_Retry_Address[31:2], 2'b0};   // TEMPORARY
   assign  pci_retry_data[31:0]  = pci_blue_master.Master_Retry_Data[31:0];                // TEMPORARY
   assign  pci_target_full       = pci_blue_master.master_to_target_status_full;           // TEMPORARY
@@ -226,16 +225,16 @@ module pci_test_master (
   wire    pci_host_request_room_available_meta;
   reg     pci_host_request_submit;
   reg    [2:0] pci_host_request_type;
-  reg    [PCI_FIFO_CBE_RANGE:0] pci_host_request_cbe;
-  reg    [PCI_FIFO_DATA_RANGE:0] pci_host_request_data;
+  reg    [PCI_BUS_CBE_RANGE:0] pci_host_request_cbe;
+  reg    [PCI_BUS_DATA_RANGE:0] pci_host_request_data;
   wire    pci_host_request_error;
 
   wire    pci_request_fifo_data_available_meta;
   wire    pci_request_fifo_two_words_available_meta;
   wire    pci_request_fifo_data_unload;
   wire   [2:0] pci_request_fifo_type;
-  wire   [PCI_FIFO_CBE_RANGE:0] pci_request_fifo_cbe;
-  wire   [PCI_FIFO_DATA_RANGE:0] pci_request_fifo_data;
+  wire   [PCI_BUS_CBE_RANGE:0] pci_request_fifo_cbe;
+  wire   [PCI_BUS_DATA_RANGE:0] pci_request_fifo_data;
   wire    pci_request_fifo_error;
 
 
@@ -296,13 +295,13 @@ endtask
 
 task write_fifo;
   input [2:0] entry_type;
-  input [PCI_FIFO_CBE_RANGE:0] entry_cbe;
-  input [PCI_FIFO_DATA_RANGE:0] entry_data;
+  input [PCI_BUS_CBE_RANGE:0] entry_cbe;
+  input [PCI_BUS_DATA_RANGE:0] entry_data;
   begin
     pci_host_request_submit = 1'b1;
     pci_host_request_type[2:0] = entry_type[2:0];
-    pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0] = entry_cbe[PCI_FIFO_CBE_RANGE:0];
-    pci_host_request_data[PCI_FIFO_DATA_RANGE:0] = entry_data[PCI_FIFO_DATA_RANGE:0];
+    pci_host_request_cbe[PCI_BUS_CBE_RANGE:0] = entry_cbe[PCI_BUS_CBE_RANGE:0];
+    pci_host_request_data[PCI_BUS_DATA_RANGE:0] = entry_data[PCI_BUS_DATA_RANGE:0];
   end
 endtask
 
@@ -379,8 +378,8 @@ endtask
   begin
     pci_host_request_submit <= 1'b0;
     pci_host_request_type[2:0] <= 3'hX;
-    pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0] <= 4'hX;
-    pci_host_request_data[PCI_FIFO_DATA_RANGE:0] <= `PCI_FIFO_DATA_X;
+    pci_host_request_cbe[PCI_BUS_CBE_RANGE:0] <= 4'hX;
+    pci_host_request_data[PCI_BUS_DATA_RANGE:0] <= `PCI_BUS_DATA_X;
     pci_gnt_in_critical <= 1'b0;
     pci_gnt_in_prev <= pci_gnt_in_critical;
     pci_frame_in_critical <= 1'b0;
@@ -401,8 +400,8 @@ endtask
   begin
     pci_host_request_submit <= 1'b0;
     pci_host_request_type[2:0] <= 3'hX;
-    pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0] <= 4'hX;
-    pci_host_request_data[PCI_FIFO_DATA_RANGE:0] <= `PCI_FIFO_DATA_X;
+    pci_host_request_cbe[PCI_BUS_CBE_RANGE:0] <= 4'hX;
+    pci_host_request_data[PCI_BUS_DATA_RANGE:0] <= `PCI_BUS_DATA_X;
     pci_gnt_in_critical <= 1'b0;
     pci_gnt_in_prev <= pci_gnt_in_critical;
     pci_frame_in_critical <= 1'b0;
@@ -1275,8 +1274,8 @@ pci_fifo_storage_request pci_fifo_storage_request (
   .write_submit               (pci_host_request_submit),
   .write_room_available_meta  (pci_host_request_room_available_meta),  // NOTE Needs extra settling time to avoid metastability
   .write_data                 ({pci_host_request_type[2:0],
-                                pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0],
-                                pci_host_request_data[PCI_FIFO_DATA_RANGE:0]}),
+                                pci_host_request_cbe[PCI_BUS_CBE_RANGE:0],
+                                pci_host_request_data[PCI_BUS_DATA_RANGE:0]}),
   .write_error                (pci_host_request_error),
   .read_clk                   (pci_clk),
   .read_sync_clk              (pci_clk),
@@ -1284,8 +1283,8 @@ pci_fifo_storage_request pci_fifo_storage_request (
   .read_data_available_meta   (pci_request_fifo_data_available_meta),  // NOTE Needs extra settling time to avoid metastability
   .read_two_words_available_meta (pci_request_fifo_two_words_available_meta),  // NOTE Needs extra settling time to avoid metastability
   .read_data                  ({pci_request_fifo_type[2:0],
-                                pci_request_fifo_cbe[PCI_FIFO_CBE_RANGE:0],
-                                pci_request_fifo_data[PCI_FIFO_DATA_RANGE:0]}),
+                                pci_request_fifo_cbe[PCI_BUS_CBE_RANGE:0],
+                                pci_request_fifo_data[PCI_BUS_DATA_RANGE:0]}),
   .read_error                 (pci_request_fifo_error)
 );
 
@@ -1326,8 +1325,8 @@ pci_blue_master pci_blue_master (
 // Host Interface Request FIFO used to ask the PCI Interface to initiate
 //   PCI References to an external PCI Target.
   .pci_request_fifo_type      (pci_request_fifo_type[2:0]),
-  .pci_request_fifo_cbe       (pci_request_fifo_cbe[PCI_FIFO_CBE_RANGE:0]),
-  .pci_request_fifo_data      (pci_request_fifo_data[PCI_FIFO_DATA_RANGE:0]),
+  .pci_request_fifo_cbe       (pci_request_fifo_cbe[PCI_BUS_CBE_RANGE:0]),
+  .pci_request_fifo_data      (pci_request_fifo_data[PCI_BUS_DATA_RANGE:0]),
   .pci_request_fifo_data_available_meta (pci_request_fifo_data_available_meta),
   .pci_request_fifo_two_words_available_meta (pci_request_fifo_two_words_available_meta),
   .pci_request_fifo_data_unload (pci_request_fifo_data_unload),

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_vendor_lib.v,v 1.13 2001-07-14 09:08:43 bbeaver Exp $
+// $Id: pci_vendor_lib.v,v 1.14 2001-08-05 06:35:43 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -389,6 +389,7 @@ module pci_critical_data_latch_enable (
                              |  New_Data_Unconditional;
 endmodule
 
+`ifdef NOT_NEEDED
 // Enable FRAME to change based on TRDY and STOP.
 // The pci_trdy_in_critical and pci_stop_in_critical signals are critical.
 // See pci_blue_master for details about the content of this module.
@@ -683,6 +684,7 @@ module pci_critical_next_stop (
                             ? Data_Last_Data
                             : Output_If_Idle;
 endmodule
+`endif  // NOT_NEEDED
 
 // whatever it takes to distribute a clock signal with near zero skew
 module pci_clock_tree (

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_example_chip.v,v 1.12 2001-07-14 09:08:42 bbeaver Exp $
+// $Id: pci_example_chip.v,v 1.13 2001-08-05 06:35:43 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -142,10 +142,10 @@ module pci_example_chip (
 // signals used by the test bench instead of using "." notation
   output [5:0] test_observe_oe_sigs;
   input  [2:0] test_master_number;
-  input  [PCI_FIFO_DATA_RANGE:0] test_address;
-  input  [PCI_FIFO_CBE_RANGE:0] test_command;
-  input  [PCI_FIFO_DATA_RANGE:0] test_data;
-  input  [PCI_FIFO_CBE_RANGE:0] test_byte_enables_l;
+  input  [PCI_BUS_DATA_RANGE:0] test_address;
+  input  [PCI_BUS_CBE_RANGE:0] test_command;
+  input  [PCI_BUS_DATA_RANGE:0] test_data;
+  input  [PCI_BUS_CBE_RANGE:0] test_byte_enables_l;
   input  [3:0] test_size;
   input   test_make_addr_par_error, test_make_data_par_error;
   input  [3:0] test_master_initial_wait_states;
@@ -194,7 +194,18 @@ module pci_example_chip (
   wire    pci_serr_out_oe_comb;
   wire    pci_idsel_in_prev;
 
-// Make the async-assert, sync-deassert reset needed by all PCI modules
+// Make the async-assert, sync-deassert reset needed by all PCI modules.
+//   Synchronize the external PCI reset signal so that it becomes DEASSERTED with
+//   good timing.  This will make verification simpler.
+  wire    pci_reset_comb_sync;
+
+pci_synchronizer_flop sync_reset_flop (
+  .data_in                    (1'b1),
+  .clk_out                    (pci_clk),
+  .sync_data_out              (pci_reset_comb_sync),  // Goes to 1'b0 on reset
+  .async_reset                (pci_reset_raw)
+);
+
   reg     pci_reset_comb, pci_reset_d1, pci_reset_d2, pci_reset_d3;
   always @(posedge pci_clk or posedge pci_reset_raw)
   begin
@@ -207,7 +218,7 @@ module pci_example_chip (
         end
         else
         begin
-            pci_reset_d1 <= 1'b0;
+            pci_reset_d1 <= ~pci_reset_comb_sync;
             pci_reset_d2 <= pci_reset_d1;
             pci_reset_d3 <= pci_reset_d2;
             pci_reset_comb <= pci_reset_d3;  // asserts quickly, deasserts slowly
@@ -536,23 +547,23 @@ pci_null_interface pci_null_interface (
 // Coordinate Write_Fence with CPU
   wire    pci_target_requests_write_fence, host_allows_write_fence;
 // Host uses these wires to request PCI activity.
-  wire   [PCI_FIFO_DATA_RANGE:0] pci_master_ref_address;
-  wire   [PCI_FIFO_CBE_RANGE:0] pci_master_ref_command;
+  wire   [PCI_BUS_DATA_RANGE:0] pci_master_ref_address;
+  wire   [PCI_BUS_CBE_RANGE:0] pci_master_ref_command;
   wire    pci_master_ref_config;
-  wire   [PCI_FIFO_CBE_RANGE:0] pci_master_byte_enables_l;
-  wire   [PCI_FIFO_DATA_RANGE:0] pci_master_write_data;
-  wire   [PCI_FIFO_DATA_RANGE:0] pci_master_read_data;
+  wire   [PCI_BUS_CBE_RANGE:0] pci_master_byte_enables_l;
+  wire   [PCI_BUS_DATA_RANGE:0] pci_master_write_data;
+  wire   [PCI_BUS_DATA_RANGE:0] pci_master_read_data;
   wire    pci_master_addr_valid, pci_master_data_valid;
   wire    pci_master_requests_serr, pci_master_requests_perr;
   wire    pci_master_requests_last;
   wire    pci_master_data_consumed;
   wire    pci_master_ref_error;
 // PCI Interface uses these wires to request local memory activity.   
-  wire   [PCI_FIFO_DATA_RANGE:0] pci_target_ref_address;
-  wire   [PCI_FIFO_CBE_RANGE:0] pci_target_ref_command;
-  wire   [PCI_FIFO_CBE_RANGE:0] pci_target_byte_enables_l;
-  wire   [PCI_FIFO_DATA_RANGE:0] pci_target_write_data;
-  wire   [PCI_FIFO_DATA_RANGE:0] pci_target_read_data;
+  wire   [PCI_BUS_DATA_RANGE:0] pci_target_ref_address;
+  wire   [PCI_BUS_CBE_RANGE:0] pci_target_ref_command;
+  wire   [PCI_BUS_CBE_RANGE:0] pci_target_byte_enables_l;
+  wire   [PCI_BUS_DATA_RANGE:0] pci_target_write_data;
+  wire   [PCI_BUS_DATA_RANGE:0] pci_target_read_data;
   wire    pci_target_busy;
   wire    pci_target_ref_start;
   wire    pci_target_requests_abort, pci_target_requests_perr;
@@ -568,12 +579,12 @@ pci_blue_interface pci_blue_interface (
   .pci_target_requests_write_fence (pci_target_requests_write_fence),
   .host_allows_write_fence    (host_allows_write_fence),
 // Host uses these wires to request PCI activity.
-  .pci_master_ref_address     (pci_master_ref_address[PCI_FIFO_DATA_RANGE:0]),
+  .pci_master_ref_address     (pci_master_ref_address[PCI_BUS_DATA_RANGE:0]),
   .pci_master_ref_command     (pci_master_ref_command[3:0]),
   .pci_master_ref_config      (pci_master_ref_config),
-  .pci_master_byte_enables_l  (pci_master_byte_enables_l[PCI_FIFO_CBE_RANGE:0]),
-  .pci_master_write_data      (pci_master_write_data[PCI_FIFO_DATA_RANGE:0]),
-  .pci_master_read_data       (pci_master_read_data[PCI_FIFO_DATA_RANGE:0]),
+  .pci_master_byte_enables_l  (pci_master_byte_enables_l[PCI_BUS_CBE_RANGE:0]),
+  .pci_master_write_data      (pci_master_write_data[PCI_BUS_DATA_RANGE:0]),
+  .pci_master_read_data       (pci_master_read_data[PCI_BUS_DATA_RANGE:0]),
   .pci_master_addr_valid      (pci_master_addr_valid),
   .pci_master_data_valid      (pci_master_data_valid),
   .pci_master_requests_serr   (pci_master_requests_serr),
@@ -582,11 +593,11 @@ pci_blue_interface pci_blue_interface (
   .pci_master_data_consumed   (pci_master_data_consumed),
   .pci_master_ref_error       (pci_master_ref_error),
 // PCI Interface uses these wires to request local memory activity.   
-  .pci_target_ref_address     (pci_target_ref_address[PCI_FIFO_DATA_RANGE:0]),
+  .pci_target_ref_address     (pci_target_ref_address[PCI_BUS_DATA_RANGE:0]),
   .pci_target_ref_command     (pci_target_ref_command[3:0]),
-  .pci_target_byte_enables_l  (pci_target_byte_enables_l[PCI_FIFO_CBE_RANGE:0]),
-  .pci_target_write_data      (pci_target_write_data[PCI_FIFO_DATA_RANGE:0]),
-  .pci_target_read_data       (pci_target_read_data[PCI_FIFO_DATA_RANGE:0]),
+  .pci_target_byte_enables_l  (pci_target_byte_enables_l[PCI_BUS_CBE_RANGE:0]),
+  .pci_target_write_data      (pci_target_write_data[PCI_BUS_DATA_RANGE:0]),
+  .pci_target_read_data       (pci_target_read_data[PCI_BUS_DATA_RANGE:0]),
   .pci_target_busy            (pci_target_busy),
   .pci_target_ref_start       (pci_target_ref_start),
   .pci_target_requests_abort  (pci_target_requests_abort),
@@ -657,12 +668,12 @@ pci_example_host_controller pci_example_host_controller (
   .pci_target_requests_write_fence (pci_target_requests_write_fence),
   .host_allows_write_fence    (host_allows_write_fence),
 // Host uses these wires to request PCI activity.
-  .pci_master_ref_address     (pci_master_ref_address[PCI_FIFO_DATA_RANGE:0]),
+  .pci_master_ref_address     (pci_master_ref_address[PCI_BUS_DATA_RANGE:0]),
   .pci_master_ref_command     (pci_master_ref_command[3:0]),
   .pci_master_ref_config      (pci_master_ref_config),
-  .pci_master_byte_enables_l  (pci_master_byte_enables_l[PCI_FIFO_CBE_RANGE:0]),
-  .pci_master_write_data      (pci_master_write_data[PCI_FIFO_DATA_RANGE:0]),
-  .pci_master_read_data       (pci_master_read_data[PCI_FIFO_DATA_RANGE:0]),
+  .pci_master_byte_enables_l  (pci_master_byte_enables_l[PCI_BUS_CBE_RANGE:0]),
+  .pci_master_write_data      (pci_master_write_data[PCI_BUS_DATA_RANGE:0]),
+  .pci_master_read_data       (pci_master_read_data[PCI_BUS_DATA_RANGE:0]),
   .pci_master_addr_valid      (pci_master_addr_valid),
   .pci_master_data_valid      (pci_master_data_valid),
   .pci_master_requests_serr   (pci_master_requests_serr),
@@ -671,11 +682,11 @@ pci_example_host_controller pci_example_host_controller (
   .pci_master_data_consumed   (pci_master_data_consumed),
   .pci_master_ref_error       (pci_master_ref_error),
 // PCI Interface uses these wires to request local memory activity.   
-  .pci_target_ref_address     (pci_target_ref_address[PCI_FIFO_DATA_RANGE:0]),
+  .pci_target_ref_address     (pci_target_ref_address[PCI_BUS_DATA_RANGE:0]),
   .pci_target_ref_command     (pci_target_ref_command[3:0]),
-  .pci_target_byte_enables_l  (pci_target_byte_enables_l[PCI_FIFO_CBE_RANGE:0]),
-  .pci_target_write_data      (pci_target_write_data[PCI_FIFO_DATA_RANGE:0]),
-  .pci_target_read_data       (pci_target_read_data[PCI_FIFO_DATA_RANGE:0]),
+  .pci_target_byte_enables_l  (pci_target_byte_enables_l[PCI_BUS_CBE_RANGE:0]),
+  .pci_target_write_data      (pci_target_write_data[PCI_BUS_DATA_RANGE:0]),
+  .pci_target_read_data       (pci_target_read_data[PCI_BUS_DATA_RANGE:0]),
   .pci_target_busy            (pci_target_busy),
   .pci_target_ref_start       (pci_target_ref_start),
   .pci_target_requests_abort  (pci_target_requests_abort),
@@ -691,10 +702,10 @@ pci_example_host_controller pci_example_host_controller (
   .host_clk                   (host_clk),
 // signals used by the test bench instead of using "." notation
   .test_master_number         (test_master_number[2:0]),
-  .test_address               (test_address[PCI_FIFO_DATA_RANGE:0]),
+  .test_address               (test_address[PCI_BUS_DATA_RANGE:0]),
   .test_command               (test_command[3:0]),
-  .test_data                  (test_data[PCI_FIFO_DATA_RANGE:0]),
-  .test_byte_enables_l        (test_byte_enables_l[PCI_FIFO_CBE_RANGE:0]),
+  .test_data                  (test_data[PCI_BUS_DATA_RANGE:0]),
+  .test_byte_enables_l        (test_byte_enables_l[PCI_BUS_CBE_RANGE:0]),
   .test_size                  (test_size[3:0]),
   .test_make_addr_par_error   (test_make_addr_par_error),
   .test_make_data_par_error   (test_make_data_par_error),
