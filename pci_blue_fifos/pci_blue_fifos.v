@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_fifos.v,v 1.7 2001-06-20 11:25:11 bbeaver Exp $
+// $Id: pci_blue_fifos.v,v 1.8 2001-07-01 06:39:03 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -192,9 +192,8 @@ module pci_fifo_storage_request (
   output [38:0] read_data;
   output  read_error;
 
-  wire    double_sync_write_empty_flag_const = 1'b0;
-  wire    write_data_before_flag_const = (fifo_mode[1:0] == 2'b01);
   wire    double_sync_read_full_flag_const = 1'b0;
+  wire    write_data_before_flag_const = (fifo_mode[1:0] == 2'b01);
   wire    read_flag_before_data_const = (fifo_mode[1:0] == 2'b10);
 
   wire   [3:0] write_address;
@@ -263,7 +262,7 @@ module pci_fifo_storage_request (
 
 pci_blue_fifo_flags pci_fifo_flags_request (
   .reset_flags_async          (reset_flags_async),
-  .double_sync_write_empty_flag_const (double_sync_write_empty_flag_const),
+  .double_sync_read_full_flag_const   (double_sync_read_full_flag_const),
   .write_data_before_flag_const       (write_data_before_flag_const),
   .write_clk                  (write_clk),
   .write_sync_clk             (write_sync_clk),
@@ -272,7 +271,6 @@ pci_blue_fifo_flags pci_fifo_flags_request (
   .write_room_available_meta  (write_room_available_meta),
   .write_address              (write_address[3:0]),
   .write_error                (write_error),
-  .double_sync_read_full_flag_const   (double_sync_read_full_flag_const),
   .read_flag_before_data_const        (read_flag_before_data_const),
   .read_clk                   (read_clk),
   .read_sync_clk              (read_sync_clk),
@@ -422,9 +420,8 @@ module pci_fifo_storage_response (
   output [39:0] read_data;
   output  read_error;
 
-  wire    double_sync_write_empty_flag_const = 1'b0;
-  wire    write_data_before_flag_const = (fifo_mode[1:0] == 2'b01);
   wire    double_sync_read_full_flag_const = 1'b0;
+  wire    write_data_before_flag_const = (fifo_mode[1:0] == 2'b01);
   wire    read_flag_before_data_const = (fifo_mode[1:0] == 2'b10);
 
   wire   [3:0] write_address;
@@ -489,7 +486,7 @@ module pci_fifo_storage_response (
 
 pci_blue_fifo_flags pci_fifo_flags_response (
   .reset_flags_async          (reset_flags_async),
-  .double_sync_write_empty_flag_const (double_sync_write_empty_flag_const),
+  .double_sync_read_full_flag_const   (double_sync_read_full_flag_const),
   .write_data_before_flag_const       (write_data_before_flag_const),
   .write_clk                  (write_clk),
   .write_sync_clk             (write_sync_clk),
@@ -498,7 +495,6 @@ pci_blue_fifo_flags pci_fifo_flags_response (
   .write_room_available_meta  (write_room_available_meta_raw),
   .write_address              (write_address[3:0]),
   .write_error                (write_error),
-  .double_sync_read_full_flag_const   (double_sync_read_full_flag_const),
   .read_flag_before_data_const        (read_flag_before_data_const),
   .read_clk                   (read_clk),
   .read_sync_clk              (read_sync_clk),
@@ -636,9 +632,8 @@ module pci_fifo_storage_delayed_read (
   output [34:0] read_data;
   output  read_error;
 
-  wire    double_sync_write_empty_flag_const = 1'b0;
-  wire    write_data_before_flag_const = (fifo_mode[1:0] == 2'b01);
   wire    double_sync_read_full_flag_const = 1'b0;
+  wire    write_data_before_flag_const = (fifo_mode[1:0] == 2'b01);
   wire    read_flag_before_data_const = (fifo_mode[1:0] == 2'b10);
 
   wire   [3:0] write_address;
@@ -703,7 +698,7 @@ module pci_fifo_storage_delayed_read (
 
 pci_blue_fifo_flags pci_fifo_flags_delayed_read (
   .reset_flags_async          (reset_flags_async),
-  .double_sync_write_empty_flag_const (double_sync_write_empty_flag_const),
+  .double_sync_read_full_flag_const   (double_sync_read_full_flag_const),
   .write_data_before_flag_const       (write_data_before_flag_const),
   .write_clk                  (write_clk),
   .write_sync_clk             (write_sync_clk),
@@ -712,7 +707,6 @@ pci_blue_fifo_flags pci_fifo_flags_delayed_read (
   .write_room_available_meta  (write_room_available_meta),
   .write_address              (write_address[3:0]),
   .write_error                (write_error),
-  .double_sync_read_full_flag_const   (double_sync_read_full_flag_const),
   .read_flag_before_data_const        (read_flag_before_data_const),
   .read_clk                   (read_clk),
   .read_sync_clk              (read_sync_clk),

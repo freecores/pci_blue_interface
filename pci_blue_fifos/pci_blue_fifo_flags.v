@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_fifo_flags.v,v 1.6 2001-06-20 11:25:11 bbeaver Exp $
+// $Id: pci_blue_fifo_flags.v,v 1.7 2001-07-01 06:39:03 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -171,7 +171,7 @@
 //
 // NOTE:  This circuit might be implemented in many ways.  One way would be
 //          to have a Read Pointer and a Write Pointer.  These would typically
-//          be implemented as Greq Code counters.  Grey Code counters can safely
+//          be implemented as Grey Code counters.  Grey Code counters can safely
 //          cross clock boundries, as long as the counter is synchronized by
 //          a metastable-safe synchronizer on the receive side.
 //          Another way to implement this would be to have read and write
@@ -189,13 +189,12 @@
 
 module pci_blue_fifo_flags (
   reset_flags_async,
-  double_sync_write_empty_flag_const,
+  double_sync_read_full_flag_const,
   write_data_before_flag_const,
   write_clk, write_sync_clk, write_submit, write_capture_data,
   write_room_available_meta,  // NOTE Needs extra settling time to avoid metastability
   write_address,
   write_error,
-  double_sync_read_full_flag_const,
   read_flag_before_data_const,
   read_clk, read_sync_clk, read_remove, read_enable,
   read_data_available_meta,  // NOTE Needs extra settling time to avoid metastability
@@ -203,17 +202,18 @@ module pci_blue_fifo_flags (
   read_error
 );
   input   reset_flags_async;
-  input   double_sync_write_empty_flag_const;
+  input   double_sync_read_full_flag_const;
   input   write_data_before_flag_const;
-  input   write_clk, write_sync_clk, write_submit;
-  output  write_capture_data;
+  input   write_clk, write_sync_clk;
+  input   write_submit;  // from side which is submitting data
+  output  write_capture_data;  // to data storage elements (to power up?)
   output  write_room_available_meta;
   output [3:0] write_address;
   output  write_error;
-  input   double_sync_read_full_flag_const;
   input   read_flag_before_data_const;
-  input   read_clk, read_sync_clk, read_remove;
-  output  read_enable;
+  input   read_clk, read_sync_clk;
+  input   read_remove;  // from side which is removing data
+  output  read_enable;  // to data storage elements (to power up?)
   output  read_data_available_meta;
   output [3:0] read_address;
   output  read_error;
@@ -262,12 +262,14 @@ function  [3:0] grey_code_counter_inc;
     default:
       begin
         grey_code_counter_inc[1:0] = 2'b00;
+// synopsys translate_off
         if ($time > 0)
         begin
           $display ("*** fifo pointer has invalid value %h, at %t",
                                                  counter_in[3:0], $time);
         end
         `NO_ELSE;
+// synopsys translate_on
       end
     endcase
 `endif  // HOST_FIFO_DEPTH_3
@@ -284,12 +286,14 @@ function  [3:0] grey_code_counter_inc;
     default:
       begin
         grey_code_counter_inc[2:0] = 3'b000;
+// synopsys translate_off
         if ($time > 0)
         begin
           $display ("*** fifo pointer has invalid value %h, at %t",
                                                  counter_in[3:0], $time);
         end
         `NO_ELSE;
+// synopsys translate_on
       end
     endcase
 `endif  // HOST_FIFO_DEPTH_5
@@ -308,12 +312,14 @@ function  [3:0] grey_code_counter_inc;
     default:
       begin
         grey_code_counter_inc[2:0] = 3'b000;
+// synopsys translate_off
         if ($time > 0)
         begin
           $display ("*** fifo pointer has invalid value %h, at %t",
                                                  counter_in[3:0], $time);
         end
         `NO_ELSE;
+// synopsys translate_off
       end
     endcase
 `endif  // HOST_FIFO_DEPTH_7
@@ -339,12 +345,14 @@ function  [3:0] grey_code_counter_inc;
     default:
       begin
         grey_code_counter_inc[3:0] = 4'h0;
+// synopsys translate_off
         if ($time > 0)
         begin
           $display ("*** fifo pointer has invalid value %h, at %t",
                                                  counter_in[3:0], $time);
         end
         `NO_ELSE;
+// synopsys translate_off
       end
     endcase
 `endif  // HOST_FIFO_DEPTH_15
@@ -361,7 +369,7 @@ endfunction
 // When a word is removed on the read side, the read_counter
 //   is incremented.  The pointers match again, so the FIFO is empty.
 // If a bunch of writes are done in sequence, the FIFO might fill up.
-// The FIFO is full when the write_counter+1 == read_counter, where
+// The FIFO is full when the write_counter + 1 == read_counter, where
 //   the + operation is done as a grey-code increment.
 // Since the grey-code counter counts from 0 to N, it can signify that
 //   there are 0 to N-1 entries.  A 2-bit grey-code counter can
@@ -369,16 +377,20 @@ endfunction
 //   only need to be 3 storage elements!
 // This FIFO maintains a read_address and write_address which point to
 //   the actual entry next to be referenced.  Even though the grey-code
-//   counter is counting modulo N, the address counter counts module N-1.
+//   counter is counting modulo N, the address counter counts module (N - 1).
 
 // Allow a word to be written to the WRITE side of the FIFO if it is not full.
   wire   [3:0] sync_read_greycode_counter;
   reg    [3:0] double_sync_read_greycode_counter;
   reg    [3:0] write_greycode_counter;
+  reg    [3:0] delayed_write_greycode_counter;
   reg    [3:0] write_address;
   reg     write_error;
-  reg     write_holdoff_while_writing_flag;
 
+// Either Single-Sync or Double-Sync the read address.  The Double-Sync should
+// be selected if the write-side clock is so fast that it is impossible to use
+// the Single-Sync version of the read counter with enough leftover time to let
+// the metastability settle out.
   wire   [3:0] selected_sync_read_greycode_counter = double_sync_read_full_flag_const
                                        ? double_sync_read_greycode_counter[3:0]
                                        : sync_read_greycode_counter[3:0];
@@ -386,29 +398,26 @@ endfunction
                           grey_code_counter_inc (write_greycode_counter[3:0]);
   wire    write_side_not_full = (next_write_greycode_counter[3:0]
                                   != selected_sync_read_greycode_counter[3:0]);
+
 // Tell outside world room available.  NOTE possible metastability!
-  assign  write_room_available_meta = (~write_data_before_flag_const & write_side_not_full)
-                                    | ( write_data_before_flag_const & write_side_not_full
-                                                 & ~write_holdoff_while_writing_flag);
-// Always tell the storage elements to capture the first cycle
-  assign  write_capture_data = write_submit & write_side_not_full;
+  assign  write_room_available_meta = write_side_not_full;
+
+// Only capture data when there is room available.  Otherwise error.
+  assign  write_capture_data = (write_submit & write_side_not_full);
 
   always @(posedge write_clk or posedge reset_flags_async)
   begin
     if (reset_flags_async == 1'b1)
     begin
-      write_holdoff_while_writing_flag <= 1'b0;
       write_greycode_counter[3:0] <= 4'h0;
       write_address[3:0] <= 4'h0;
+      delayed_write_greycode_counter[3:0] <= 4'h0;
       write_error <= 1'b0;
       double_sync_read_greycode_counter[3:0] <= 4'h0;
     end
     else
     begin
-// Either write Data and Flag together, or write Data then next clock write Flag.
-      write_holdoff_while_writing_flag <= write_submit & write_side_not_full;
-      if (   (~write_data_before_flag_const & write_submit & write_side_not_full)
-           | ( write_data_before_flag_const & write_holdoff_while_writing_flag))
+      if (write_submit & write_side_not_full)
       begin
         write_greycode_counter[3:0] <= next_write_greycode_counter[3:0];
         write_address[3:0] <= address_inc (write_address[3:0]);
@@ -418,38 +427,51 @@ endfunction
         write_greycode_counter[3:0] <= write_greycode_counter[3:0];
         write_address[3:0] <= write_address[3:0];
       end
-      write_error <= write_submit & ~write_side_not_full;
+      delayed_write_greycode_counter[3:0] <= write_greycode_counter[3:0];
+      write_error <= (write_submit & ~write_side_not_full);
       double_sync_read_greycode_counter[3:0] <= sync_read_greycode_counter[3:0];
     end
   end
+
+// Either write the Data and Full indication at the same time, or delay the
+// Full indication by 1 clock.  In case that data is written before the valid
+// bit, send a delayed Write Address to the Read side so that it is guaranteed
+// to be valid after the data is.  Delaying the Full INdication is needed if the
+// Read side of the FIFO will act on the Data the same clock it detects Full.
+  wire   [3:0] read_side_write_counter = write_data_before_flag_const
+                                       ? delayed_write_greycode_counter[3:0]
+                                       : write_greycode_counter[3:0];
 
 // Allow a word to be read from the Read side of the FIFO if it is not empty.
   wire   [3:0] sync_write_greycode_counter;
   reg    [3:0] double_sync_write_greycode_counter;
   reg    [3:0] read_greycode_counter;
   reg    [3:0] read_address;
-  reg     read_side_not_empty_prev;
   reg     read_error;
 
-  wire   [3:0] selected_sync_write_greycode_counter = double_sync_write_empty_flag_const
+// Either read the Full Flag at the same time as the Data, or read the Full Flag
+// one clock before the data is used.  Use the case of Data after Flag when
+// the read-side clock is faster than the write side clock.  In this case,
+// the write side will have been set to write Data and Flag at the same time.
+// The read side has to wait after the flag is seen to make sure the data is valid.
+  wire   [3:0] selected_sync_write_greycode_counter = read_flag_before_data_const
                                        ? double_sync_write_greycode_counter[3:0]
                                        : sync_write_greycode_counter[3:0];
-  wire    read_side_not_empty_soon = (read_greycode_counter[3:0]
+  wire    read_side_not_empty = (read_greycode_counter[3:0]
                                       != selected_sync_write_greycode_counter[3:0]);
-  wire    read_side_not_empty = (~read_flag_before_data_const & read_side_not_empty_soon)
-                              | ( read_flag_before_data_const & read_side_not_empty_prev);
+
 // Tell outside world data available.  NOTE possible metastability!
   assign  read_data_available_meta = read_side_not_empty;
+
 // Either read constantly if Read Data needs to be available at the same time as
 //   the Flag is seen as valid, or only read whenever Data is known to be available.
   assign  read_enable = ~read_flag_before_data_const
-                      | (read_flag_before_data_const & read_side_not_empty_soon);
+                      | (read_flag_before_data_const & read_side_not_empty);
 
   always @(posedge read_clk or posedge reset_flags_async)
   begin
     if (reset_flags_async == 1'b1)
     begin
-      read_side_not_empty_prev <= 1'b0;
       read_greycode_counter[3:0] <= 4'h0;
       read_address[3:0] <= 4'h0;
       read_error <= 1'b0;
@@ -459,14 +481,12 @@ endfunction
     begin
       if (read_remove & read_side_not_empty)
       begin
-        read_side_not_empty_prev <= 1'b0;
-        read_greycode_counter[3:0] <= grey_code_counter_inc
-                                (read_greycode_counter[3:0]);
+        read_greycode_counter[3:0] <=
+                   grey_code_counter_inc (read_greycode_counter[3:0]);
         read_address[3:0] <= address_inc (read_address[3:0]);
       end
       else
       begin
-        read_side_not_empty_prev <= read_side_not_empty_soon;
         read_greycode_counter[3:0] <= read_greycode_counter[3:0];
         read_address[3:0] <= read_address[3:0];
       end
@@ -510,25 +530,25 @@ pci_synchronizer_flop sync_read_counter_3 (
 
 // Capture a copy of the Read pointer to use in the Write clock domain
 pci_synchronizer_flop sync_write_counter_0 (
-  .data_in                    (write_greycode_counter[0]),
+  .data_in                    (read_side_write_counter[0]),
   .clk_out                    (read_sync_clk),
   .sync_data_out              (sync_write_greycode_counter[0]),
   .async_reset                (reset_flags_async)
 );
 pci_synchronizer_flop sync_write_counter_1 (
-  .data_in                    (write_greycode_counter[1]),
+  .data_in                    (read_side_write_counter[1]),
   .clk_out                    (read_sync_clk),
   .sync_data_out              (sync_write_greycode_counter[1]),
   .async_reset                (reset_flags_async)
 );
 pci_synchronizer_flop sync_write_counter_2 (
-  .data_in                    (write_greycode_counter[2]),
+  .data_in                    (read_side_write_counter[2]),
   .clk_out                    (read_sync_clk),
   .sync_data_out              (sync_write_greycode_counter[2]),
   .async_reset                (reset_flags_async)
 );
 pci_synchronizer_flop sync_write_counter_3 (
-  .data_in                    (write_greycode_counter[3]),
+  .data_in                    (read_side_write_counter[3]),
   .clk_out                    (read_sync_clk),
   .sync_data_out              (sync_write_greycode_counter[3]),
   .async_reset                (reset_flags_async)
