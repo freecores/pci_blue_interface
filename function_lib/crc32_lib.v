@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: crc32_lib.v,v 1.3 2001-08-20 11:42:24 bbeaver Exp $
+// $Id: crc32_lib.v,v 1.4 2001-08-21 11:08:00 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -90,15 +90,16 @@
 // NOTE:  Looking on the web, one finds a nice tutorial by Cypress entitled
 //          "Parallel Cyclic Redundancy Check (CRC) for HOTLink(TM)".
 //        This reminds me of how I learned to do this from a wonderful
-//          CRC tutorial on the web, done by Ross N. WIlliams.
+//          CRC tutorial on the web, done by Ross N. Williams.
 //
 // NOTE:  The CRC-32 polynomial is:
 //            X**0 + X**1 + X**2 + X**4 + X**5 + X**7 + X**8 + X**10
 //          + X**11 + X**12 + X**16 + X**22 + X**23 + X**26 + X**32
 //        You initialize it to the value 32'hFFFFFFFF
 //        You append it to the end of the message.
-//        The receiver sees the value 32'hCBF43926 when the message is
-//          received no errors.
+//        The receiver sees the value 32'hC704DD7B when the message is
+//          received no errors.  Bit reversed, that is 32'hDEBB20E3.
+//        NOTE Some other DOCS SAY 32'hCBF43926!!!
 //
 //        That means that each clock a new bit comes in, you have to shift
 //          all the 32 running state bits 1 bit higher and drop the MSB.
@@ -115,67 +116,208 @@
 //          Apply the bits, shift several bit locations at once, run faster.
 //
 //        But what are the formulas?  Good question.  Use a computer to figure
-//          this out for you.  And WIlliams wrote a program!
+//          this out for you.  And Williams wrote a program!
 //
-// NOTE:  The idea is simple, so I may include one here too.  
+// NOTE:  The idea is simple, so I may include one I wrote here too.  
 //
 //===========================================================================
 
 `timescale 1ns/1ps
 
+// Look up the CRC-32 polynomial on the web.
 // The LSB corresponds to bit 0, the new input bit.
-`define CRC_32   32'b0000_0100_1100_0001_0001_1101_1011_0111
+`define CRC           32'b0000_0100_1100_0001_0001_1101_1011_0111
+`define CHECK_VALUE   32'b1100_1011_1111_0100_0011_1001_0010_0110
+`define NUMBER_OF_BITS_IN_CRC   32
 
 // Given a 32-bit CRC-32 running value, update it using 8 new bits of data.
 // The way to make this fast is to find common sub-expressions.
 //
 // The user needs to supply external flops to make this work.
 
-module crc32_8_comb (
-  present_crc_32,
+module crc_32_8_private (
+  present_crc,
   data_in_8,
-  next_crc_32
+  next_crc
 );
 
-  input  [31:0] present_crc_32;
+  input  [`NUMBER_OF_BITS_IN_CRC - 1 : 0] present_crc;
   input  [7:0] data_in_8;
-  output [31:0] next_crc_32;
+  output [`NUMBER_OF_BITS_IN_CRC - 1 : 0] next_crc;
 
+/* State Variables depend on input bit number (bigger is earlier) :
+          0 :  0                      6    
+          1 :  0  1                  6  7
+          2 :  0  1  2              6  7
+          3 :      1  2  3              7
+          4 :  0      2  3  4      6    
+          5 :  0  1      3  4  5  6  7
+          6 :      1  2      4  5  6  7
+          7 :  0      2  3      5      7
+          8 :  0  1      3  4            
+          9 :      1  2      4  5        
+         10 :  0      2  3      5        
+         11 :  0  1      3  4            
+         12 :  0  1  2      4  5  6    
+         13 :      1  2  3      5  6  7
+         14 :          2  3  4      6  7
+         15 :              3  4  5      7
+         16 :  0              4  5        
+         17 :      1              5  6    
+         18 :          2              6  7
+         19 :              3              7
+         20 :                  4            
+         21 :                      5        
+         22 :  0                            
+         23 :  0  1                  6    
+         24 :      1  2                  7
+         25 :          2  3                
+         26 :  0          3  4      6    
+         27 :      1          4  5      7
+         28 :          2          5  6    
+         29 :              3          6  7
+         30 :                  4          7
+         31 :                      5        
+*/
+  wire   [7:0] X = data_in_8[7:0] ^ present_crc[31:24];
+  wire   [`NUMBER_OF_BITS_IN_CRC - 1 : 0] C = present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0];
+  assign  next_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] =
+          { C[23]                                    ^ X[5],
+            C[22]                             ^ X[4]               ^ X[7],
+            C[21]                      ^ X[3]               ^ X[6] ^ X[7],
+            C[20]               ^ X[2]               ^ X[5] ^ X[6],
+            C[19]        ^ X[1]               ^ X[4] ^ X[5]        ^ X[7],
+            C[18] ^ X[0]               ^ X[3] ^ X[4]        ^ X[6],
+            C[17]               ^ X[2] ^ X[3],
+            C[16]        ^ X[1] ^ X[2]                             ^ X[7],
+            C[15] ^ X[0] ^ X[1]                             ^ X[6],
+            C[14] ^ X[0],
+            C[13]                                    ^ X[5],
+            C[12]                             ^ X[4],
+            C[11]                      ^ X[3]                      ^ X[7],
+            C[10]               ^ X[2]                      ^ X[6] ^ X[7],
+            C[9]         ^ X[1]                      ^ X[5] ^ X[6],
+            C[8]  ^ X[0]                      ^ X[4] ^ X[5],
+            C[7]                       ^ X[3] ^ X[4] ^ X[5]        ^ X[7],
+            C[6]                ^ X[2] ^ X[3] ^ X[4]        ^ X[6] ^ X[7],
+            C[5]         ^ X[1] ^ X[2] ^ X[3]        ^ X[5] ^ X[6] ^ X[7],
+            C[4]  ^ X[0] ^ X[1] ^ X[2]        ^ X[4] ^ X[5] ^ X[6],
+            C[3]  ^ X[0] ^ X[1]        ^ X[3] ^ X[4],
+            C[2]  ^ X[0]        ^ X[2] ^ X[3]        ^ X[5],
+            C[1]         ^ X[1] ^ X[2]        ^ X[4] ^ X[5],
+            C[0]  ^ X[0] ^ X[1]        ^ X[3] ^ X[4],
+                    X[0]        ^ X[2] ^ X[3]        ^ X[5]        ^ X[7],
+                           X[1] ^ X[2]        ^ X[4] ^ X[5] ^ X[6] ^ X[7],
+                    X[0] ^ X[1]        ^ X[3] ^ X[4] ^ X[5] ^ X[6] ^ X[7],
+                    X[0]        ^ X[2] ^ X[3] ^ X[4]        ^ X[6],
+                           X[1] ^ X[2] ^ X[3]                      ^ X[7],
+                    X[0] ^ X[1] ^ X[2]                      ^ X[6] ^ X[7],
+                    X[0] ^ X[1]                             ^ X[6] ^ X[7],
+                    X[0]                                    ^ X[6]
+           };
 endmodule
 
-module crc32_16_comb (
-  present_crc_32,
-  data_in_8,
-  next_crc_32
+module crc_32_16_private (
+  present_crc,
+  data_in_16,
+  next_crc
 );
 
-  input  [31:0] present_crc_32;
-  input  [15:0] data_in_8;
-  output [31:0] next_crc_32;
+  input  [`NUMBER_OF_BITS_IN_CRC - 1 : 0] present_crc;
+  input  [15:0] data_in_16;
+  output [`NUMBER_OF_BITS_IN_CRC - 1 : 0] next_crc;
 
+/* State Variables depend on input bit number (bigger is earlier) :
+          0 :  0                      6          9 10     12            
+          1 :  0  1                  6  7      9     11 12 13        
+          2 :  0  1  2              6  7  8  9             13 14    
+          3 :      1  2  3              7  8  9 10             14 15
+          4 :  0      2  3  4      6      8         11 12         15
+          5 :  0  1      3  4  5  6  7         10         13        
+          6 :      1  2      4  5  6  7  8         11         14    
+          7 :  0      2  3      5      7  8     10                 15
+          8 :  0  1      3  4              8     10 11 12            
+          9 :      1  2      4  5              9     11 12 13        
+         10 :  0      2  3      5              9             13 14    
+         11 :  0  1      3  4                  9         12     14 15
+         12 :  0  1  2      4  5  6          9         12 13     15
+         13 :      1  2  3      5  6  7         10         13 14    
+         14 :          2  3  4      6  7  8         11         14 15
+         15 :              3  4  5      7  8  9         12         15
+         16 :  0              4  5          8             12 13        
+         17 :      1              5  6          9             13 14    
+         18 :          2              6  7         10             14 15
+         19 :              3              7  8         11             15
+         20 :                  4              8  9         12            
+         21 :                      5              9 10         13        
+         22 :  0                                  9     11 12     14    
+         23 :  0  1                  6          9             13     15
+         24 :      1  2                  7         10             14    
+         25 :          2  3                  8         11             15
+         26 :  0          3  4      6             10                    
+         27 :      1          4  5      7             11                
+         28 :          2          5  6      8             12            
+         29 :              3          6  7      9             13        
+         30 :                  4          7  8     10             14    
+         31 :                      5          8  9     11             15
+*/
 endmodule
 
-module crc32_32_comb (
-  present_crc_32,
-  data_in_8,
-  next_crc_32
+module crc_32_32_private (
+  present_crc,
+  data_in_32,
+  next_crc
 );
 
-  input  [31:0] present_crc_32;
-  input  [31:0] data_in_8;
-  output [31:0] next_crc_32;
+  input  [`NUMBER_OF_BITS_IN_CRC - 1 : 0] present_crc;
+  input  [31:0] data_in_32;
+  output [`NUMBER_OF_BITS_IN_CRC - 1 : 0] next_crc;
 
+/* State Variables depend on input bit number (bigger is earlier) :
+ 0 :  0                      6          9 10     12             16                             24 25 26     28 29 30 31
+ 1 :  0  1                  6  7      9     11 12 13         16 17                         24         27 28            
+ 2 :  0  1  2              6  7  8  9             13 14     16 17 18                     24     26             30 31
+ 3 :      1  2  3              7  8  9 10             14 15     17 18 19                     25     27             31
+ 4 :  0      2  3  4      6      8         11 12         15         18 19 20             24 25             29 30 31
+ 5 :  0  1      3  4  5  6  7         10         13                     19 20 21         24             28 29        
+ 6 :      1  2      4  5  6  7  8         11         14                     20 21 22         25             29 30    
+ 7 :  0      2  3      5      7  8     10                 15 16                 21 22 23 24 25         28 29        
+ 8 :  0  1      3  4              8     10 11 12                 17                 22 23                 28         31
+ 9 :      1  2      4  5              9     11 12 13                 18                 23 24                 29        
+10 :  0      2  3      5              9             13 14     16         19                         26     28 29     31
+11 :  0  1      3  4                  9         12     14 15 16 17         20             24 25 26 27 28         31
+12 :  0  1  2      4  5  6          9         12 13     15     17 18         21         24         27         30 31
+13 :      1  2  3      5  6  7         10         13 14     16     18 19         22         25         28         31
+14 :          2  3  4      6  7  8         11         14 15     17     19 20         23         26         29        
+15 :              3  4  5      7  8  9         12         15 16     18     20 21         24         27         30    
+16 :  0              4  5          8             12 13             17     19     21 22     24     26         29 30    
+17 :      1              5  6          9             13 14             18     20     22 23     25     27         30 31
+18 :          2              6  7         10             14 15             19     21     23 24     26     28         31
+19 :              3              7  8         11             15 16             20     22     24 25     27     29        
+20 :                  4              8  9         12             16 17             21     23     25 26     28     30    
+21 :                      5              9 10         13             17 18             22     24     26 27     29     31
+22 :  0                                  9     11 12     14     16     18 19             23 24     26 27     29     31
+23 :  0  1                  6          9             13     15 16 17     19 20                     26 27     29     31
+24 :      1  2                  7         10             14     16 17 18     20 21                     27 28     30    
+25 :          2  3                  8         11             15     17 18 19     21 22                     28 29     31
+26 :  0          3  4      6             10                             18 19 20     22 23 24 25 26     28         31
+27 :      1          4  5      7             11                             19 20 21     23 24 25 26 27     29        
+28 :          2          5  6      8             12                             20 21 22     24 25 26 27 28     30    
+29 :              3          6  7      9             13                             21 22 23     25 26 27 28 29     31
+30 :                  4          7  8     10             14                             22 23 24     26 27 28 29 30    
+31 :                      5          8  9     11             15                             23 24 25     27 28 29 30 31
+*/
 endmodule
 
-module crc32_64_comb (
-  present_crc_32,
-  data_in_8,
-  next_crc_32
+module crc_32_64_private (
+  present_crc,
+  data_in_64,
+  next_crc
 );
 
-  input  [31:0] present_crc_32;
-  input  [63:0] data_in_8;
-  output [31:0] next_crc_32;
+  input  [`NUMBER_OF_BITS_IN_CRC - 1 : 0] present_crc;
+  input  [63:0] data_in_64;
+  output [`NUMBER_OF_BITS_IN_CRC - 1 : 0] next_crc;
 
 endmodule
 
@@ -190,178 +332,221 @@ endmodule
 //   look at the stored state.  Each place in the shift register where
 //   there is a 1'b1, that is a bit which is sensitive to the input
 //   or state bit in a parallel implementation N bits wide.
-//
-// remember  CRC_32 = 32'b0000_0100_1100_0001_0001_1101_1011_0111
 
-`define CALCULATE_FUNCTIONAL_DEPENDENCE_ON_INPUT_AND_STATE
+// `define CALCULATE_FUNCTIONAL_DEPENDENCE_ON_INPUT_AND_STATE
 `ifdef CALCULATE_FUNCTIONAL_DEPENDENCE_ON_INPUT_AND_STATE
 module print_out_formulas ();
 
-  parameter NUM_BITS_TO_DO_IN_PARALLEL = 8'h10;
+  parameter NUM_BITS_TO_DO_IN_PARALLEL = 8'h08;
 
-  reg    [31:0] running_state;
+  reg    [`NUMBER_OF_BITS_IN_CRC - 1 : 0] running_state;
   reg    [31:0] input_vector;
   reg     xor_value;
   integer i, j;
 
-  reg    [1023:0] corner_turner;  // use to read out formulas for each bit
+  reg    [2047:0] corner_turner;  // 32 bits * 64 shifts
 
   initial
   begin
     $display ("Calculating functional dependence on input bits.  Rightmost bit is State Bit 0.");
     for (i = 0; i < NUM_BITS_TO_DO_IN_PARALLEL; i = i + 1)
     begin
-      running_state = 32'h00000000;
+      running_state = {`NUMBER_OF_BITS_IN_CRC{1'b0}};
       input_vector = 32'h80000000;  // MSB first for this program
       for (j = 0; j < i + 1; j = j + 1)
       begin
-        xor_value = input_vector[31] ^ running_state[31];
-        running_state[31:0] = xor_value
-                            ? {running_state[30:0], 1'b0} ^ `CRC_32
-                            : {running_state[30:0], 1'b0};
-        input_vector[31:0] = {input_vector[30:0], 1'b0};
+        xor_value = input_vector[31] ^ running_state[`NUMBER_OF_BITS_IN_CRC - 1];
+        running_state[`NUMBER_OF_BITS_IN_CRC - 1 : 0] = xor_value
+                  ? {running_state[`NUMBER_OF_BITS_IN_CRC - 2 : 0], 1'b0} ^ `CRC
+                  : {running_state[`NUMBER_OF_BITS_IN_CRC - 2 : 0], 1'b0};
+        input_vector[`NUMBER_OF_BITS_IN_CRC - 1 : 0] =
+                    {input_vector[`NUMBER_OF_BITS_IN_CRC - 2 : 0], 1'b0};
       end
       $display ("input bit number (bigger is earlier) %d, dependence %b",
-                   i, running_state[31:0]);
+                   i, running_state[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
 // First entry, which gets shifted the most in corner_turner, is the last bit loaded                    
-      corner_turner[1023:0] = {corner_turner[1023 - 32 : 0], running_state[31:0]};
+      corner_turner[2047:0] = {corner_turner[2047 - `NUMBER_OF_BITS_IN_CRC : 0],
+                                      running_state[`NUMBER_OF_BITS_IN_CRC - 1:0]};
     end
 
+// NOTE: WORKING: count out formulas in the opposite order, write out valid formulas.
+    $display ("Each term called out means the formula depends on a term data_in[N] ^ State[N].");
+    $display ("State Variables depend on input bit number (bigger is earlier) :");
 // try to read out formulas by sweeping a 1-bit through the corner_turner array.
-    for (i = 0; i < 32; i = i + 1)  // each state bit depends on:
+    for (i = 0; i < `NUMBER_OF_BITS_IN_CRC; i = i + 1)  // each state bit depends on:
     begin
-      $display ("State Variable %d depends on input bit number (bigger is earlier) :", i);
+      $write ("%d :", i);
       for (j = 0; j < NUM_BITS_TO_DO_IN_PARALLEL; j = j + 1)
       begin
-        if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL - j - 1) * 32 + i] != 1'b0)
-          $display ("%d", j);
+        if (corner_turner[(NUM_BITS_TO_DO_IN_PARALLEL-j-1)*`NUMBER_OF_BITS_IN_CRC + i]
+                                                                            != 1'b0)
+          $write (" %d", j[5:0]);
+        else
+          $write ("    ");
       end
+      $write ("\n");
     end
-    $display ("State bits all just shift towards the MSB by the number of bits acted on each clock.");
+    $display ("All terms beyond the width of the input data are each dependent on State");
+    $display ("bits the shift distance towards the LSB of the polynomial.  For instance,");
+    $display ("if the shift distance is 16, State Bit 16 has a term containing old state bit 0.");
   end
 endmodule
 `endif  // CALCULATE_FUNCTIONAL_DEPENDENCE_ON_INPUT_AND_STATE
 
-// `define SERIAL_VERSION_FOR_DEBUG
+ `define SERIAL_VERSION_FOR_DEBUG
 `ifdef SERIAL_VERSION_FOR_DEBUG
 // a slow one to make sure I did things right.
 module crc_32_1_bit_at_a_time (
-  present_crc_32,
-  data_in,
-  next_crc_32
+  present_crc,
+  data_in_1,
+  next_crc
 );
 
-  input  [31:0] present_crc_32;
-  input   data_in;
-  output [31:0] next_crc_32;
+  input  [`NUMBER_OF_BITS_IN_CRC - 1 : 0] present_crc;
+  input   data_in_1;
+  output [`NUMBER_OF_BITS_IN_CRC - 1 : 0] next_crc;
 
-  wire    xor_value = data_in ^ present_crc_32[31];
+  wire    xor_value = data_in_1 ^ present_crc[`NUMBER_OF_BITS_IN_CRC - 1];
 
-  assign  next_crc_32[31:0] = xor_value
-                     ? {present_crc_32[30:0], 1'b0} ^ `CRC_32
-                     : {present_crc_32[30:0], 1'b0};
+  assign  next_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] = xor_value
+                     ? {present_crc[`NUMBER_OF_BITS_IN_CRC - 2 : 0], 1'b0} ^ `CRC
+                     : {present_crc[`NUMBER_OF_BITS_IN_CRC - 2 : 0], 1'b0};
 endmodule
 
 module test_crc_1 ();
 
   integer i, j;
-  reg    [31:0] present_crc_32;
-  wire   [31:0] next_crc_32;
+  reg    [`NUMBER_OF_BITS_IN_CRC - 1 : 0] present_crc;
+  wire   [`NUMBER_OF_BITS_IN_CRC - 1 : 0] next_crc;
   reg    [7:0] data_in;
+  reg    [`NUMBER_OF_BITS_IN_CRC - 1 : 0] present_crc_8;
+  wire   [`NUMBER_OF_BITS_IN_CRC - 1 : 0] next_crc_8;
+
+// Assign data_in before invoking.  This consumes data MSB first
+task apply_byte_to_crc;
+  integer j;
+  begin
+    #0 ;
+    present_crc_8[`NUMBER_OF_BITS_IN_CRC - 1 : 0] =
+                            next_crc_8[`NUMBER_OF_BITS_IN_CRC - 1 : 0];
+    for (j = 0; j < 8; j = j + 1)
+    begin
+      #0 ;
+      present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] =
+                            next_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0];
+      data_in[7:0] = {data_in[6:0], 1'b0};  // Shift byte out MSB first
+    end
+  end
+endtask
 
   initial
   begin
     #10;
     $display ("running serial version of code");
-    present_crc_32[31:0] = 32'hFFFFFFFF;
+    present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] =   {`NUMBER_OF_BITS_IN_CRC{1'b1}};
+    present_crc_8[`NUMBER_OF_BITS_IN_CRC - 1 : 0] = {`NUMBER_OF_BITS_IN_CRC{1'b1}};
     data_in = 1'b0;
     for (i = 0; i < 43; i = i + 1)
     begin
       data_in[7:0] = 8'h00;
-      for (j = 0; j < 8; j = j + 1)
-      begin
-        #0 ;
-        present_crc_32[31:0] = next_crc_32[31:0];
-        data_in[7:0] = {data_in[6:0], 1'b0};
-      end
+      apply_byte_to_crc;
     end
     data_in[7:0] = 8'h28;
-    for (j = 0; j < 8; j = j + 1)
-    begin
-      #0 ;
-      present_crc_32[31:0] = next_crc_32[31:0];
-      data_in[7:0] = {data_in[6:0], 1'b0};
-    end
-    $display ("after 40 bytes of 1'b0, I want 32'h864D7F99, I get 32\`h%x", ~present_crc_32[31:0]);
+    apply_byte_to_crc;
+    if (~present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'h864D7F99)
+      $display ("*** after 40 bytes of 1'b0, I want 32'h864D7F99, I get 32\`h%x",
+                 ~present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
+    if (~present_crc_8[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'h864D7F99)
+      $display ("*** after 40 bytes of 1'b0, I want 32'h864D7F99, I get 32\`h%x",
+                 ~present_crc_8[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
+    data_in[7:0] = 8'h86;
+    apply_byte_to_crc;
+    data_in[7:0] = 8'h4D;
+    apply_byte_to_crc;
+    data_in[7:0] = 8'h7F;
+    apply_byte_to_crc;
+    data_in[7:0] = 8'h99;
+    apply_byte_to_crc;
+    if (present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hC704DD7B)
+      $display ("*** after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
+                  present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
 
-    present_crc_32[31:0] = 32'hFFFFFFFF;
+
+//        The receiver sees the value 32'hC704DD7B when the message is
+//          received no errors.  Bit reversed, that is 32'hDEBB20E3.
+
+    present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] = {`NUMBER_OF_BITS_IN_CRC{1'b1}};
     data_in = 1'b0;
     for (i = 0; i < 40; i = i + 1)
     begin
       data_in[7:0] = 8'hFF;
-      for (j = 0; j < 8; j = j + 1)
-      begin
-        #0 ;
-        present_crc_32[31:0] = next_crc_32[31:0];
-        data_in[7:0] = {data_in[6:0], 1'b0};
-      end
+      apply_byte_to_crc;
     end
     for (i = 0; i < 3; i = i + 1)
     begin
       data_in[7:0] = 8'h00;
-      for (j = 0; j < 8; j = j + 1)
-      begin
-        #0 ;
-        present_crc_32[31:0] = next_crc_32[31:0];
-        data_in[7:0] = {data_in[6:0], 1'b0};
-      end
+      apply_byte_to_crc;
     end
     data_in[7:0] = 8'h28;
-    for (j = 0; j < 8; j = j + 1)
-    begin
-      #0 ;
-      present_crc_32[31:0] = next_crc_32[31:0];
-      data_in[7:0] = {data_in[6:0], 1'b0};
-    end
-    $display ("after 40 bytes of 1'b1, I want 32'hC55E457A, I get 32\`h%x", ~present_crc_32[31:0]);
+    apply_byte_to_crc;
+    if (~present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hC55E457A)
+      $display ("*** after 40 bytes of 1'b0, I want 32'hC55E457A, I get 32\`h%x",
+                 ~present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
+    data_in[7:0] = 8'hC5;
+    apply_byte_to_crc;
+    data_in[7:0] = 8'h5E;
+    apply_byte_to_crc;
+    data_in[7:0] = 8'h45;
+    apply_byte_to_crc;
+    data_in[7:0] = 8'h7A;
+    apply_byte_to_crc;
+    if (present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hC704DD7B)
+      $display ("*** after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
+                  present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
 
-    present_crc_32[31:0] = 32'hFFFFFFFF;
+    present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] = {`NUMBER_OF_BITS_IN_CRC{1'b1}};
     data_in = 1'b0;
     for (i = 0; i < 40; i = i + 1)
     begin
       data_in[7:0] = i + 1;
-      for (j = 0; j < 8; j = j + 1)
-      begin
-        #0 ;
-        present_crc_32[31:0] = next_crc_32[31:0];
-        data_in[7:0] = {data_in[6:0], 1'b0};
-      end
+      apply_byte_to_crc;
     end
     for (i = 0; i < 3; i = i + 1)
     begin
       data_in[7:0] = 8'h00;
-      for (j = 0; j < 8; j = j + 1)
-      begin
-        #0 ;
-        present_crc_32[31:0] = next_crc_32[31:0];
-        data_in[7:0] = {data_in[6:0], 1'b0};
-      end
+      apply_byte_to_crc;
     end
     data_in[7:0] = 8'h28;
-    for (j = 0; j < 8; j = j + 1)
-    begin
-      #0 ;
-      present_crc_32[31:0] = next_crc_32[31:0];
-      data_in[7:0] = {data_in[6:0], 1'b0};
-    end
-    $display ("after 40 bytes of 1'b1, I want 32'hBF671ED0, I get 32\`h%x", ~present_crc_32[31:0]);
+    apply_byte_to_crc;
+    if (~present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hBF671ED0)
+      $display ("*** after 40 bytes of 1'b0, I want 32'hBF671ED0, I get 32\`h%x",
+                 ~present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
+    data_in[7:0] = 8'hBF;
+    apply_byte_to_crc;
+    data_in[7:0] = 8'h67;
+    apply_byte_to_crc;
+    data_in[7:0] = 8'h1E;
+    apply_byte_to_crc;
+    data_in[7:0] = 8'hD0;
+    apply_byte_to_crc;
+    if (present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] !== 32'hC704DD7B)
+      $display ("*** after running CRC through, I want 32'hC704DD7B, I get 32\`h%x",
+                  present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0]);
+
   end
 
 crc_32_1_bit_at_a_time test_1_bit (
-  .present_crc_32             (present_crc_32[31:0]),
-  .data_in                    (data_in[7]),
-  .next_crc_32                (next_crc_32[31:0])
+  .present_crc                (present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0]),
+  .data_in_1                  (data_in[7]),
+  .next_crc                   (next_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0])
 );
+
+crc_32_8_private test_8_bit (
+  .present_crc                (present_crc_8[`NUMBER_OF_BITS_IN_CRC - 1 : 0]),
+  .data_in_8                  (data_in[7:0]),
+  .next_crc                   (next_crc_8[`NUMBER_OF_BITS_IN_CRC - 1 : 0])
+);
+
 
 //  Angie Tso's CRC-32 Test Cases
 //  tsoa@ttc.com
