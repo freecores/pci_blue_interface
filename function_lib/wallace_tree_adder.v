@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: wallace_tree_adder.v,v 1.1 2001-08-31 11:23:37 bbeaver Exp $
+// $Id: wallace_tree_adder.v,v 1.2 2001-08-31 11:33:09 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
