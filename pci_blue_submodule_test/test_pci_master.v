@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_master.v,v 1.9 2001-07-07 03:11:59 bbeaver Exp $
+// $Id: test_pci_master.v,v 1.10 2001-07-14 09:08:42 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -78,6 +78,8 @@ module pci_test_master (
   pci_gnt_in_critical,
   pci_clk,
   pci_master_ad_out_next,  pci_master_ad_out_oe_comb,
+  Master_Force_AD_to_Address_Data,
+  Master_Exposes_Data_On_TRDY,
   pci_ad_in_prev,
   pci_cbe_l_out_next, pci_cbe_out_oe_comb,
   pci_frame_in_critical,
@@ -125,13 +127,15 @@ module pci_test_master (
   output [PCI_BUS_DATA_RANGE:0] pci_ad_in_prev;
   output [PCI_BUS_DATA_RANGE:0] pci_master_ad_out_next;
   output  pci_master_ad_out_oe_comb;
+  output  Master_Force_AD_to_Address_Data;
+  output  Master_Exposes_Data_On_TRDY;
   output [PCI_BUS_CBE_RANGE:0] pci_cbe_l_out_next;
   output  pci_cbe_out_oe_comb;
   output  pci_frame_in_critical;
   output  pci_frame_out_next, pci_frame_out_oe_comb;
   output  pci_irdy_in_critical;
   output  pci_irdy_out_next, pci_irdy_out_oe_comb;
-  output [9:0] pci_state;  // TEMPORARY
+  output [6:0] pci_state;  // TEMPORARY
   output [1:0] pci_fifo_state;  // TEMPORARY
   output [31:0] pci_retry_address;  // TEMPORARY
   output [31:0] pci_retry_data;  // TEMPORARY
@@ -153,16 +157,16 @@ module pci_test_master (
   output  master_asked_to_retry;
 
 // GROSS debugging signal. Only here to put signal in waveform.
-  assign  pci_state[9:0]        = pci_blue_master.PCI_Master_State[9:0];                 // TEMPORARY
-  assign  pci_fifo_state[1:0]   = pci_blue_master.PCI_Master_Retry_State[1:0];           // TEMPORARY
-  assign  pci_retry_address[31:0] = {pci_blue_master.Master_Retry_Address[31:2], 2'b0};  // TEMPORARY
-  assign  pci_retry_data[31:0]  = pci_blue_master.Master_Retry_Data[31:0];               // TEMPORARY
-  assign  pci_target_full       = pci_blue_master.master_to_target_status_full;          // TEMPORARY
+  assign  pci_state[6:0]        = pci_blue_master.PCI_Master_State[6:0];                  // TEMPORARY
+  assign  pci_fifo_state[1:0]   = pci_blue_master.PCI_Master_Retry_State[1:0];            // TEMPORARY
+  assign  pci_retry_address[31:0] = {pci_blue_master.Master_Retry_Address[31:2], 2'b0};   // TEMPORARY
+  assign  pci_retry_data[31:0]  = pci_blue_master.Master_Retry_Data[31:0];                // TEMPORARY
+  assign  pci_target_full       = pci_blue_master.master_to_target_status_full;           // TEMPORARY
   assign  pci_bus_full          = pci_blue_master.master_request_full;                    // TEMPORARY
   assign  two_words_avail       = pci_blue_master.request_fifo_two_words_available_meta;  // TEMPORARY
-  assign  one_word_avail        = pci_blue_master.request_fifo_data_available_meta;      // TEMPORARY
-  assign  addr_aval             = pci_blue_master.Request_FIFO_CONTAINS_ADDRESS;         // TEMPORARY
-  assign  working               = pci_blue_master.Master_Abort_Detected;        // TEMPORARY
+  assign  one_word_avail        = pci_blue_master.request_fifo_data_available_meta;       // TEMPORARY
+  assign  addr_aval             = pci_blue_master.Request_FIFO_CONTAINS_ADDRESS;          // TEMPORARY
+  assign  working               = pci_blue_master.prefetching_request_fifo_data;                  // TEMPORARY
 
 // PCI signals
   wire    pci_req_out_next, pci_req_out_oe_comb;
@@ -172,9 +176,9 @@ module pci_test_master (
   wire    pci_master_ad_out_oe_comb;
   wire   [PCI_BUS_CBE_RANGE:0] pci_cbe_l_out_next;
   wire    pci_cbe_out_oe_comb;
-  reg     pci_frame_in_critical;
+  reg     pci_frame_in_critical, pci_frame_in_prev;
   wire    pci_frame_out_next, pci_frame_out_oe_comb;
-  reg     pci_irdy_in_critical;
+  reg     pci_irdy_in_critical, pci_irdy_in_prev;
   wire    pci_irdy_out_next, pci_irdy_out_oe_comb;
   reg     pci_devsel_in_prev, pci_devsel_in_comb;
   reg     pci_trdy_in_prev, pci_trdy_in_critical;
@@ -355,6 +359,8 @@ endtask
     pci_gnt_in_prev <= pci_gnt_in_critical;
     pci_ad_in_prev[PCI_BUS_DATA_RANGE:0] <= pci_ad_in_comb[PCI_BUS_DATA_RANGE:0];
     pci_devsel_in_prev <= pci_devsel_in_comb;
+    pci_frame_in_prev <= pci_frame_in_critical;
+    pci_irdy_in_prev <= pci_irdy_in_critical;
     pci_trdy_in_prev <= pci_trdy_in_critical;
     pci_stop_in_prev <= pci_stop_in_critical;
     pci_perr_in_prev <= pci_perr_in_comb;
@@ -371,7 +377,9 @@ endtask
     pci_gnt_in_critical <= 1'b0;
     pci_gnt_in_prev <= pci_gnt_in_critical;
     pci_frame_in_critical <= 1'b0;
+    pci_frame_in_prev <= 1'b0;
     pci_irdy_in_critical <= 1'b0;
+    pci_irdy_in_prev <= 1'b0;
     pci_devsel_in_comb <= 1'b0;
     pci_devsel_in_prev <= pci_devsel_in_comb;
     pci_trdy_in_critical <= 1'b0;
@@ -393,11 +401,8 @@ endtask
     pci_frame_in_critical <= 1'b0;
     pci_irdy_in_critical <= 1'b0;
     pci_devsel_in_comb <= 1'b0;
-    pci_devsel_in_prev <= pci_devsel_in_comb;
     pci_trdy_in_critical <= 1'b0;
-    pci_trdy_in_prev <= pci_trdy_in_critical;
     pci_stop_in_critical <= 1'b0;
-    pci_stop_in_prev <= pci_stop_in_critical;
     pci_perr_in_prev <= 1'b0;
     pci_serr_in_prev <= 1'b0;
   end
@@ -442,18 +447,118 @@ endtask
     unload_target_data;
       do_clocks (4'h4);
 
+// WORKING
+    $display ("Doing Memory Read, 1 word, no Wait States, at time %t", $time);
+    do_reset;
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ, 32'hAD101234);
+    unload_target_data;
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_0, 32'hDA105678);
+      do_clocks (4'h3);
+    pci_grant;
+      do_clocks (4'h1);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
+
+    $display ("Doing Memory Read, 2 words, no Wait States, at time %t", $time);
+    do_reset;
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ, 32'hAD201234);
+    unload_target_data;
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1, 32'hDA205678);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_2, 32'hDA305678);
+      do_clocks (4'h1);
+    pci_grant;
+      do_clocks (4'h2);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h1);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
+
+    $display ("Doing Memory Read, 2 words, no Wait States, at time %t", $time);
+    do_reset;
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ, 32'hAD301234);
+    unload_target_data;
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1, 32'hDA405678);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_2, 32'hDA505678);
+      do_clocks (4'h1);
+    pci_grant;
+      do_clocks (4'h2);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h1);
+    pci_devsel;
+    pci_trdy;
+    pci_stop;
+      do_clocks (4'h8);
+
+    $display ("Doing Memory Write, 1 word, no Wait States, at time %t", $time);
+    do_reset;
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE, 32'hAD401234);
+    unload_target_data;
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_3, 32'hDA605678);
+      do_clocks (4'h2);
+    pci_grant;
+      do_clocks (4'h2);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
+
+    $display ("Doing Memory Write, 2 words, no Wait States, at time %t", $time);
+    do_reset;
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE, 32'hAD501234);
+    unload_target_data;
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_0, 32'hDA705678);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Half_1, 32'hDA805678);
+      do_clocks (4'h1);
+    pci_grant;
+      do_clocks (4'h2);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h1);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
+
+    $display ("Doing Memory Write, 2 words, no Wait States, at time %t", $time);
+    do_reset;
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE, 32'hAD601234);
+    unload_target_data;
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_0, 32'hDA905678);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Half_1, 32'hDA105678);
+      do_clocks (4'h1);
+    pci_grant;
+      do_clocks (4'h2);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h1);
+    pci_devsel;
+    pci_trdy;
+    pci_stop;
+      do_clocks (4'h8);
+
+
     $display ("Doing Config Read, 1 word, Loose Arb, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_READ, 32'h11223344);
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_READ, 32'hAD701234);
       do_clocks (4'h1);
-    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h15667788);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'hDA205678);
       do_clocks (4'h1);
     unload_target_data;
     pci_grant;           // park
       do_clocks (4'h1);
     pci_grant;           // park
-      do_clocks (4'h1);
-    pci_grant;           // drive
       do_clocks (4'h1);
                          // loose arbitration
       do_clocks (4'h1);
@@ -464,16 +569,15 @@ endtask
 
     $display ("Doing Config Read, 2 words, Loose Arb, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_READ, 32'h21223344);
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_READ, 32'hAD801234);
       do_clocks (4'h1);
-    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'h25667788);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'hDA305678);
       do_clocks (4'h1);
-    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h29AABBCC);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'hDA405678);
+    pci_grant;           // park
       do_clocks (4'h1);
     unload_target_data;
     pci_grant;           // park
-      do_clocks (4'h1);
-    pci_grant;           // drive
       do_clocks (4'h1);
                          // loose arbitration
       do_clocks (4'h1);
@@ -484,18 +588,16 @@ endtask
 
     $display ("Doing Config Read, 3 words, Loose Arb, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_READ, 32'h21223344);
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_READ, 32'hAD901234);
       do_clocks (4'h1);
-    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'h25667788);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'hDA505678);
       do_clocks (4'h1);
-    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'h29AABBCC);
-      do_clocks (4'h1);
-    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h2DEEFF00);
-      do_clocks (4'h1);
-    unload_target_data;
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'hDA605678);
     pci_grant;           // park
       do_clocks (4'h1);
-    pci_grant;           // drive
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'hDA705678);
+    unload_target_data;
+    pci_grant;           // park
       do_clocks (4'h1);
                          // loose arbitration
       do_clocks (4'h1);
@@ -506,16 +608,14 @@ endtask
 
     $display ("Doing Config Write, 1 word, Loose Arb, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_WRITE, 32'h31223344);
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_WRITE, 32'hAD101234);
       do_clocks (4'h1);
-    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h35667788);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'hDA805678);
       do_clocks (4'h1);
     unload_target_data;
     pci_grant;           // park
       do_clocks (4'h1);
     pci_grant;           // park
-      do_clocks (4'h1);
-    pci_grant;           // drive
       do_clocks (4'h1);
                          // loose arbitration
       do_clocks (4'h1);
@@ -526,16 +626,15 @@ endtask
 
     $display ("Doing Config Write, 2 words, Loose Arb, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_WRITE, 32'h41223344);
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_WRITE, 32'hAD201234);
       do_clocks (4'h1);
-    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'h45667788);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'hDA905678);
       do_clocks (4'h1);
-    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h49AABBCC);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'hDA105678);
+    pci_grant;           // park
       do_clocks (4'h1);
     unload_target_data;
     pci_grant;           // park
-      do_clocks (4'h1);
-    pci_grant;           // drive
       do_clocks (4'h1);
                          // loose arbitration
       do_clocks (4'h1);
@@ -546,18 +645,16 @@ endtask
 
     $display ("Doing Config Write, 3 words, Loose Arb, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_WRITE, 32'h41223344);
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_WRITE, 32'hAD301234);
       do_clocks (4'h1);
-    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'h45667788);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'hDA205678);
       do_clocks (4'h1);
-    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'h49AABBCC);
-      do_clocks (4'h1);
-    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h4DEEFF00);
-      do_clocks (4'h1);
-    unload_target_data;
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'hDA305678);
     pci_grant;           // park
       do_clocks (4'h1);
-    pci_grant;           // drive
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'hDA405678);
+    unload_target_data;
+    pci_grant;           // park
       do_clocks (4'h1);
                          // loose arbitration
       do_clocks (4'h1);
@@ -569,34 +666,34 @@ endtask
 `ifdef LATER
     $display ("Doing Memory Read, 1 word, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ, 32'h51223344);
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ, 32'hAD401234);
       do_clocks (4'h1);
-    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_0, 32'h55667788);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_0, 32'hDA505678);
       do_clocks (4'h8);
 
     $display ("Doing Memory Read, 2 words, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ, 32'h61223344);
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ, 32'hAD501234);
       do_clocks (4'h1);
-    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1, 32'h65667788);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1, 32'hDA605678);
       do_clocks (4'h1);
-    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_2, 32'h69AABBCC);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_2, 32'hDA705678);
       do_clocks (4'h8);
 
     $display ("Doing Memory Write, 1 word, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE, 32'h71223344);
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE, 32'hAD601234);
       do_clocks (4'h1);
-    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_3, 32'h75667788);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_3, 32'hDA805678);
       do_clocks (4'h8);
 
     $display ("Doing Memory Write, 2 words, Master Abort, at time %t", $time);
     do_reset;
-    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE, 32'h81223344);
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE, 32'hAD701234);
       do_clocks (4'h1);
-    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_0, 32'h85667788);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_0, 32'hDA905678);
       do_clocks (4'h1);
-    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Half_1, 32'h89AABBCC);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Half_1, 32'hDA105678);
       do_clocks (4'h8);
 
     $display ("Doing Memory Read, 1 word, Target Abort, at time %t", $time);
@@ -841,9 +938,11 @@ pci_blue_master pci_blue_master (
   .pci_cbe_l_out_next         (pci_cbe_l_out_next[PCI_BUS_CBE_RANGE:0]),
   .pci_cbe_out_oe_comb        (pci_cbe_out_oe_comb),
   .pci_frame_in_critical      (pci_frame_in_critical),
+  .pci_frame_in_prev          (pci_frame_in_prev),
   .pci_frame_out_next         (pci_frame_out_next),
   .pci_frame_out_oe_comb      (pci_frame_out_oe_comb),
   .pci_irdy_in_critical       (pci_irdy_in_critical),
+  .pci_irdy_in_prev           (pci_irdy_in_prev),
   .pci_irdy_out_next          (pci_irdy_out_next),
   .pci_irdy_out_oe_comb       (pci_irdy_out_oe_comb),
   .pci_devsel_in_prev         (pci_devsel_in_prev),

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_master_pads.v,v 1.10 2001-07-07 03:12:00 bbeaver Exp $
+// $Id: pci_master_pads.v,v 1.11 2001-07-14 09:08:42 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -73,6 +73,7 @@ module pci_master_pads (
   pci_req_out_next,
   pci_req_out_oe_comb,
   pci_gnt_in_prev,   pci_gnt_in_critical,
+  pci_reset_comb,
   pci_clk
 );
 
@@ -85,6 +86,7 @@ module pci_master_pads (
   input   pci_req_out_oe_comb;
   output  pci_gnt_in_prev;
   output  pci_gnt_in_critical;
+  input   pci_reset_comb;
   input   pci_clk;
 
   wire    pci_req_discard_comb, pci_req_discard_prev;
@@ -95,8 +97,8 @@ module pci_master_pads (
   assign  pci_gnt_in_prev = ~pci_gnt_in_l_prev;
   assign  pci_gnt_in_critical = ~pci_gnt_in_l_comb;
 
-pci_registered_io_pad req (
-  .pci_clk           (pci_clk),
+pci_registered_resettable_io_pad req (
+  .pci_clk           (pci_clk),             .pci_reset_comb     (pci_reset_comb),
   .pci_ad_in_comb    (pci_req_discard_comb),.pci_ad_in_prev     (pci_req_discard_prev),
   .pci_ad_out_next   (pci_req_out_l_next),  .pci_ad_out_en_next (1'b1),
   .pci_ad_out_oe_comb (pci_req_out_oe_comb), .pci_ad_ext         (pci_ext_req_l)

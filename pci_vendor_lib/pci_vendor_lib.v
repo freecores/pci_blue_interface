@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_vendor_lib.v,v 1.12 2001-07-07 08:01:19 bbeaver Exp $
+// $Id: pci_vendor_lib.v,v 1.13 2001-07-14 09:08:43 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -117,7 +117,11 @@ module pci_combinational_io_pad (
   assign  d_ext = d_out_oe_comb ? d_out_comb : 1'bz;
 endmodule
 
-// IO pads contain an internal flip-flop on output data,
+// IO pads contain an internal flip-flop on output data for timing purposes.
+// Output flop does not need to be reset when PCI bus is reset, because
+//   the OE signal comes from a flop which IS reset.
+// NOTE: This is not true for the DMA Request Pin.  That one is always
+//   OE'd, so it needs to be reset.
 module pci_registered_io_pad (
   pci_clk,
   pci_ad_in_comb, pci_ad_in_prev,
@@ -191,6 +195,130 @@ module pci_registered_io_pad (
     pci_ad_out_prev <= pci_ad_out_shadow;
     pci_ad_out_oe_prev <= pci_ad_out_en_next;
     pci_ad_in_grab <= pci_ad_ext;  // probably in the IO pad
+  end
+  assign  pci_ad_in_comb = pci_ad_out_oe_comb ? pci_ad_out_shadow : pci_ad_ext;
+  assign  pci_ad_in_prev = pci_ad_out_oe_prev ? pci_ad_out_prev : pci_ad_in_grab;
+`endif // Post_Flop_Bypass
+
+`else // SIMULTANEOUS_MASTER_TARGET not needed
+
+// External signals from other masters are always settled in time to use
+  assign  pci_ad_in_comb = pci_ad_out_oe_comb ? 1'bX : pci_ad_ext;  // drive output
+
+// This flop is timing critical, because of the small external data valid window
+  reg     pci_ad_in_prev;
+  always @(posedge pci_clk)
+  begin
+    pci_ad_in_prev <= pci_ad_out_oe_comb ? 1'bX : pci_ad_ext;  // drive output
+  end
+`endif // SIMULTANEOUS_MASTER_TARGET
+
+// synopsys translate_off
+  always @(posedge pci_clk)
+  begin
+    if (pci_ad_out_oe_comb & (pci_ad_out_flop !== pci_ad_ext))
+    begin
+      $display (" ***** %m PCI Pad drives one value while receiving another %h, %h, %h, at %t",
+                  pci_ad_out_oe_comb, pci_ad_out_flop, pci_ad_ext, $time);
+    end
+    `NO_ELSE;
+  end
+// synopsys translate_on
+endmodule
+
+// IO pads contain an internal flip-flop on output data for timing purposes.
+// Output flop does not need to be reset when PCI bus is reset, because
+//   the OE signal comes from a flop which IS reset.
+// NOTE: This is not true for the DMA Request Pin.  That one is always
+//   OE'd, so it needs to be reset.
+module pci_registered_resettable_io_pad (
+  pci_clk,
+  pci_reset_comb,
+  pci_ad_in_comb, pci_ad_in_prev,
+  pci_ad_out_next, pci_ad_out_en_next,
+  pci_ad_out_oe_comb,
+  pci_ad_ext
+);
+
+`include "pci_blue_options.vh"
+`include "pci_blue_constants.vh"
+
+  input   pci_clk;
+  input   pci_reset_comb;
+  output  pci_ad_in_comb;
+  output  pci_ad_in_prev;
+  input   pci_ad_out_next, pci_ad_out_en_next;
+  input   pci_ad_out_oe_comb;
+  inout   pci_ad_ext;
+
+// This flop is timing critical, and should be in or near the IO pad.
+// Xilinx chip probably can't use IO Flop, because I don't think it
+// has a latch enable.
+  reg     pci_ad_out_flop;
+  always @(posedge pci_clk or posedge pci_reset_comb)
+  begin
+    if (pci_reset_comb == 1'b1)
+      pci_ad_out_flop <= 1'b0;
+    else
+      pci_ad_out_flop <= pci_ad_out_en_next ? pci_ad_out_next : pci_ad_out_flop;
+  end
+
+// For simulation purposes, make delayed versions of PCI signals with X's
+  wire    pci_ad_out_flop_dly1, pci_ad_out_flop_dly2;
+  assign #`PAD_MIN_DATA_DLY pci_ad_out_flop_dly1 = pci_ad_out_flop;
+  assign #`PAD_MAX_DATA_DLY pci_ad_out_flop_dly2 = pci_ad_out_flop;
+
+  wire    pci_ad_oe_comb_dly1, pci_ad_oe_comb_dly2;
+  assign #`PAD_MIN_OE_DLY pci_ad_oe_comb_dly1= pci_ad_out_oe_comb;
+  assign #`PAD_MAX_OE_DLY pci_ad_oe_comb_dly2 = pci_ad_out_oe_comb;
+
+  wire    force_x = (pci_ad_oe_comb_dly1 != pci_ad_oe_comb_dly2)
+                  | (pci_ad_out_oe_comb
+                        & (pci_ad_out_flop_dly1 !== pci_ad_out_flop_dly2));
+  assign  pci_ad_ext = force_x ? 1'bX  // drive output
+                     : ((pci_ad_oe_comb_dly2) ? pci_ad_out_flop_dly2 : 1'bZ);
+
+`ifdef SIMULTANEOUS_MASTER_TARGET_NEVER
+// Have to look at Internal signals when driving and receiving at the same
+// time.  See the PCI Local Bus Spec Revision 2.2 section 3.10 item 9.
+// Two ways to implement the required bypass.
+
+`ifdef Post_Flop_Bypass
+// 1) bypass the inputs from the output flop, by accessing the signals
+//    between the output flop and the IO Pad.
+  wire    pci_ad_in_loop = pci_ad_out_oe_comb ? pci_ad_out_flop : pci_ad_ext;
+  assign  pci_ad_in_comb = pci_ad_in_loop;  // drive output
+
+// This flop is timing critical, because of the small external data valid window
+  reg     pci_ad_in_prev;
+  always @(posedge pci_clk)
+  begin
+    pci_ad_in_prev <= pci_ad_in_loop;
+  end
+
+`else // Post_Flop_Bypass
+// NOTE: WORKING.  Not the best.  Should be fewer flops.
+// 2) duplicate the output flops to let the outgoing data be captured,
+//    and bypass using the duplicated data.
+// The pci_ad_out_en_next and pci_ad_in_comb signals might be timing critical.
+// Care must be used in the placement of all flops.
+  reg     pci_ad_out_shadow, pci_ad_out_prev, pci_ad_out_oe_prev, pci_ad_in_grab;
+  always @(posedge pci_clk or posedge pci_reset_comb)
+  begin
+    if (pci_reset_comb == 1'b1)
+    begin
+      pci_ad_out_shadow <= 1'b0;
+      pci_ad_out_prev <= 1'b0;
+      pci_ad_out_oe_prev <= 1'b0;
+      pci_ad_in_grab <= 1'b0;
+    end
+    else
+    begin
+      pci_ad_out_shadow <= pci_ad_out_en_next ? pci_ad_out_next : pci_ad_out_shadow;
+      pci_ad_out_prev <= pci_ad_out_shadow;
+      pci_ad_out_oe_prev <= pci_ad_out_en_next;
+      pci_ad_in_grab <= pci_ad_ext;  // probably in the IO pad
+    end
   end
   assign  pci_ad_in_comb = pci_ad_out_oe_comb ? pci_ad_out_shadow : pci_ad_ext;
   assign  pci_ad_in_prev = pci_ad_out_oe_prev ? pci_ad_out_prev : pci_ad_in_grab;

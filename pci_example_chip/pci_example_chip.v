@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_example_chip.v,v 1.11 2001-07-07 03:12:00 bbeaver Exp $
+// $Id: pci_example_chip.v,v 1.12 2001-07-14 09:08:42 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -262,6 +262,7 @@ pci_master_pads pci_master_pads (
   .pci_req_out_oe_comb        (pci_req_out_oe_comb),
   .pci_gnt_in_prev            (pci_gnt_in_prev),
   .pci_gnt_in_critical        (pci_gnt_in_critical),
+  .pci_reset_comb             (pci_reset_comb),
   .pci_clk                    (pci_clk)
 );
 `endif  // PCI_EXTERNAL_MASTER

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_interface.v,v 1.18 2001-07-07 03:11:57 bbeaver Exp $
+// $Id: pci_blue_interface.v,v 1.19 2001-07-14 09:08:38 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -107,6 +107,15 @@
 //        must complete any writes, then either do a PCI Read or a Write Fence.
 //        No other activity is allowed until the Write Fence is acknowledged.
 //        Note that a Read will be acknowledged as a Write Fence!
+//
+// NOTE: WORKING: Very Subtle point.  The PCI Master may NOT look at the value
+//        of signals it drove itself the previous clock.  The driver of a PCI bus
+//        receives the value it drove later than all other devices.  See the PCI
+//        Local Bus Spec Revision 2.2 section 3.10 item 9 for details.
+//        FRAME isn't a problem, because it is driven 1 clock before IRDY.
+//        This Master must therefore NOT look at IRDY unless it very sure that
+//        the the data is constant for 2 clocks.  How?
+//        This Master may not look at the Control wires from this Target, either.
 //
 //===========================================================================
 
@@ -1100,33 +1109,6 @@ $display ("Got Last Read Data");  // NOTE WORKING
     `NO_ELSE;
   end
 
-`ifdef VERBOSE_TEST_DEVICE
-// Monitor the activity on the Host Interface of the PCI_Blue_Interface.
-monitor_pci_interface_host_port monitor_pci_interface_host_port (
-// Wires used by the host controller to request action by the pci interface
-  .pci_host_request_data      (pci_host_request_data[PCI_FIFO_DATA_RANGE:0]),
-  .pci_host_request_cbe       (pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0]),
-  .pci_host_request_type      (pci_host_request_type[2:0]),
-  .pci_host_request_room_available_meta  (pci_host_request_room_available_meta),
-  .pci_host_request_submit    (pci_host_request_submit),
-  .pci_host_request_error     (pci_host_request_error),
-// Wires used by the pci interface to request action by the host controller
-  .pci_host_response_data     (pci_host_response_data[PCI_FIFO_DATA_RANGE:0]),
-  .pci_host_response_cbe      (pci_host_response_cbe[PCI_FIFO_CBE_RANGE:0]),
-  .pci_host_response_type     (pci_host_response_type[3:0]),
-  .pci_host_response_data_available_meta  (pci_host_response_data_available_meta),
-  .pci_host_response_unload   (pci_host_response_unload),
-  .pci_host_response_error    (pci_host_response_error),
-// Wires used by the host controller to send delayed read data by the pci interface
-  .pci_host_delayed_read_data (pci_host_delayed_read_data[PCI_FIFO_DATA_RANGE:0]),
-  .pci_host_delayed_read_type (pci_host_delayed_read_type[2:0]),
-  .pci_host_delayed_read_room_available_meta  (pci_host_delayed_read_room_available_meta),
-  .pci_host_delayed_read_data_submit          (pci_host_delayed_read_data_submit),
-  .pci_host_delayed_read_data_error (pci_host_delayed_read_data_error),
-  .host_clk                   (host_clk)
-);
-`endif  // VERBOSE_TEST_DEVICE
-
 // Wires connecting the Host FIFOs to the PCI Interface
   wire   [2:0] pci_request_fifo_type;
   wire   [PCI_FIFO_CBE_RANGE:0] pci_request_fifo_cbe;
@@ -1355,9 +1337,11 @@ pci_blue_master pci_blue_master (
   .pci_cbe_l_out_next         (pci_cbe_l_out_next[PCI_BUS_CBE_RANGE:0]),
   .pci_cbe_out_oe_comb        (pci_cbe_out_oe_comb),
   .pci_frame_in_critical      (pci_frame_in_critical),
+  .pci_frame_in_prev          (pci_frame_in_prev),
   .pci_frame_out_next         (pci_frame_out_next),
   .pci_frame_out_oe_comb      (pci_frame_out_oe_comb),
   .pci_irdy_in_critical       (pci_irdy_in_critical),
+  .pci_irdy_in_prev           (pci_irdy_in_prev),
   .pci_irdy_out_next          (pci_irdy_out_next),
   .pci_irdy_out_oe_comb       (pci_irdy_out_oe_comb),
   .pci_devsel_in_prev         (pci_devsel_in_prev),
@@ -1468,5 +1452,32 @@ pci_critical_data_latch_enable pci_critical_data_latch_enable (
   assign  pci_perr_out_oe_comb = 1'b0  // NOTE: WORKING.  Master can signal PERR on reads
                                | pci_target_perr_out_oe_comb;
   assign  pci_serr_out_oe_comb = pci_target_serr_out_oe_comb;
+
+`ifdef VERBOSE_TEST_DEVICE
+// Monitor the activity on the Host Interface of the PCI_Blue_Interface.
+monitor_pci_interface_host_port monitor_pci_interface_host_port (
+// Wires used by the host controller to request action by the pci interface
+  .pci_host_request_data      (pci_host_request_data[PCI_FIFO_DATA_RANGE:0]),
+  .pci_host_request_cbe       (pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0]),
+  .pci_host_request_type      (pci_host_request_type[2:0]),
+  .pci_host_request_room_available_meta  (pci_host_request_room_available_meta),
+  .pci_host_request_submit    (pci_host_request_submit),
+  .pci_host_request_error     (pci_host_request_error),
+// Wires used by the pci interface to request action by the host controller
+  .pci_host_response_data     (pci_host_response_data[PCI_FIFO_DATA_RANGE:0]),
+  .pci_host_response_cbe      (pci_host_response_cbe[PCI_FIFO_CBE_RANGE:0]),
+  .pci_host_response_type     (pci_host_response_type[3:0]),
+  .pci_host_response_data_available_meta  (pci_host_response_data_available_meta),
+  .pci_host_response_unload   (pci_host_response_unload),
+  .pci_host_response_error    (pci_host_response_error),
+// Wires used by the host controller to send delayed read data by the pci interface
+  .pci_host_delayed_read_data (pci_host_delayed_read_data[PCI_FIFO_DATA_RANGE:0]),
+  .pci_host_delayed_read_type (pci_host_delayed_read_type[2:0]),
+  .pci_host_delayed_read_room_available_meta  (pci_host_delayed_read_room_available_meta),
+  .pci_host_delayed_read_data_submit          (pci_host_delayed_read_data_submit),
+  .pci_host_delayed_read_data_error (pci_host_delayed_read_data_error),
+  .host_clk                   (host_clk)
+);
+`endif  // VERBOSE_TEST_DEVICE
 endmodule
 
