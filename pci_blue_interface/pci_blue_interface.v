@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_interface.v,v 1.17 2001-07-06 10:51:08 bbeaver Exp $
+// $Id: pci_blue_interface.v,v 1.18 2001-07-07 03:11:57 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -136,22 +136,22 @@ module pci_blue_interface (
   host_clk, host_sync_clk,
 // Wires used by the PCI State Machine and PCI Bus Combiner to drive the PCI bus
   pci_req_out_next,   pci_req_out_oe_comb,
-  pci_gnt_in_prev,    pci_gnt_in_comb,
+  pci_gnt_in_prev,    pci_gnt_in_critical,
   pci_ad_in_prev,     pci_ad_out_next,     pci_ad_out_en_next,
                       pci_ad_out_oe_comb,
-  pci_cbe_l_in_prev,  pci_cbe_l_in_comb,
+  pci_cbe_l_in_prev,  pci_cbe_l_in_critical,
                       pci_cbe_l_out_next,  pci_cbe_out_en_next,
                       pci_cbe_out_oe_comb,
-  pci_par_in_prev,    pci_par_in_comb,
+  pci_par_in_prev,    pci_par_in_critical,
                       pci_par_out_next,    pci_par_out_oe_comb,
-  pci_frame_in_prev,  pci_frame_in_comb,
+  pci_frame_in_prev,  pci_frame_in_critical,
                       pci_frame_out_next,  pci_frame_out_oe_comb,
-  pci_irdy_in_prev,   pci_irdy_in_comb,
+  pci_irdy_in_prev,   pci_irdy_in_critical,
                       pci_irdy_out_next,   pci_irdy_out_oe_comb,
   pci_devsel_in_prev, pci_devsel_out_next, pci_d_t_s_out_oe_comb,
-  pci_trdy_in_prev,   pci_trdy_in_comb,
+  pci_trdy_in_prev,   pci_trdy_in_critical,
                       pci_trdy_out_next,
-  pci_stop_in_prev,   pci_stop_in_comb,
+  pci_stop_in_prev,   pci_stop_in_critical,
   pci_stop_out_next,
   pci_perr_in_prev,   pci_perr_out_next,   pci_perr_out_oe_comb,
   pci_serr_in_prev,                        pci_serr_out_oe_comb,
@@ -206,27 +206,27 @@ module pci_blue_interface (
   output  pci_req_out_next;
   output  pci_req_out_oe_comb;
   input   pci_gnt_in_prev;
-  input   pci_gnt_in_comb;
+  input   pci_gnt_in_critical;
   input  [PCI_BUS_DATA_RANGE:0] pci_ad_in_prev;
   output [PCI_BUS_DATA_RANGE:0] pci_ad_out_next;
   output  pci_ad_out_en_next;
   output  pci_ad_out_oe_comb;
-  input  [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_comb;
+  input  [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_critical;
   input  [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_prev;
   output [PCI_BUS_CBE_RANGE:0] pci_cbe_l_out_next;
   output  pci_cbe_out_en_next;
   output  pci_cbe_out_oe_comb;
-  input   pci_par_in_prev, pci_par_in_comb;
+  input   pci_par_in_prev, pci_par_in_critical;
   output  pci_par_out_next, pci_par_out_oe_comb;
-  input   pci_frame_in_prev, pci_frame_in_comb;
+  input   pci_frame_in_prev, pci_frame_in_critical;
   output  pci_frame_out_next, pci_frame_out_oe_comb;
-  input   pci_irdy_in_prev, pci_irdy_in_comb;
+  input   pci_irdy_in_prev, pci_irdy_in_critical;
   output  pci_irdy_out_next, pci_irdy_out_oe_comb;
   input   pci_devsel_in_prev;
   output  pci_devsel_out_next, pci_d_t_s_out_oe_comb;
-  input   pci_trdy_in_prev, pci_trdy_in_comb;
+  input   pci_trdy_in_prev, pci_trdy_in_critical;
   output  pci_trdy_out_next;
-  input   pci_stop_in_prev, pci_stop_in_comb;
+  input   pci_stop_in_prev, pci_stop_in_critical;
   output  pci_stop_out_next;
   input   pci_perr_in_prev;
   output  pci_perr_out_next, pci_perr_out_oe_comb;
@@ -1265,13 +1265,13 @@ pci_blue_target pci_blue_target (
   .pci_idsel_in_prev          (pci_idsel_in_prev),
   .pci_cbe_l_in_prev          (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0]),
   .pci_par_in_prev            (pci_par_in_prev),
-  .pci_par_in_comb            (pci_par_in_comb),
+  .pci_par_in_critical        (pci_par_in_critical),
   .pci_target_par_out_next    (pci_target_par_out_next),
   .pci_target_par_out_oe_comb (pci_target_par_out_oe_comb),
   .pci_frame_in_prev          (pci_frame_in_prev),
-  .pci_frame_in_comb          (pci_frame_in_comb),
+  .pci_frame_in_critical      (pci_frame_in_critical),
   .pci_irdy_in_prev           (pci_irdy_in_prev),
-  .pci_irdy_in_comb           (pci_irdy_in_comb),
+  .pci_irdy_in_critical       (pci_irdy_in_critical),
   .pci_devsel_out_next        (pci_devsel_out_next),
   .pci_d_t_s_out_oe_comb      (pci_d_t_s_out_oe_comb),
   .pci_trdy_out_next          (pci_trdy_out_next),
@@ -1349,23 +1349,22 @@ pci_blue_master pci_blue_master (
   .pci_req_out_next           (pci_req_out_next),
   .pci_req_out_oe_comb        (pci_req_out_oe_comb),
   .pci_gnt_in_prev            (pci_gnt_in_prev),
-  .pci_gnt_in_comb            (pci_gnt_in_comb),
+  .pci_gnt_in_critical        (pci_gnt_in_critical),
   .pci_master_ad_out_next     (pci_master_ad_out_next[PCI_BUS_DATA_RANGE:0]),
   .pci_master_ad_out_oe_comb  (pci_master_ad_out_oe_comb),
   .pci_cbe_l_out_next         (pci_cbe_l_out_next[PCI_BUS_CBE_RANGE:0]),
   .pci_cbe_out_oe_comb        (pci_cbe_out_oe_comb),
-  .pci_frame_in_comb          (pci_frame_in_comb),
+  .pci_frame_in_critical      (pci_frame_in_critical),
   .pci_frame_out_next         (pci_frame_out_next),
   .pci_frame_out_oe_comb      (pci_frame_out_oe_comb),
-  .pci_irdy_in_comb           (pci_irdy_in_comb),
+  .pci_irdy_in_critical       (pci_irdy_in_critical),
   .pci_irdy_out_next          (pci_irdy_out_next),
   .pci_irdy_out_oe_comb       (pci_irdy_out_oe_comb),
   .pci_devsel_in_prev         (pci_devsel_in_prev),
-  .pci_devsel_in_comb         (pci_devsel_in_comb),
   .pci_trdy_in_prev           (pci_trdy_in_prev),
-  .pci_trdy_in_comb           (pci_trdy_in_comb),
+  .pci_trdy_in_critical       (pci_trdy_in_critical),
   .pci_stop_in_prev           (pci_stop_in_prev),
-  .pci_stop_in_comb           (pci_stop_in_comb),
+  .pci_stop_in_critical       (pci_stop_in_critical),
   .pci_perr_in_prev           (pci_perr_in_prev),
   .pci_serr_in_prev           (pci_serr_in_prev),
 // Signals to control shared AD bus, Parity, and SERR signals
@@ -1424,9 +1423,9 @@ pci_blue_master pci_blue_master (
 // NOTE: pci_ad_out_en_next goes to 36 or 72 inputs (+1?).  Very critical.
 pci_critical_data_latch_enable pci_critical_data_latch_enable (
   .Master_Expects_TRDY        (Master_Exposes_Data_On_TRDY),
-  .pci_trdy_in_comb           (pci_trdy_in_comb),
+  .pci_trdy_in_critical       (pci_trdy_in_critical),
   .Target_Expects_IRDY        (Target_Exposes_Data_On_IRDY),
-  .pci_irdy_in_comb           (pci_irdy_in_comb),
+  .pci_irdy_in_critical       (pci_irdy_in_critical),
   .New_Data_Unconditional     (   Master_Force_AD_to_Address_Data
                                 | Target_Force_AD_to_Data),
   .pci_ad_out_en_next         (pci_ad_out_en_next)
@@ -1451,7 +1450,7 @@ pci_critical_data_latch_enable pci_critical_data_latch_enable (
   wire    incoming_data_parity = (^ pci_ad_in_prev[PCI_BUS_DATA_RANGE:0]);
   wire    incoming_cbe_parity = (^ pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0]);
 
-  wire    current_cbe_parity = (^ pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0]);
+  wire    current_cbe_parity = (^ pci_cbe_l_in_critical[PCI_BUS_CBE_RANGE:0]);
 
 // NOTE NOT DONE YET.  Decide what parity to drive
   assign  pci_par_out_next = 1'b0;

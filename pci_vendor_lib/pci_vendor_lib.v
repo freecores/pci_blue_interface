@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_vendor_lib.v,v 1.9 2001-07-06 10:51:24 bbeaver Exp $
+// $Id: pci_vendor_lib.v,v 1.10 2001-07-07 03:12:00 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -246,23 +246,23 @@ endmodule
 
 // Logic which might need to be carefully placed to satisfy timing constraints.
 // Enable Data to change during Address phase, and when both IRDY and TRDY asserted.
-// The pci_trdy_in_comb and pci_irdy_in_comb signals are critical.
+// The pci_trdy_in_critical and pci_irdy_in_critical signals are critical.
 module pci_critical_data_latch_enable (
-  Master_Expects_TRDY, pci_trdy_in_comb,
-  Target_Expects_IRDY, pci_irdy_in_comb,
+  Master_Expects_TRDY, pci_trdy_in_critical,
+  Target_Expects_IRDY, pci_irdy_in_critical,
   New_Data_Unconditional, pci_ad_out_en_next
 );
-  input   Master_Expects_TRDY, pci_trdy_in_comb;
-  input   Target_Expects_IRDY, pci_irdy_in_comb;
+  input   Master_Expects_TRDY, pci_trdy_in_critical;
+  input   Target_Expects_IRDY, pci_irdy_in_critical;
   input   New_Data_Unconditional;
   output  pci_ad_out_en_next;
-  assign  pci_ad_out_en_next = (Master_Expects_TRDY & pci_trdy_in_comb)
-                             | (Target_Expects_IRDY & pci_irdy_in_comb)
+  assign  pci_ad_out_en_next = (Master_Expects_TRDY & pci_trdy_in_critical)
+                             | (Target_Expects_IRDY & pci_irdy_in_critical)
                              |  New_Data_Unconditional;
 endmodule
 
 // Enable FRAME to change based on TRDY and STOP.
-// The pci_trdy_in_comb and pci_stop_in_comb signals are critical.
+// The pci_trdy_in_critical and pci_stop_in_critical signals are critical.
 // See pci_blue_master for details about the content of this module.
 // NOTE: This module must be implemented in a single Xilinx CLB.
 // NOTE: Logic which might need to be carefully placed to satisfy timing
@@ -270,12 +270,12 @@ endmodule
 module pci_critical_next_frame (
   PCI_Next_FRAME_Force_1,
   PCI_Next_FRAME_Code,
-  pci_trdy_in_comb, pci_stop_in_comb,
+  pci_trdy_in_critical, pci_stop_in_critical,
   pci_frame_out_next
 );
   input   PCI_Next_FRAME_Force_1;
   input  [1:0] PCI_Next_FRAME_Code;
-  input   pci_trdy_in_comb, pci_stop_in_comb;
+  input   pci_trdy_in_critical, pci_stop_in_critical;
   output  pci_frame_out_next;
 
 // See pci_blue_master.v for encoding
@@ -304,34 +304,34 @@ module pci_critical_next_frame (
                  : ((PCI_Next_FRAME_Code[1:0] == 2'b11) ? 1'b0
                  : 1'bX)));
 
-// Implement as 4-1 MUX, using pci_trdy_in_comb and pci_stop_in_comb as
+// Implement as 4-1 MUX, using pci_trdy_in_critical and pci_stop_in_critical as
 // the VERY LATE selection wires.  The cases are:
 // {trdy, stop} {00} Idle, {01} Abort, {10} Data, {11} Data_Last
-  wire    Abort_Idle         = pci_stop_in_comb  // This is VERY LATE
+  wire    Abort_Idle         = pci_stop_in_critical  // This is VERY LATE
                              ? Output_If_Disconnect_Retry_Abort
                              : Output_If_Idle;
-  wire    Data_Last_Data     = pci_stop_in_comb  // This is VERY LATE
+  wire    Data_Last_Data     = pci_stop_in_critical  // This is VERY LATE
                              ? Output_If_Data_Last
                              : Output_If_Data_More;
   assign  pci_frame_out_next = PCI_Next_FRAME_Force_1  // This is VERY LATE
-                             | (   pci_trdy_in_comb  // This is VERY LATE
+                             | (   pci_trdy_in_critical  // This is VERY LATE
                                  ? Data_Last_Data
                                  : Abort_Idle);
 endmodule
 
 // Enable IRDY to change based on TRDY and STOP.
-// The pci_trdy_in_comb and pci_stop_in_comb signals are critical.
+// The pci_trdy_in_critical and pci_stop_in_critical signals are critical.
 // See pci_blue_master for details about the content of this module.
 // NOTE: This module must be implemented in a single Xilinx CLB.
 // NOTE: Logic which might need to be carefully placed to satisfy timing
 // constraints.
 module pci_critical_next_irdy (
   PCI_Next_IRDY_Code,
-  pci_trdy_in_comb, pci_stop_in_comb,
+  pci_trdy_in_critical, pci_stop_in_critical,
   pci_irdy_out_next
 );
   input  [2:0] PCI_Next_IRDY_Code;
-  input   pci_trdy_in_comb, pci_stop_in_comb;
+  input   pci_trdy_in_critical, pci_stop_in_critical;
   output  pci_irdy_out_next;
 
 // See pci_blue_master.v for encoding
@@ -360,33 +360,33 @@ module pci_critical_next_irdy (
                  : ((PCI_Next_IRDY_Code[2:0] == 3'b011) ? 1'b0
                  : 1'b1)));
 
-// Implement as 4-1 MUX, using pci_trdy_in_comb and pci_stop_in_comb as
+// Implement as 4-1 MUX, using pci_trdy_in_critical and pci_stop_in_critical as
 // the VERY LATE selection wires.  The cases are:
 // {trdy, stop} {00} Idle, {01} Abort, {10} Data, {11} Data_Last
-  wire    Abort_Idle        = pci_stop_in_comb
+  wire    Abort_Idle        = pci_stop_in_critical
                             ? Output_If_Disconnect_Retry_Abort
                             : Output_If_Idle;
-  wire    Data_Last_Data    = pci_stop_in_comb
+  wire    Data_Last_Data    = pci_stop_in_critical
                             ? Output_If_Data_Last
                             : Output_If_Data_More;
-  assign  pci_irdy_out_next = pci_trdy_in_comb
+  assign  pci_irdy_out_next = pci_trdy_in_critical
                             ? Data_Last_Data
                             : Abort_Idle;
 endmodule
 
 // Enable DEVSEL to change based on FRAME and IRDY.
-// The pci_frame_in_comb and pci_irdy_in_comb signals are critical.
+// The pci_frame_in_critical and pci_irdy_in_critical signals are critical.
 // See pci_blue_target for details about the content of this module.
 // NOTE: This module must be implemented in a single Xilinx CLB.
 // NOTE: Logic which might need to be carefully placed to satisfy timing
 // constraints.
 module pci_critical_next_devsel (
   PCI_Next_DEVSEL_Code,
-  pci_frame_in_comb, pci_irdy_in_comb,
+  pci_frame_in_critical, pci_irdy_in_critical,
   pci_devsel_out_next
 );
   input  [2:0] PCI_Next_DEVSEL_Code;
-  input   pci_frame_in_comb, pci_irdy_in_comb;
+  input   pci_frame_in_critical, pci_irdy_in_critical;
   output  pci_devsel_out_next;
 
 // See pci_blue_target.v for encoding
@@ -410,30 +410,30 @@ module pci_critical_next_devsel (
                  : ((PCI_Next_DEVSEL_Code[2:0] == 3'b011) ? 1'b0
                  : 1'b1)));
 
-// Implement as 4-1 MUX, using pci_frame_in_comb and pci_irdy_in_comb as
+// Implement as 4-1 MUX, using pci_frame_in_critical and pci_irdy_in_critical as
 // the VERY LATE selection wires.  The cases are:
 // {frame, irdy} {10} Idle, {11} Data, {01} Data_Last
-  wire    Data_Last_Data      = pci_frame_in_comb
+  wire    Data_Last_Data      = pci_frame_in_critical
                               ? Output_If_Data_Last
                               : Output_If_Data_More;
-  assign  pci_devsel_out_next = pci_irdy_in_comb
+  assign  pci_devsel_out_next = pci_irdy_in_critical
                               ? Data_Last_Data
                               : Output_If_Idle;
 endmodule
 
 // Enable TRDY to change based on FRAME and IRDY.
-// The pci_frame_in_comb and pci_irdy_in_comb signals are critical.
+// The pci_frame_in_critical and pci_irdy_in_critical signals are critical.
 // See pci_blue_target for details about the content of this module.
 // NOTE: This module must be implemented in a single Xilinx CLB.
 // NOTE: Logic which might need to be carefully placed to satisfy timing
 // constraints.
 module pci_critical_next_trdy (
   PCI_Next_TRDY_Code,
-  pci_frame_in_comb, pci_irdy_in_comb,
+  pci_frame_in_critical, pci_irdy_in_critical,
   pci_trdy_out_next
 );
   input  [2:0] PCI_Next_TRDY_Code;
-  input   pci_frame_in_comb, pci_irdy_in_comb;
+  input   pci_frame_in_critical, pci_irdy_in_critical;
   output  pci_trdy_out_next;
 
 // See pci_blue_target.v for encoding
@@ -457,30 +457,30 @@ module pci_critical_next_trdy (
                  : ((PCI_Next_TRDY_Code[2:0] == 3'b011) ? 1'b0
                  : 1'b1)));
 
-// Implement as 4-1 MUX, using pci_frame_in_comb and pci_irdy_in_comb as
+// Implement as 4-1 MUX, using pci_frame_in_critical and pci_irdy_in_critical as
 // the VERY LATE selection wires.  The cases are:
 // {frame, irdy} {10} Idle, {11} Data, {01} Data_Last
-  wire    Data_Last_Data    = pci_frame_in_comb
+  wire    Data_Last_Data    = pci_frame_in_critical
                             ? Output_If_Data_Last
                             : Output_If_Data_More;
-  assign  pci_trdy_out_next = pci_irdy_in_comb
+  assign  pci_trdy_out_next = pci_irdy_in_critical
                             ? Data_Last_Data
                             : Output_If_Idle;
 endmodule
 
 // Enable STOP to change based on FRAME and IRDY.
-// The pci_frame_in_comb and pci_irdy_in_comb signals are critical.
+// The pci_frame_in_critical and pci_irdy_in_critical signals are critical.
 // See pci_blue_target for details about the content of this module.
 // NOTE: This module must be implemented in a single Xilinx CLB.
 // NOTE: Logic which might need to be carefully placed to satisfy timing
 // constraints.
 module pci_critical_next_stop (
   PCI_Next_STOP_Code,
-  pci_frame_in_comb, pci_irdy_in_comb,
+  pci_frame_in_critical, pci_irdy_in_critical,
   pci_stop_out_next
 );
   input  [2:0] PCI_Next_STOP_Code;
-  input   pci_frame_in_comb, pci_irdy_in_comb;
+  input   pci_frame_in_critical, pci_irdy_in_critical;
   output  pci_stop_out_next;
 
 // See pci_blue_target.v for encoding
@@ -504,13 +504,13 @@ module pci_critical_next_stop (
                  : ((PCI_Next_STOP_Code[2:0] == 3'b011) ? 1'b0
                  : 1'b1)));
 
-// Implement as 4-1 MUX, using pci_frame_in_comb and pci_irdy_in_comb as
+// Implement as 4-1 MUX, using pci_frame_in_critical and pci_irdy_in_critical as
 // the VERY LATE selection wires.  The cases are:
 // {frame, irdy} {10} Idle, {11} Data, {01} Data_Last
-  wire    Data_Last_Data    = pci_frame_in_comb
+  wire    Data_Last_Data    = pci_frame_in_critical
                             ? Output_If_Data_Last
                             : Output_If_Data_More;
-  assign  pci_stop_out_next = pci_irdy_in_comb
+  assign  pci_stop_out_next = pci_irdy_in_critical
                             ? Data_Last_Data
                             : Output_If_Idle;
 endmodule

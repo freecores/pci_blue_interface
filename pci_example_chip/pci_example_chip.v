@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_example_chip.v,v 1.10 2001-07-06 10:51:23 bbeaver Exp $
+// $Id: pci_example_chip.v,v 1.11 2001-07-07 03:12:00 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -169,14 +169,15 @@ module pci_example_chip (
 
 // input wires reporting the value of the external PCI bus
   wire   [PCI_BUS_DATA_RANGE:0] pci_ad_in_prev;
-  wire   [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_comb;
   wire   [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_prev;
   wire    pci_par_in_prev;
   wire    pci_frame_in_prev, pci_irdy_in_prev;
   wire    pci_devsel_in_prev, pci_trdy_in_prev, pci_stop_in_prev;
   wire    pci_perr_in_prev, pci_serr_in_prev;
-  wire    pci_frame_in_comb, pci_irdy_in_comb;  // critical high-speed wires
-  wire    pci_trdy_in_comb, pci_stop_in_comb;  // critical high-speed wires
+  wire   [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_critical;  // critical high-speed wires
+  wire    pci_par_in_critical;  // critical high-speed wires
+  wire    pci_frame_in_critical, pci_irdy_in_critical;  // critical high-speed wires
+  wire    pci_trdy_in_critical, pci_stop_in_critical;  // critical high-speed wires
 
 // wires to drive the external PCI bus
   wire   [PCI_BUS_DATA_RANGE:0] pci_ad_out_next;
@@ -250,7 +251,7 @@ pci_clk_reset_pads pci_clk_reset_pads (
 `ifdef PCI_EXTERNAL_MASTER
 
   wire    pci_req_out_next, pci_req_out_oe_comb;
-  wire    pci_gnt_in_prev, pci_gnt_in_comb;
+  wire    pci_gnt_in_prev, pci_gnt_in_critical;
 
 pci_master_pads pci_master_pads (
 // external PCI bus signals
@@ -260,7 +261,7 @@ pci_master_pads pci_master_pads (
   .pci_req_out_next           (pci_req_out_next),
   .pci_req_out_oe_comb        (pci_req_out_oe_comb),
   .pci_gnt_in_prev            (pci_gnt_in_prev),
-  .pci_gnt_in_comb            (pci_gnt_in_comb),
+  .pci_gnt_in_critical        (pci_gnt_in_critical),
   .pci_clk                    (pci_clk)
 );
 `endif  // PCI_EXTERNAL_MASTER
@@ -285,30 +286,31 @@ pci_target_pads pci_target_pads (
   .pci_ad_out_next            (pci_ad_out_next[PCI_BUS_DATA_RANGE:0]),
   .pci_ad_out_en_next         (pci_ad_out_en_next),
   .pci_ad_out_oe_comb         (pci_ad_out_oe_comb),
-  .pci_cbe_l_in_comb          (pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0]),
+  .pci_cbe_l_in_critical      (pci_cbe_l_in_critical[PCI_BUS_CBE_RANGE:0]),
   .pci_cbe_l_in_prev          (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0]),
   .pci_cbe_l_out_next         (pci_cbe_l_out_next[PCI_BUS_CBE_RANGE:0]),
   .pci_cbe_out_en_next        (pci_cbe_out_en_next),
   .pci_cbe_out_oe_comb        (pci_cbe_out_oe_comb),
+  .pci_par_in_critical        (pci_par_in_critical),
   .pci_par_in_prev            (pci_par_in_prev),
   .pci_par_out_next           (pci_par_out_next),
   .pci_par_out_oe_comb        (pci_par_out_oe_comb),
+  .pci_frame_in_critical      (pci_frame_in_critical),
   .pci_frame_in_prev          (pci_frame_in_prev),
-  .pci_frame_in_comb          (pci_frame_in_comb),
   .pci_frame_out_next         (pci_frame_out_next),
   .pci_frame_out_oe_comb      (pci_frame_out_oe_comb),
+  .pci_irdy_in_critical       (pci_irdy_in_critical),
   .pci_irdy_in_prev           (pci_irdy_in_prev),
-  .pci_irdy_in_comb           (pci_irdy_in_comb),
   .pci_irdy_out_next          (pci_irdy_out_next),
   .pci_irdy_out_oe_comb       (pci_irdy_out_oe_comb),
   .pci_devsel_in_prev         (pci_devsel_in_prev),
   .pci_devsel_out_next        (pci_devsel_out_next),
   .pci_d_t_s_out_oe_comb      (pci_d_t_s_out_oe_comb),
+  .pci_trdy_in_critical       (pci_trdy_in_critical),
   .pci_trdy_in_prev           (pci_trdy_in_prev),
-  .pci_trdy_in_comb           (pci_trdy_in_comb),
   .pci_trdy_out_next          (pci_trdy_out_next),
+  .pci_stop_in_critical       (pci_stop_in_critical),
   .pci_stop_in_prev           (pci_stop_in_prev),
-  .pci_stop_in_comb           (pci_stop_in_comb),
   .pci_stop_out_next          (pci_stop_out_next),
   .pci_perr_in_prev           (pci_perr_in_prev),
   .pci_perr_out_next          (pci_perr_out_next),
@@ -483,10 +485,10 @@ pci_null_interface pci_null_interface (
   .pci_par_in_prev            (pci_par_in_prev),
   .pci_frame_in_prev          (pci_frame_in_prev),
   .pci_irdy_in_prev           (pci_irdy_in_prev),
-  .pci_irdy_in_comb           (pci_irdy_in_comb),
+  .pci_irdy_in_critical       (pci_irdy_in_critical),
   .pci_devsel_in_prev         (pci_devsel_in_prev),
   .pci_trdy_in_prev           (pci_trdy_in_prev),
-  .pci_trdy_in_comb           (pci_trdy_in_comb),
+  .pci_trdy_in_critical       (pci_trdy_in_critical),
   .pci_stop_in_prev           (pci_stop_in_prev),
   .pci_perr_in_prev           (pci_perr_in_prev),
   .pci_serr_in_prev           (pci_serr_in_prev),
@@ -505,10 +507,12 @@ pci_null_interface pci_null_interface (
 );
 
 `else // SUPPORT_MULTIPLE_ONCHIP_INTERFACES
-  assign  pci_ad_out_next[PCI_BUS_DATA_RANGE:0] = pci_ad_out_next_a[PCI_BUS_DATA_RANGE:0];
+  assign  pci_ad_out_next[PCI_BUS_DATA_RANGE:0] =
+                                pci_ad_out_next_a[PCI_BUS_DATA_RANGE:0];
   assign  pci_ad_out_en_next    = pci_ad_out_en_next_a;
   assign  pci_ad_out_oe_comb    = pci_ad_out_oe_comb_a;
-  assign  pci_cbe_l_out_next[PCI_BUS_CBE_RANGE:0] = pci_cbe_l_out_next_a[PCI_BUS_CBE_RANGE:0];
+  assign  pci_cbe_l_out_next[PCI_BUS_CBE_RANGE:0] =
+                                pci_cbe_l_out_next_a[PCI_BUS_CBE_RANGE:0];
   assign  pci_cbe_out_en_next   = pci_cbe_out_en_next_a;
   assign  pci_cbe_out_oe_comb   = pci_cbe_out_oe_comb_a;
   assign  pci_par_out_next      = pci_par_out_next_a;
@@ -600,36 +604,36 @@ pci_blue_interface pci_blue_interface (
   .pci_req_out_next           (pci_req_out_next),
   .pci_req_out_oe_comb        (pci_req_out_oe_comb),
   .pci_gnt_in_prev            (pci_gnt_in_prev),
-  .pci_gnt_in_comb            (pci_gnt_in_comb),
+  .pci_gnt_in_critical        (pci_gnt_in_critical),
   .pci_ad_in_prev             (pci_ad_in_prev[PCI_BUS_DATA_RANGE:0]),
   .pci_ad_out_next            (pci_ad_out_next_a[PCI_BUS_DATA_RANGE:0]),
   .pci_ad_out_en_next         (pci_ad_out_en_next_a),
   .pci_ad_out_oe_comb         (pci_ad_out_oe_comb_a),
-  .pci_cbe_l_in_comb          (pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0]),
+  .pci_cbe_l_in_critical      (pci_cbe_l_in_critical[PCI_BUS_CBE_RANGE:0]),
   .pci_cbe_l_in_prev          (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0]),
   .pci_cbe_l_out_next         (pci_cbe_l_out_next_a[PCI_BUS_CBE_RANGE:0]),
   .pci_cbe_out_en_next        (pci_cbe_out_en_next_a),
   .pci_cbe_out_oe_comb        (pci_cbe_out_oe_comb_a),
+  .pci_par_in_critical        (pci_par_in_critical),
   .pci_par_in_prev            (pci_par_in_prev),
-  .pci_par_in_comb            (pci_par_in_comb),
   .pci_par_out_next           (pci_par_out_next_a),
   .pci_par_out_oe_comb        (pci_par_out_oe_comb_a),
+  .pci_frame_in_critical      (pci_frame_in_critical),
   .pci_frame_in_prev          (pci_frame_in_prev),
-  .pci_frame_in_comb          (pci_frame_in_comb),
   .pci_frame_out_next         (pci_frame_out_next_a),
   .pci_frame_out_oe_comb      (pci_frame_out_oe_comb_a),
+  .pci_irdy_in_critical       (pci_irdy_in_critical),
   .pci_irdy_in_prev           (pci_irdy_in_prev),
-  .pci_irdy_in_comb           (pci_irdy_in_comb),
   .pci_irdy_out_next          (pci_irdy_out_next_a),
   .pci_irdy_out_oe_comb       (pci_irdy_out_oe_comb_a),
   .pci_devsel_in_prev         (pci_devsel_in_prev),
   .pci_devsel_out_next        (pci_devsel_out_next_a),
   .pci_d_t_s_out_oe_comb      (pci_d_t_s_out_oe_comb_a),
+  .pci_trdy_in_critical       (pci_trdy_in_critical),
   .pci_trdy_in_prev           (pci_trdy_in_prev),
-  .pci_trdy_in_comb           (pci_trdy_in_comb),
   .pci_trdy_out_next          (pci_trdy_out_next_a),
+  .pci_stop_in_critical       (pci_stop_in_critical),
   .pci_stop_in_prev           (pci_stop_in_prev),
-  .pci_stop_in_comb           (pci_stop_in_comb),
   .pci_stop_out_next          (pci_stop_out_next_a),
   .pci_perr_in_prev           (pci_perr_in_prev),
   .pci_perr_out_next          (pci_perr_out_next_a),

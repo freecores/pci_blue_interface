@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_master.v,v 1.8 2001-07-06 10:51:22 bbeaver Exp $
+// $Id: test_pci_master.v,v 1.9 2001-07-07 03:11:59 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -75,14 +75,14 @@ module pci_test_master (
   master_to_target_status_available,
   master_to_target_status_unload,
   pci_req_out_next, pci_req_out_oe_comb,
-  pci_gnt_in_comb,
+  pci_gnt_in_critical,
   pci_clk,
   pci_master_ad_out_next,  pci_master_ad_out_oe_comb,
   pci_ad_in_prev,
   pci_cbe_l_out_next, pci_cbe_out_oe_comb,
-  pci_frame_in_comb,
+  pci_frame_in_critical,
   pci_frame_out_next, pci_frame_out_oe_comb,
-  pci_irdy_in_comb,
+  pci_irdy_in_critical,
   pci_irdy_out_next, pci_irdy_out_oe_comb,
   pci_state,  // TEMPORARY
   pci_fifo_state,  // TEMPORARY
@@ -95,8 +95,8 @@ module pci_test_master (
   addr_aval,  // TEMPORARY
   working,  // TEMPORARY
   pci_devsel_in_comb, pci_devsel_in_prev,
-  pci_trdy_in_comb, pci_trdy_in_prev,
-  pci_stop_in_comb, pci_stop_in_prev,
+  pci_trdy_in_critical, pci_trdy_in_prev,
+  pci_stop_in_critical, pci_stop_in_prev,
   pci_perr_in_prev, pci_serr_in_prev,
   master_got_parity_error,
   master_caused_serr,
@@ -120,16 +120,16 @@ module pci_test_master (
   output  master_to_target_status_unload;
   output  pci_req_out_next;
   output  pci_req_out_oe_comb;
-  output  pci_gnt_in_comb;
+  output  pci_gnt_in_critical;
   output  pci_clk;
   output [PCI_BUS_DATA_RANGE:0] pci_ad_in_prev;
   output [PCI_BUS_DATA_RANGE:0] pci_master_ad_out_next;
   output  pci_master_ad_out_oe_comb;
   output [PCI_BUS_CBE_RANGE:0] pci_cbe_l_out_next;
   output  pci_cbe_out_oe_comb;
-  output  pci_frame_in_comb;
+  output  pci_frame_in_critical;
   output  pci_frame_out_next, pci_frame_out_oe_comb;
-  output  pci_irdy_in_comb;
+  output  pci_irdy_in_critical;
   output  pci_irdy_out_next, pci_irdy_out_oe_comb;
   output [9:0] pci_state;  // TEMPORARY
   output [1:0] pci_fifo_state;  // TEMPORARY
@@ -142,8 +142,8 @@ module pci_test_master (
   output  addr_aval;  // TEMPORARY
   output  working;  // TEMPORARY
   output  pci_devsel_in_comb, pci_devsel_in_prev;
-  output  pci_trdy_in_comb, pci_trdy_in_prev;
-  output  pci_stop_in_comb, pci_stop_in_prev;
+  output  pci_trdy_in_critical, pci_trdy_in_prev;
+  output  pci_stop_in_critical, pci_stop_in_prev;
   output  pci_perr_in_prev, pci_serr_in_prev;
   output  master_got_parity_error;
   output  master_caused_serr;
@@ -166,19 +166,19 @@ module pci_test_master (
 
 // PCI signals
   wire    pci_req_out_next, pci_req_out_oe_comb;
-  reg     pci_gnt_in_prev, pci_gnt_in_comb;
+  reg     pci_gnt_in_prev, pci_gnt_in_critical;
   reg    [PCI_BUS_DATA_RANGE:0] pci_ad_in_prev;
   wire   [PCI_BUS_DATA_RANGE:0] pci_master_ad_out_next;
   wire    pci_master_ad_out_oe_comb;
   wire   [PCI_BUS_CBE_RANGE:0] pci_cbe_l_out_next;
   wire    pci_cbe_out_oe_comb;
-  reg     pci_frame_in_comb;
+  reg     pci_frame_in_critical;
   wire    pci_frame_out_next, pci_frame_out_oe_comb;
-  reg     pci_irdy_in_comb;
+  reg     pci_irdy_in_critical;
   wire    pci_irdy_out_next, pci_irdy_out_oe_comb;
   reg     pci_devsel_in_prev, pci_devsel_in_comb;
-  reg     pci_trdy_in_prev, pci_trdy_in_comb;
-  reg     pci_stop_in_prev, pci_stop_in_comb;
+  reg     pci_trdy_in_prev, pci_trdy_in_critical;
+  reg     pci_stop_in_prev, pci_stop_in_critical;
   reg     pci_perr_in_prev, pci_serr_in_prev;
   wire    Master_Force_AD_to_Address_Data;
   wire    Master_Captures_Data_On_TRDY, Master_Exposes_Data_On_TRDY;
@@ -247,7 +247,7 @@ task do_reset;
   begin
     #3.0;
     pci_clk = 1'b0;
-    pci_gnt_in_comb = 1'b0;
+    pci_gnt_in_critical = 1'b0;
     host_reset_comb = 1'b1;
     master_to_target_status_unload = 1'b0;
     #5;
@@ -261,13 +261,13 @@ endtask
 
 task set_pci_idle;
   begin
-    pci_gnt_in_comb = 1'b0;
+    pci_gnt_in_critical = 1'b0;
     pci_ad_in_comb[PCI_BUS_DATA_RANGE:0] = `PCI_BUS_DATA_X;
-    pci_frame_in_comb = 1'b0;
-    pci_irdy_in_comb = 1'b0;
+    pci_frame_in_critical = 1'b0;
+    pci_irdy_in_critical = 1'b0;
     pci_devsel_in_comb = 1'b0;
-    pci_trdy_in_comb = 1'b0;
-    pci_stop_in_comb = 1'b0;
+    pci_trdy_in_critical = 1'b0;
+    pci_stop_in_critical = 1'b0;
     pci_perr_in_comb = 1'b0;
     pci_serr_in_comb = 1'b0;
     master_enable = 1'b0;
@@ -303,19 +303,19 @@ endtask
 
 task pci_grant;
   begin
-    pci_gnt_in_comb = 1'b1;
+    pci_gnt_in_critical = 1'b1;
   end
 endtask
 
 task pci_frame;
   begin
-    pci_frame_in_comb = 1'b1;
+    pci_frame_in_critical = 1'b1;
   end
 endtask
 
 task pci_irdy;
   begin
-    pci_irdy_in_comb = 1'b1;
+    pci_irdy_in_critical = 1'b1;
   end
 endtask
 
@@ -327,13 +327,13 @@ endtask
 
 task pci_trdy;
   begin
-    pci_trdy_in_comb = 1'b1;
+    pci_trdy_in_critical = 1'b1;
   end
 endtask
 
 task pci_stop;
   begin
-    pci_stop_in_comb = 1'b1;
+    pci_stop_in_critical = 1'b1;
   end
 endtask
 
@@ -352,11 +352,11 @@ endtask
 // delay signals like the Pads delay them
   always @(posedge pci_clk)
   begin
-    pci_gnt_in_prev <= pci_gnt_in_comb;
+    pci_gnt_in_prev <= pci_gnt_in_critical;
     pci_ad_in_prev[PCI_BUS_DATA_RANGE:0] <= pci_ad_in_comb[PCI_BUS_DATA_RANGE:0];
     pci_devsel_in_prev <= pci_devsel_in_comb;
-    pci_trdy_in_prev <= pci_trdy_in_comb;
-    pci_stop_in_prev <= pci_stop_in_comb;
+    pci_trdy_in_prev <= pci_trdy_in_critical;
+    pci_stop_in_prev <= pci_stop_in_critical;
     pci_perr_in_prev <= pci_perr_in_comb;
     pci_serr_in_prev <= pci_serr_in_comb;
   end
@@ -368,16 +368,16 @@ endtask
     pci_host_request_type[2:0] <= 3'hX;
     pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0] <= 4'hX;
     pci_host_request_data[PCI_FIFO_DATA_RANGE:0] <= `PCI_FIFO_DATA_X;
-    pci_gnt_in_comb <= 1'b0;
-    pci_gnt_in_prev <= pci_gnt_in_comb;
-    pci_frame_in_comb <= 1'b0;
-    pci_irdy_in_comb <= 1'b0;
+    pci_gnt_in_critical <= 1'b0;
+    pci_gnt_in_prev <= pci_gnt_in_critical;
+    pci_frame_in_critical <= 1'b0;
+    pci_irdy_in_critical <= 1'b0;
     pci_devsel_in_comb <= 1'b0;
     pci_devsel_in_prev <= pci_devsel_in_comb;
-    pci_trdy_in_comb <= 1'b0;
-    pci_trdy_in_prev <= pci_trdy_in_comb;
-    pci_stop_in_comb <= 1'b0;
-    pci_stop_in_prev <= pci_stop_in_comb;
+    pci_trdy_in_critical <= 1'b0;
+    pci_trdy_in_prev <= pci_trdy_in_critical;
+    pci_stop_in_critical <= 1'b0;
+    pci_stop_in_prev <= pci_stop_in_critical;
     pci_perr_in_prev <= 1'b0;
     pci_serr_in_prev <= 1'b0;
   end
@@ -388,16 +388,16 @@ endtask
     pci_host_request_type[2:0] <= 3'hX;
     pci_host_request_cbe[PCI_FIFO_CBE_RANGE:0] <= 4'hX;
     pci_host_request_data[PCI_FIFO_DATA_RANGE:0] <= `PCI_FIFO_DATA_X;
-    pci_gnt_in_comb <= 1'b0;
-    pci_gnt_in_prev <= pci_gnt_in_comb;
-    pci_frame_in_comb <= 1'b0;
-    pci_irdy_in_comb <= 1'b0;
+    pci_gnt_in_critical <= 1'b0;
+    pci_gnt_in_prev <= pci_gnt_in_critical;
+    pci_frame_in_critical <= 1'b0;
+    pci_irdy_in_critical <= 1'b0;
     pci_devsel_in_comb <= 1'b0;
     pci_devsel_in_prev <= pci_devsel_in_comb;
-    pci_trdy_in_comb <= 1'b0;
-    pci_trdy_in_prev <= pci_trdy_in_comb;
-    pci_stop_in_comb <= 1'b0;
-    pci_stop_in_prev <= pci_stop_in_comb;
+    pci_trdy_in_critical <= 1'b0;
+    pci_trdy_in_prev <= pci_trdy_in_critical;
+    pci_stop_in_critical <= 1'b0;
+    pci_stop_in_prev <= pci_stop_in_critical;
     pci_perr_in_prev <= 1'b0;
     pci_serr_in_prev <= 1'b0;
   end
@@ -482,6 +482,28 @@ endtask
     pci_grant;           // drive
       do_clocks (4'h8);
 
+    $display ("Doing Config Read, 3 words, Loose Arb, Master Abort, at time %t", $time);
+    do_reset;
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_READ, 32'h21223344);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'h25667788);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'h29AABBCC);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h2DEEFF00);
+      do_clocks (4'h1);
+    unload_target_data;
+    pci_grant;           // park
+      do_clocks (4'h1);
+    pci_grant;           // drive
+      do_clocks (4'h1);
+                         // loose arbitration
+      do_clocks (4'h1);
+    pci_grant;           // drive
+      do_clocks (4'h1);
+    pci_grant;           // drive
+      do_clocks (4'h8);
+
     $display ("Doing Config Write, 1 word, Loose Arb, Master Abort, at time %t", $time);
     do_reset;
     write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_WRITE, 32'h31223344);
@@ -509,6 +531,28 @@ endtask
     write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'h45667788);
       do_clocks (4'h1);
     write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h49AABBCC);
+      do_clocks (4'h1);
+    unload_target_data;
+    pci_grant;           // park
+      do_clocks (4'h1);
+    pci_grant;           // drive
+      do_clocks (4'h1);
+                         // loose arbitration
+      do_clocks (4'h1);
+    pci_grant;           // drive
+      do_clocks (4'h1);
+    pci_grant;           // drive
+      do_clocks (4'h8);
+
+    $display ("Doing Config Write, 3 words, Loose Arb, Master Abort, at time %t", $time);
+    do_reset;
+    write_fifo (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_CONFIG_WRITE, 32'h41223344);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'h45667788);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_All_Bytes, 32'h49AABBCC);
+      do_clocks (4'h1);
+    write_fifo (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_All_Bytes, 32'h4DEEFF00);
       do_clocks (4'h1);
     unload_target_data;
     pci_grant;           // park
@@ -791,23 +835,22 @@ pci_blue_master pci_blue_master (
   .pci_req_out_next           (pci_req_out_next),
   .pci_req_out_oe_comb        (pci_req_out_oe_comb),
   .pci_gnt_in_prev            (pci_gnt_in_prev),
-  .pci_gnt_in_comb            (pci_gnt_in_comb),
+  .pci_gnt_in_critical        (pci_gnt_in_critical),
   .pci_master_ad_out_next     (pci_master_ad_out_next[PCI_BUS_DATA_RANGE:0]),
   .pci_master_ad_out_oe_comb  (pci_master_ad_out_oe_comb),
   .pci_cbe_l_out_next         (pci_cbe_l_out_next[PCI_BUS_CBE_RANGE:0]),
   .pci_cbe_out_oe_comb        (pci_cbe_out_oe_comb),
-  .pci_frame_in_comb          (pci_frame_in_comb),
+  .pci_frame_in_critical      (pci_frame_in_critical),
   .pci_frame_out_next         (pci_frame_out_next),
   .pci_frame_out_oe_comb      (pci_frame_out_oe_comb),
-  .pci_irdy_in_comb           (pci_irdy_in_comb),
+  .pci_irdy_in_critical       (pci_irdy_in_critical),
   .pci_irdy_out_next          (pci_irdy_out_next),
   .pci_irdy_out_oe_comb       (pci_irdy_out_oe_comb),
   .pci_devsel_in_prev         (pci_devsel_in_prev),
-  .pci_devsel_in_comb         (pci_devsel_in_comb),
   .pci_trdy_in_prev           (pci_trdy_in_prev),
-  .pci_trdy_in_comb           (pci_trdy_in_comb),
+  .pci_trdy_in_critical       (pci_trdy_in_critical),
   .pci_stop_in_prev           (pci_stop_in_prev),
-  .pci_stop_in_comb           (pci_stop_in_comb),
+  .pci_stop_in_critical       (pci_stop_in_critical),
   .pci_perr_in_prev           (pci_perr_in_prev),
   .pci_serr_in_prev           (pci_serr_in_prev),
 // Signals to control shared AD bus, Parity, and SERR signals

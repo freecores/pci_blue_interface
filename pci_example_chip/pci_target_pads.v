@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_target_pads.v,v 1.9 2001-07-06 10:51:23 bbeaver Exp $
+// $Id: pci_target_pads.v,v 1.10 2001-07-07 03:12:00 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -89,18 +89,19 @@ module pci_target_pads (
 `endif // PCI_EXTERNAL_IDSEL
   pci_ad_in_prev,     pci_ad_out_next,     pci_ad_out_en_next,
                       pci_ad_out_oe_comb,
-  pci_cbe_l_in_prev,  pci_cbe_l_in_comb,
+  pci_cbe_l_in_prev,  pci_cbe_l_in_critical,
                       pci_cbe_l_out_next,  pci_cbe_out_en_next,
                       pci_cbe_out_oe_comb,
-  pci_par_in_prev,    pci_par_out_next,    pci_par_out_oe_comb,
-  pci_frame_in_prev,  pci_frame_in_comb,
+  pci_par_in_prev,    pci_par_in_critical,  
+                      pci_par_out_next,    pci_par_out_oe_comb,
+  pci_frame_in_prev,  pci_frame_in_critical,
                       pci_frame_out_next,  pci_frame_out_oe_comb,
-  pci_irdy_in_prev,   pci_irdy_in_comb,
+  pci_irdy_in_prev,   pci_irdy_in_critical,
                       pci_irdy_out_next,   pci_irdy_out_oe_comb,
   pci_devsel_in_prev, pci_devsel_out_next, pci_d_t_s_out_oe_comb,
-  pci_trdy_in_prev,   pci_trdy_in_comb,
+  pci_trdy_in_prev,   pci_trdy_in_critical,
                       pci_trdy_out_next,
-  pci_stop_in_prev,   pci_stop_in_comb,
+  pci_stop_in_prev,   pci_stop_in_critical,
                       pci_stop_out_next,
   pci_perr_in_prev,   pci_perr_out_next,   pci_perr_out_oe_comb,
   pci_serr_in_prev,                        pci_serr_out_oe_comb,
@@ -131,22 +132,23 @@ module pci_target_pads (
   input  [PCI_BUS_DATA_RANGE:0] pci_ad_out_next;
   input   pci_ad_out_en_next;
   input   pci_ad_out_oe_comb;
-  output [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_comb;
+  output [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_critical;
   output [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_prev;
   input  [PCI_BUS_CBE_RANGE:0] pci_cbe_l_out_next;
   input   pci_cbe_out_en_next;
   input   pci_cbe_out_oe_comb;
+  output  pci_par_in_critical;
   output  pci_par_in_prev;
   input   pci_par_out_next, pci_par_out_oe_comb;
-  output  pci_frame_in_prev, pci_frame_in_comb;
+  output  pci_frame_in_prev, pci_frame_in_critical;
   input   pci_frame_out_next, pci_frame_out_oe_comb;
-  output  pci_irdy_in_prev, pci_irdy_in_comb;
+  output  pci_irdy_in_prev, pci_irdy_in_critical;
   input   pci_irdy_out_next, pci_irdy_out_oe_comb;
   output  pci_devsel_in_prev;
   input   pci_devsel_out_next, pci_d_t_s_out_oe_comb;
-  output  pci_trdy_in_prev, pci_trdy_in_comb;
+  output  pci_trdy_in_prev, pci_trdy_in_critical;
   input   pci_trdy_out_next;
-  output  pci_stop_in_prev, pci_stop_in_comb;
+  output  pci_stop_in_prev, pci_stop_in_critical;
   input   pci_stop_out_next;
   output  pci_perr_in_prev;
   input   pci_perr_out_next, pci_perr_out_oe_comb;
@@ -158,6 +160,8 @@ module pci_target_pads (
   input   pci_clk;
 
 // Capture wires, then invert to make all internal signals asserted HIGH.
+  wire   [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_comb;
+  wire    pci_par_in_comb;
   wire    pci_frame_l_in_prev, pci_frame_l_in_comb;
   wire    pci_irdy_l_in_prev, pci_irdy_l_in_comb;
   wire    pci_devsel_l_in_prev;
@@ -165,15 +169,18 @@ module pci_target_pads (
   wire    pci_stop_l_in_prev, pci_stop_l_in_comb;
   wire    pci_perr_l_in_prev, pci_serr_l_in_prev;
 
+  assign  pci_cbe_l_in_critical[PCI_BUS_CBE_RANGE:0] =
+                                pci_cbe_l_in_comb[PCI_BUS_CBE_RANGE:0];
+  assign  pci_par_in_critical = pci_par_in_comb;
   assign  pci_frame_in_prev = ~pci_frame_l_in_prev;
-  assign  pci_frame_in_comb = ~pci_frame_l_in_comb;
+  assign  pci_frame_in_critical = ~pci_frame_l_in_comb;
   assign  pci_irdy_in_prev = ~pci_irdy_l_in_prev;
-  assign  pci_irdy_in_comb = ~pci_irdy_l_in_comb;
+  assign  pci_irdy_in_critical = ~pci_irdy_l_in_comb;
   assign  pci_devsel_in_prev = ~pci_devsel_l_in_prev;
   assign  pci_trdy_in_prev = ~pci_trdy_l_in_prev;
-  assign  pci_trdy_in_comb = ~pci_trdy_l_in_comb;
+  assign  pci_trdy_in_critical = ~pci_trdy_l_in_comb;
   assign  pci_stop_in_prev = ~pci_stop_l_in_prev;
-  assign  pci_stop_in_comb = ~pci_stop_l_in_comb;
+  assign  pci_stop_in_critical = ~pci_stop_l_in_comb;
   assign  pci_perr_in_prev = ~pci_perr_l_in_prev;
   assign  pci_serr_in_prev = ~pci_serr_l_in_prev;
 
@@ -191,7 +198,7 @@ module pci_target_pads (
 
 // Make no-connect wires to connect to unused pad combinational outputs
   wire   [PCI_BUS_DATA_RANGE:0] discard_data_in;
-  wire    discard_par_in, discard_idsel_in;
+  wire    discard_idsel_in;
   wire    discard_devsel_l_in;
   wire    discard_serr_l_in, discard_perr_l_in;
 
@@ -308,7 +315,7 @@ pci_registered_io_pad cbe1 (
 );
 pci_registered_io_pad par (
   .pci_clk           (pci_clk),
-  .pci_ad_in_comb    (discard_par_in),      .pci_ad_in_prev     (pci_par_in_prev),
+  .pci_ad_in_comb    (pci_par_in_comb),     .pci_ad_in_prev     (pci_par_in_prev),
   .pci_ad_out_next   (pci_par_out_next),    .pci_ad_out_en_next (1'b1),
   .pci_ad_out_oe_comb (pci_par_out_oe_comb), .pci_ad_ext        (pci_ext_par)
 );

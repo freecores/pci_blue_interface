@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_target.v,v 1.16 2001-07-06 10:51:22 bbeaver Exp $
+// $Id: pci_blue_target.v,v 1.17 2001-07-07 03:11:59 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -119,11 +119,11 @@ module pci_blue_target (
   pci_target_ad_en_next, pci_target_ad_out_oe_comb,
   pci_idsel_in_prev,
   pci_cbe_l_in_prev,
-  pci_par_in_prev,     pci_par_in_comb,
+  pci_par_in_prev,     pci_par_in_critical,
   pci_target_par_out_next,
   pci_target_par_out_oe_comb,
-  pci_frame_in_prev,   pci_frame_in_comb,
-  pci_irdy_in_prev,    pci_irdy_in_comb,
+  pci_frame_in_prev,   pci_frame_in_critical,
+  pci_irdy_in_prev,    pci_irdy_in_critical,
   pci_devsel_out_next, pci_d_t_s_out_oe_comb,
   pci_trdy_out_next,   pci_stop_out_next,
   pci_perr_in_prev,
@@ -192,13 +192,13 @@ module pci_blue_target (
   input   pci_idsel_in_prev;
   input  [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_prev;
   input   pci_par_in_prev;
-  input   pci_par_in_comb;
+  input   pci_par_in_critical;
   output  pci_target_par_out_next;
   output  pci_target_par_out_oe_comb;
   input   pci_frame_in_prev;
-  input   pci_frame_in_comb;
+  input   pci_frame_in_critical;
   input   pci_irdy_in_prev;
-  input   pci_irdy_in_comb;
+  input   pci_irdy_in_critical;
   output  pci_devsel_out_next;
   output  pci_d_t_s_out_oe_comb;
   output  pci_trdy_out_next;
@@ -900,22 +900,22 @@ module pci_blue_target (
 
 pci_critical_next_devsel pci_critical_next_devsel (
   .PCI_Next_DEVSEL_Code       (PCI_Next_DEVSEL_Code[2:0]),
-  .pci_frame_in_comb          (pci_frame_in_comb),
-  .pci_irdy_in_comb           (pci_irdy_in_comb),
+  .pci_frame_in_critical      (pci_frame_in_critical),
+  .pci_irdy_in_critical       (pci_irdy_in_critical),
   .pci_devsel_out_next        (pci_devsel_out_next)
 );
 
 pci_critical_next_trdy pci_critical_next_Trdy (
   .PCI_Next_TRDY_Code         (PCI_Next_TRDY_Code[2:0]),
-  .pci_frame_in_comb          (pci_frame_in_comb),
-  .pci_irdy_in_comb           (pci_irdy_in_comb),
+  .pci_frame_in_critical      (pci_frame_in_critical),
+  .pci_irdy_in_critical       (pci_irdy_in_critical),
   .pci_trdy_out_next          (pci_trdy_out_next)
 );
 
 pci_critical_next_stop pci_critical_next_stop (
   .PCI_Next_STOP_Code         (PCI_Next_STOP_Code[2:0]),
-  .pci_frame_in_comb          (pci_frame_in_comb),
-  .pci_irdy_in_comb           (pci_irdy_in_comb),
+  .pci_frame_in_critical      (pci_frame_in_critical),
+  .pci_irdy_in_critical       (pci_irdy_in_critical),
   .pci_stop_out_next          (pci_stop_out_next)
 );
 

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_master_pads.v,v 1.9 2001-07-06 10:51:23 bbeaver Exp $
+// $Id: pci_master_pads.v,v 1.10 2001-07-07 03:12:00 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -72,7 +72,7 @@ module pci_master_pads (
 // internal signals
   pci_req_out_next,
   pci_req_out_oe_comb,
-  pci_gnt_in_prev,   pci_gnt_in_comb,
+  pci_gnt_in_prev,   pci_gnt_in_critical,
   pci_clk
 );
 
@@ -84,7 +84,7 @@ module pci_master_pads (
   input   pci_req_out_next;
   input   pci_req_out_oe_comb;
   output  pci_gnt_in_prev;
-  output  pci_gnt_in_comb;
+  output  pci_gnt_in_critical;
   input   pci_clk;
 
   wire    pci_req_discard_comb, pci_req_discard_prev;
@@ -93,7 +93,7 @@ module pci_master_pads (
   wire    pci_req_out_l_next = ~pci_req_out_next;
   wire    pci_gnt_in_l_prev, pci_gnt_in_l_comb;
   assign  pci_gnt_in_prev = ~pci_gnt_in_l_prev;
-  assign  pci_gnt_in_comb = ~pci_gnt_in_l_comb;
+  assign  pci_gnt_in_critical = ~pci_gnt_in_l_comb;
 
 pci_registered_io_pad req (
   .pci_clk           (pci_clk),
@@ -121,7 +121,7 @@ module pci_arbiter_pads (
   pci_int_a_in_prev, pci_int_a_out_next,
 `ifdef PCI_EXTERNAL_MASTER
   pci_req_in_prev, pci_req_out_comb,
-  pci_gnt_in_comb,
+  pci_gnt_in_critical,
   pci_gnt_in_prev, pci_gnt_out_comb,
 `else // PCI_EXTERNAL_MASTER
 `endif // PCI_EXTERNAL_MASTER
@@ -144,7 +144,7 @@ module pci_arbiter_pads (
 `ifdef PCI_EXTERNAL_MASTER
   input   pci_req_out_comb;
   output  pci_req_in_prev;
-  output  pci_gnt_in_comb;
+  output  pci_gnt_in_critical;
   output  pci_gnt_in_prev;
   input   pci_gnt_out_comb;
 `endif // PCI_EXTERNAL_MASTER
@@ -177,7 +177,7 @@ pci_registered_io_pad req (
 );
 pci_registered_io_pad gnt (
   .pci_clk           (pci_clk),
-  .pci_ad_in_comb    (pci_gnt_in_comb),     .pci_ad_in_prev     (pci_gnt_in_l_prev),
+  .pci_ad_in_comb    (pci_gnt_in_critical), .pci_ad_in_prev     (pci_gnt_in_l_prev),
   .pci_ad_out_next   (1'b0),                .pci_ad_out_en_next (pci_ad_out_en),
   .pci_ad_out_oe_comb (pci_gnt_out_comb),   .pci_ad_ext         (pci_ext_gnt_l)
 );
