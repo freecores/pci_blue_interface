@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: crc32_lib.v,v 1.13 2001-08-26 11:12:19 bbeaver Exp $
+// $Id: crc32_lib.v,v 1.14 2001-08-30 07:42:14 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -663,11 +663,12 @@ endmodule
 //   MIGHT mean that the whole thing can run faster.  If not, use as a function!
 module crc_32_64_data_private (
   data_in_64,
-  data_depend_1, data_depend_2
+  data_part_1_out, data_part_2_out
 );
-  input  [63:0] data_in_64;
-  output [31:0] data_depend_1;
-  output [31:0] data_depend_2;
+  parameter NUMBER_OF_BITS_APPLIED = 64;
+  input  [NUMBER_OF_BITS_APPLIED - 1 : 0] data_in_64;
+  output [`NUMBER_OF_BITS_IN_CRC - 1 : 0] data_part_1_out;
+  output [`NUMBER_OF_BITS_IN_CRC - 1 : 0] data_part_2_out;
 
 /*
 // Data Input dependencies
@@ -839,7 +840,7 @@ X0 ^X6 ^X9^X10 ^X12 ^X16 ^X24^X25^X26 ^X28^X29^X30^X31^X32 ^X34 ^X37 ^X44^X45 ^X
 // Need to distribute this logic so that it can be fast.  The user can
 //   use 1 or 2 outputs, just so long as their XOR is the final value.
 
-  assign  data_depend_1[31:0] =  // first half of each formula
+  assign  data_part_1_out[`NUMBER_OF_BITS_IN_CRC - 1 : 0] =  // first half of each formula
    {  (((D5_11 ^ D8_9)   ^ (D15_23 ^D24_25)) ^ ((D27_28 ^D29_30) ^ (D31_33 ^D36_49))),
       (((D4_10 ^ D7_8)   ^ (D14_22 ^D23_24)) ^ ((D26_27 ^D28_29) ^ (D30_32 ^D35_48))),
       (((D3_9  ^ D6_7)   ^ (D13_21 ^D22_23)) ^ ((D25_26 ^D27_28) ^ (D29_31 ^D34_47))),
@@ -874,7 +875,7 @@ X0 ^X6 ^X9^X10 ^X12 ^X16 ^X24^X25^X26 ^X28^X29^X30^X31^X32 ^X34 ^X37 ^X44^X45 ^X
       (((D0_6  ^ D9_10)  ^ (D12_16 ^D24_25)) ^ ((D26_28 ^D29_30) ^ (D31_32 ^D34_37)))
     };
 
-  assign  data_depend_2[31:0] =
+  assign  data_part_2_out[`NUMBER_OF_BITS_IN_CRC - 1 : 0] =
    {  (((D43_44 ^ D46_47) ^ (D52_53 ^ D54_57)) ^ ((D59_60 ^ D62))),
       (((D42_43 ^ D45_46) ^ (D51_52 ^ D53_56)) ^ ((D58_59 ^ D61_63))),
       (((D41_42 ^ D44_45) ^ (D50_51 ^ D52_55)) ^ ((D57_58 ^ D60)    ^  D62_63)),
@@ -910,17 +911,15 @@ X0 ^X6 ^X9^X10 ^X12 ^X16 ^X24^X25^X26 ^X28^X29^X30^X31^X32 ^X34 ^X37 ^X44^X45 ^X
     };
 endmodule
 
-module crc_32_64_private (
+module crc_32_64_crc_private (
   use_F_for_CRC,
   present_crc,
-  data_in_64,
-  next_crc
+  crc_part_1_out, crc_part_2_out
 );
-  parameter NUMBER_OF_BITS_APPLIED = 64;
   input   use_F_for_CRC;
   input  [`NUMBER_OF_BITS_IN_CRC - 1 : 0] present_crc;
-  input  [NUMBER_OF_BITS_APPLIED - 1 : 0] data_in_64;
-  output [`NUMBER_OF_BITS_IN_CRC - 1 : 0] next_crc;
+  output [`NUMBER_OF_BITS_IN_CRC - 1 : 0] crc_part_1_out;
+  output [`NUMBER_OF_BITS_IN_CRC - 1 : 0] crc_part_2_out;
 
 /*
 // CRC input dependencies
@@ -959,33 +958,7 @@ C1^C2^C3 ^C5^C6 ^C12 ^C14^C15 ^C17^C18^C19 ^C21 ^C24 ^C26^C27^C28 ^C30^C31,
 C0 ^C2 ^C5 ^C12^C13 ^C15^C16 ^C18 ^C21^C22^C23 ^C26 ^C28^C29 ^C31        
 }
  */
-// There are 2 obvious ways to implement these functions:
-// 1) XOR the State bits with the Input bits, then calculate the XOR's
-// 2) Independently calculate a result for Inputs and State variables,
-//    then XOR the results together.
-// Once the applied data width > CRC size, it seems best to use the second technique.
-// The formulas for each output term are seen to have a large number of
-//   terms depending on input data, and a smaller number of terms dependent
-//   on the initial value of the CRC.
-// Calculate the Data component of the dependency.  This can be done in
-//   a pipelined fashion, since it doesn't matter how long it takes.
-// Calculate the CRC component of the dependency.  Each clock this must
-//   be XOR'd with the correctly time-aligned Data component, and the
-//   results must be put back in the running CRC latches.
-// It looks like 64 bits per clock may be FASTER than 32 bits per clock,
-//   because the Data dependency can be done in several clocks.
-
-  wire   [31:0] data_depend_1;
-  wire   [31:0] data_depend_2;
-
-crc_32_64_data_private crc_32_64_data_part (
-  .data_in_64                 (data_in_64[63:0]),
-  .data_depend_1              (data_depend_1[31:0]),
-  .data_depend_2              (data_depend_2[31:0])
-);
-
-  wire   [31:0] data_depend_part = data_depend_1[31:0] ^ data_depend_2[31:0];
-
+// CRC terms depend ONLY on CRC data from the previous clock
   wire    C31, C30, C29, C28, C27, C26, C25, C24, C23, C22, C21, C20, C19, C18, C17;
   wire    C16, C15, C14, C13, C12, C11, C10, C9, C8, C7, C6, C5, C4, C3, C2, C1, C0;
   assign  {C31, C30, C29, C28, C27, C26, C25, C24,
@@ -1046,41 +1019,227 @@ crc_32_64_data_private crc_32_64_data_part (
   wire    C24_26 = C24 ^ C26;    wire    C5_18  = C5  ^ C18;
   wire    C23_26 = C23 ^ C26;   
 
-  assign  next_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] =
-    {
-     (((C1_4  ^ C11_12) ^ (C14_15 ^ C17_20)) ^ ((C21_22 ^ C25_30) ^  C27_28))                      ^ data_depend_part[31],
-     (((C0_3  ^ C10_11) ^ (C13_14 ^ C16_19)) ^ ((C20_21 ^ C24_31) ^ (C26_27 ^ C29)))               ^ data_depend_part[30],
-     (((C2_15 ^ C9_10)  ^ (C12_13 ^ C18_23)) ^ ((C19_20 ^ C25_26) ^ (C28    ^ C30_31)))            ^ data_depend_part[29],
-     (((C1_14 ^ C8_9)   ^ (C11_12 ^ C17_22)) ^ ((C18_19 ^ C24_25) ^ (C27_29 ^ C30_31)))            ^ data_depend_part[28],
-     (((C0_13 ^ C7_8)   ^ (C10_11 ^ C16_21)) ^ ((C17_18 ^ C23_24) ^ (C26    ^ C28_29)))  ^ (C30_31 ^ data_depend_part[27]),
-     (((C6_7  ^ C9_10)  ^ (C12_15 ^ C16_17)) ^ ((C20_25 ^ C22_23) ^ (C27_28 ^ C29_30)))            ^ data_depend_part[26],
-     (((C1_4  ^ C5_6)   ^ (C8_9   ^ C12_24)) ^ ((C16_17 ^ C19_20) ^ (C25_26 ^ C29_30)))            ^ data_depend_part[25],
-     (((C0_3  ^ C4_5)   ^ (C7_8   ^ C11_23)) ^ ((C15_16 ^ C18_19) ^ (C24_25 ^ C28_29)))  ^ (C31    ^ data_depend_part[24]),
-     (((C2_3  ^ C4_10)  ^ (C6_7   ^ C14_15)) ^ ((C17_18 ^ C22_23) ^ (C24_30 ^ C27_28)))            ^ data_depend_part[23],
-     (((C2_3  ^ C4_5)   ^ (C6_9   ^ C11_12)) ^ ((C13_20 ^ C15_16) ^ (C23_28 ^ C25_26)))  ^ (C29_30 ^ data_depend_part[22]),
-     (((C2_3  ^ C5_8)   ^ (C10_17 ^ C19_20)) ^  (C21_24 ^ C29_30))                                 ^ data_depend_part[21],
-     (((C1_2  ^ C4_7)   ^ (C9_16  ^ C18_19)) ^  (C20_23 ^ C28_29))                                 ^ data_depend_part[20],
-     (((C0_1  ^ C3_6)   ^ (C8_15  ^ C17_18)) ^  (C19_22 ^ C27_28))                                 ^ data_depend_part[19],
-     (((C0_2  ^ C5_7)   ^ (C14_16 ^ C17_18)) ^  (C21    ^ C26_27))                                 ^ data_depend_part[18],
-     (((C1_4  ^ C6_13)  ^ (C15_20 ^ C16_17)) ^   C25_26)                                           ^ data_depend_part[17],
-     (((C0_3  ^ C5_12)  ^ (C14_19 ^ C15_16)) ^   C24_25)                                           ^ data_depend_part[16],
-     (((C1_2  ^ C12_13) ^ (C17_18 ^ C20_21)) ^ ((C22_23 ^ C24_25) ^ (C27_28  ^ C30)))              ^ data_depend_part[15],
-     (((C0_1  ^ C11_12) ^ (C16_17 ^ C19_20)) ^ ((C21_22 ^ C23_24) ^ (C26_27  ^ C29_31)))           ^ data_depend_part[14],
-     (((C0    ^ C10_11) ^ (C15_16 ^ C18_19)) ^ ((C20_21 ^ C22_23) ^ (C25_26  ^ C28_30)))           ^ data_depend_part[13],
-     (((C9_10 ^ C14_15) ^ (C17_18 ^ C19_20)) ^ ((C21_22 ^ C24_25) ^ (C27     ^ C29_31)))           ^ data_depend_part[12],
-     (((C1_4  ^ C8_9)   ^ (C11_12 ^ C13))    ^ ((C15_16 ^ C18_19) ^ (C22_23  ^ C24_25))) ^ (C26_27 ^ data_depend_part[11]),
-     (((C0_1  ^ C3_4)   ^ (C7_8   ^ C10_18)) ^ ((C20_26 ^ C23_24) ^ (C27_28 ^ C30_31)))            ^ data_depend_part[10],
-     (((C0_1  ^ C2_3)   ^ (C4_9   ^ C6_7))   ^ ((C11_12 ^ C14_15) ^ (C19_20 ^ C21_23))) ^ ((C26 ^ C28_29) ^ data_depend_part[9]),
-     (((C0_1  ^ C2_3)   ^ (C5_6   ^ C8_18))  ^ ((C10_11 ^ C13_14) ^ (C19_20 ^ C22_25))) ^ ((C27_28 ^ C31) ^ data_depend_part[8]),
-     (((C0_2  ^ C5_7)   ^ (C9_10  ^ C11_13)) ^ ((C14_15 ^ C18_19) ^ (C20_22 ^ C24_25)))  ^ (C26_28 ^ data_depend_part[7]),
-     (((C6_13 ^ C8_9)   ^ (C10_11 ^ C15_18)) ^ ((C19_20 ^ C22_23) ^ (C24    ^ C28_30)))            ^ data_depend_part[6],
-     (((C5_12 ^ C7_8)   ^ (C9_10  ^ C14_17)) ^ ((C18_19 ^ C21_22) ^ (C23_27 ^ C29_31)))            ^ data_depend_part[5],
-     (((C1_12 ^ C6_7)   ^ (C8_9   ^ C13_14)) ^ ((C15_16 ^ C18_25) ^ (C26_27 ^ C31)))               ^ data_depend_part[4],
-     (((C0_1  ^ C4_5)   ^ (C6_7   ^ C8_13))  ^ ((C20_21 ^ C22_24) ^ (C26_27 ^ C28)))               ^ data_depend_part[3],
-     (((C0_3  ^ C4_5)   ^ (C6_7   ^ C12_19)) ^ ((C20_21 ^ C23_25) ^  C26_27))                      ^ data_depend_part[2],
-     (((C1_2  ^ C3_12)  ^ (C5_6   ^ C14_15)) ^ ((C17_18 ^ C19_21) ^ (C24_26 ^ C27_28)))  ^ (C30_31 ^ data_depend_part[1]),
-     (((C0_2  ^ C5_18)  ^ (C12_13 ^ C15_16)) ^ ((C21_22 ^ C23_26) ^ (C28_29 ^ C31)))               ^ data_depend_part[0]     
+  assign  crc_part_1_out[`NUMBER_OF_BITS_IN_CRC - 1 : 0] =
+    { 
+     (C1_4  ^ C11_12) ^ (C14_15 ^ C17_20),
+     (C0_3  ^ C10_11) ^ (C13_14 ^ C16_19),
+     (C2_15 ^ C9_10)  ^ (C12_13 ^ C18_23),
+     (C1_14 ^ C8_9)   ^ (C11_12 ^ C17_22),
+     (C0_13 ^ C7_8)   ^ (C10_11 ^ C16_21),
+     (C6_7  ^ C9_10)  ^ (C12_15 ^ C16_17),
+     (C1_4  ^ C5_6)   ^ (C8_9   ^ C12_24),
+     (C0_3  ^ C4_5)   ^ (C7_8   ^ C11_23),
+     (C2_3  ^ C4_10)  ^ (C6_7   ^ C14_15),
+     (C2_3  ^ C4_5)   ^ (C6_9   ^ C11_12),
+     (C2_3  ^ C5_8)   ^ (C10_17 ^ C19_20),
+     (C1_2  ^ C4_7)   ^ (C9_16  ^ C18_19),
+     (C0_1  ^ C3_6)   ^ (C8_15  ^ C17_18),
+     (C0_2  ^ C5_7)   ^ (C14_16 ^ C17_18),
+     (C1_4  ^ C6_13)  ^ (C15_20 ^ C16_17),
+     (C0_3  ^ C5_12)  ^ (C14_19 ^ C15_16),
+     (C1_2  ^ C12_13) ^ (C17_18 ^ C20_21),
+     (C0_1  ^ C11_12) ^ (C16_17 ^ C19_20),
+     (C0    ^ C10_11) ^ (C15_16 ^ C18_19),
+     (C9_10 ^ C14_15) ^ (C17_18 ^ C19_20),
+     (C1_4  ^ C8_9)   ^ (C11_12 ^ C13),
+     (C0_1  ^ C3_4)   ^ (C7_8   ^ C10_18),
+     (C0_1  ^ C2_3)   ^ (C4_9   ^ C6_7),
+     (C0_1  ^ C2_3)   ^ (C5_6   ^ C8_18),
+     (C0_2  ^ C5_7)   ^ (C9_10  ^ C11_13),
+     (C6_13 ^ C8_9)   ^ (C10_11 ^ C15_18),
+     (C5_12 ^ C7_8)   ^ (C9_10  ^ C14_17),
+     (C1_12 ^ C6_7)   ^ (C8_9   ^ C13_14),
+     (C0_1  ^ C4_5)   ^ (C6_7   ^ C8_13),
+     (C0_3  ^ C4_5)   ^ (C6_7   ^ C12_19),
+     (C1_2  ^ C3_12)  ^ (C5_6   ^ C14_15),
+     (C0_2  ^ C5_18)  ^ (C12_13 ^ C15_16)
     };
+
+  assign  crc_part_2_out[`NUMBER_OF_BITS_IN_CRC - 1 : 0] =
+    {
+     (C21_22 ^ C25_30) ^ (C27_28         ),
+     (C20_21 ^ C24_31) ^ (C26_27 ^ C29   ),
+     (C19_20 ^ C25_26) ^ (C28    ^ C30_31),
+     (C18_19 ^ C24_25) ^ (C27_29 ^ C30_31),
+     (C17_18 ^ C23_24) ^ (C26    ^ C28_29) ^ (C30_31),
+     (C20_25 ^ C22_23) ^ (C27_28 ^ C29_30),
+     (C16_17 ^ C19_20) ^ (C25_26 ^ C29_30),
+     (C15_16 ^ C18_19) ^ (C24_25 ^ C28_29) ^ (C31),
+     (C17_18 ^ C22_23) ^ (C24_30 ^ C27_28),
+     (C13_20 ^ C15_16) ^ (C23_28 ^ C25_26) ^ (C29_30),
+     (C21_24 ^ C29_30),
+     (C20_23 ^ C28_29),
+     (C19_22 ^ C27_28),
+     (C21    ^ C26_27),
+     (C25_26),
+     (C24_25),
+     (C22_23 ^ C24_25) ^ (C27_28 ^ C30),
+     (C21_22 ^ C23_24) ^ (C26_27 ^ C29_31),
+     (C20_21 ^ C22_23) ^ (C25_26 ^ C28_30),
+     (C21_22 ^ C24_25) ^ (C27    ^ C29_31),
+     (C15_16 ^ C18_19) ^ (C22_23 ^ C24_25) ^ (C26_27),
+     (C20_26 ^ C23_24) ^ (C27_28 ^ C30_31),
+     (C11_12 ^ C14_15) ^ (C19_20 ^ C21_23) ^ (C26 ^ C28_29),
+     (C10_11 ^ C13_14) ^ (C19_20 ^ C22_25) ^ (C27_28 ^ C31),
+     (C14_15 ^ C18_19) ^ (C20_22 ^ C24_25) ^ (C26_28),
+     (C19_20 ^ C22_23) ^ (C24    ^ C28_30),
+     (C18_19 ^ C21_22) ^ (C23_27 ^ C29_31),
+     (C15_16 ^ C18_25) ^ (C26_27 ^ C31),
+     (C20_21 ^ C22_24) ^ (C26_27 ^ C28),
+     (C20_21 ^ C23_25) ^ (C26_27),
+     (C17_18 ^ C19_21) ^ (C24_26 ^ C27_28) ^ (C30_31),
+     (C21_22 ^ C23_26) ^ (C28_29 ^ C31)     
+    };
+endmodule
+
+module crc_32_64_private (
+  use_F_for_CRC,
+  present_crc,
+  data_in_64,
+  next_crc
+);
+  parameter NUMBER_OF_BITS_APPLIED = 64;
+  input   use_F_for_CRC;
+  input  [`NUMBER_OF_BITS_IN_CRC - 1 : 0] present_crc;
+  input  [NUMBER_OF_BITS_APPLIED - 1 : 0] data_in_64;
+  output [`NUMBER_OF_BITS_IN_CRC - 1 : 0] next_crc;
+
+// There are 2 obvious ways to implement these functions:
+// 1) XOR the State bits with the Input bits, then calculate the XOR's
+// 2) Independently calculate a result for Inputs and State variables,
+//    then XOR the results together.
+// Once the applied data width > CRC size, it seems best to use the second technique.
+// The formulas for each output term are seen to have a large number of
+//   terms depending on input data, and a smaller number of terms dependent
+//   on the initial value of the CRC.
+// Calculate the Data component of the dependency.  This can be done in
+//   a pipelined fashion, since it doesn't matter how long it takes.
+// Calculate the CRC component of the dependency.  Each clock this must
+//   be XOR'd with the correctly time-aligned Data component, and the
+//   results must be put back in the running CRC latches.
+// It looks like 64 bits per clock may be FASTER than 32 bits per clock,
+//   because the Data dependency can be done in several clocks.
+
+// Instantiate the Data part of the dependency.
+  wire   [`NUMBER_OF_BITS_IN_CRC - 1 : 0] data_part_1_out;
+  wire   [`NUMBER_OF_BITS_IN_CRC - 1 : 0] data_part_2_out;
+
+crc_32_64_data_private crc_32_64_data_part (
+  .data_in_64                 (data_in_64[NUMBER_OF_BITS_APPLIED - 1 : 0]),
+  .data_part_1_out            (data_part_1_out[`NUMBER_OF_BITS_IN_CRC - 1 : 0]),
+  .data_part_2_out            (data_part_2_out[`NUMBER_OF_BITS_IN_CRC - 1 : 0])
+);
+
+  wire   [`NUMBER_OF_BITS_IN_CRC - 1 : 0] data_depend_part =
+                    data_part_1_out[`NUMBER_OF_BITS_IN_CRC - 1 : 0]
+                  ^ data_part_2_out[`NUMBER_OF_BITS_IN_CRC - 1 : 0];
+
+// Instantiate the CRC part of the dependency.
+  wire   [`NUMBER_OF_BITS_IN_CRC - 1 : 0] crc_part_1_out;
+  wire   [`NUMBER_OF_BITS_IN_CRC - 1 : 0] crc_part_2_out;
+
+crc_32_64_crc_private crc_32_64_crc_part (
+  .use_F_for_CRC              (use_F_for_CRC),
+  .present_crc                (present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0]),
+  .crc_part_1_out             (crc_part_1_out[`NUMBER_OF_BITS_IN_CRC - 1 : 0]),
+  .crc_part_2_out             (crc_part_2_out[`NUMBER_OF_BITS_IN_CRC - 1 : 0])
+);
+
+  wire   [`NUMBER_OF_BITS_IN_CRC - 1 : 0] first_part =
+                    data_depend_part[`NUMBER_OF_BITS_IN_CRC - 1 : 0]
+                  ^ crc_part_1_out[`NUMBER_OF_BITS_IN_CRC - 1 : 0];  // source depth 4 gates
+
+  assign  next_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] =
+                    first_part[`NUMBER_OF_BITS_IN_CRC - 1 : 0]
+                  ^ crc_part_2_out[`NUMBER_OF_BITS_IN_CRC - 1 : 0];  // source depth 5 gates
+endmodule
+
+module crc_32_64_pipelined_2 (
+  use_F_for_CRC,
+  data_in_64,
+  running_crc,
+  clk
+);
+  parameter NUMBER_OF_BITS_APPLIED = 64;
+  input   use_F_for_CRC;
+  input  [NUMBER_OF_BITS_APPLIED - 1 : 0] data_in_64;
+  output [`NUMBER_OF_BITS_IN_CRC - 1 : 0] running_crc;
+  input   clk;
+
+// A pipelined version of the CRC_32 working on 64-bit operands.
+// Latch all operands at Clock 1.
+// Calculate the Data Dependency during Clock 2.
+// Update the CRC during Clock 3.
+// NOTE: The CRC comes out after Clock 3.
+
+// Latch all operands at Clock 1.
+  reg     use_F_for_CRC_latched;
+  reg    [NUMBER_OF_BITS_APPLIED - 1 : 0] data_in_64_latched;
+
+  always @(posedge clk)
+  begin
+    use_F_for_CRC_latched <= use_F_for_CRC;
+    data_in_64_latched[NUMBER_OF_BITS_APPLIED - 1 : 0] <=
+                  data_in_64[NUMBER_OF_BITS_APPLIED - 1 : 0];
+  end
+
+// Instantiate the Data part of the dependency.
+  wire   [`NUMBER_OF_BITS_IN_CRC - 1 : 0] data_part_1_out;
+  wire   [`NUMBER_OF_BITS_IN_CRC - 1 : 0] data_part_2_out;
+
+crc_32_64_data_private crc_32_64_data_part (
+  .data_in_64                 (data_in_64[NUMBER_OF_BITS_APPLIED - 1 : 0]),
+  .data_part_1_out            (data_part_1_out[`NUMBER_OF_BITS_IN_CRC - 1 : 0]),
+  .data_part_2_out            (data_part_2_out[`NUMBER_OF_BITS_IN_CRC - 1 : 0])
+);
+
+// Calculate the Data Dependency during Clock 2.
+  reg     use_F_for_CRC_prev;
+  reg    [`NUMBER_OF_BITS_IN_CRC - 1 : 0] data_part_1_latched;
+  reg    [`NUMBER_OF_BITS_IN_CRC - 1 : 0] data_part_2_latched;
+
+  always @(posedge clk)
+  begin
+    use_F_for_CRC_prev <= use_F_for_CRC_latched;
+    data_part_1_latched[`NUMBER_OF_BITS_IN_CRC - 1 : 0] <=
+                  data_part_1_out[`NUMBER_OF_BITS_IN_CRC - 1 : 0];
+    data_part_2_latched[`NUMBER_OF_BITS_IN_CRC - 1 : 0] <=
+                  data_part_2_out[`NUMBER_OF_BITS_IN_CRC - 1 : 0];
+  end
+
+// Update the CRC during Clock 3.
+  reg    [`NUMBER_OF_BITS_IN_CRC - 1 : 0] present_crc;
+
+  wire   [`NUMBER_OF_BITS_IN_CRC - 1 : 0] crc_part_1_out;
+  wire   [`NUMBER_OF_BITS_IN_CRC - 1 : 0] crc_part_2_out;
+
+crc_32_64_crc_private crc_32_64_crc_part (
+  .use_F_for_CRC              (use_F_for_CRC_prev),
+  .present_crc                (present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0]),
+  .crc_part_1_out             (crc_part_1_out[`NUMBER_OF_BITS_IN_CRC - 1 : 0]),
+  .crc_part_2_out             (crc_part_2_out[`NUMBER_OF_BITS_IN_CRC - 1 : 0])
+);
+
+  wire   [`NUMBER_OF_BITS_IN_CRC - 1 : 0] data_depend_part =
+                    data_part_1_latched[`NUMBER_OF_BITS_IN_CRC - 1 : 0]
+                  ^ data_part_2_latched[`NUMBER_OF_BITS_IN_CRC - 1 : 0];  // source depth 2 gates
+
+  wire   [`NUMBER_OF_BITS_IN_CRC - 1 : 0] first_crc_part =
+                    data_depend_part[`NUMBER_OF_BITS_IN_CRC - 1 : 0]
+                  ^ crc_part_1_out[`NUMBER_OF_BITS_IN_CRC - 1 : 0];  // source depth 4 gates
+
+  wire   [`NUMBER_OF_BITS_IN_CRC - 1 : 0] next_crc =
+                    first_crc_part[`NUMBER_OF_BITS_IN_CRC - 1 : 0]
+                  ^ crc_part_2_out[`NUMBER_OF_BITS_IN_CRC - 1 : 0];  // source depth 5 gates
+
+  always @(posedge clk)
+  begin
+    present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] <=
+                  next_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0];
+  end
+
+  assign  running_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0] =
+                  present_crc[`NUMBER_OF_BITS_IN_CRC - 1 : 0];
 endmodule
 
 
