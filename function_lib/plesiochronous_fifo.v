@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: plesiochronous_fifo.v,v 1.4 2001-08-30 10:08:46 bbeaver Exp $
+// $Id: plesiochronous_fifo.v,v 1.5 2001-09-02 11:32:42 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -534,33 +534,6 @@ synchronizer_flop sync_write_grey_2 (
   end
 // synopsys translate_on
 endmodule
-
-// synopsys translate_off
-// If the vendor has a flop which is particularly good at settling out of
-//   metastability, it should be used here.
-module synchronizer_flop (
-  data_in, clk_out, sync_data_out, async_reset
-);
-  input   data_in;
-  input   clk_out;
-  output  sync_data_out;
-  input   async_reset;
-
-  reg     sync_data_out;
-
-  always @(posedge clk_out or posedge async_reset)
-  begin
-    if (async_reset == 1'b1)
-    begin
-      sync_data_out <= 1'b0;
-    end
-    else
-    begin
-      sync_data_out <= data_in;
-    end
-  end
-endmodule
-// synopsys translate_on
 
 // `define TEST_PLESIOCHRONOUS_FIFO
 `ifdef TEST_PLESIOCHRONOUS_FIFO

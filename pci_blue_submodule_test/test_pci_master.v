@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_master.v,v 1.24 2001-08-19 04:03:21 bbeaver Exp $
+// $Id: test_pci_master.v,v 1.25 2001-09-02 11:32:42 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -471,7 +471,7 @@ parameter DEV_RETRY_WITH_OLD_DATA =  3;
 parameter DEV_RETRY_WITH_NEW_DATA =  4;
 parameter TARGET_ABORT =             5;
 
-task do_test;
+task do_master_test;
   input  [7:0] total_time;
 
   input  [3:0] command_1;      input  [3:0] data_type_1;
@@ -824,7 +824,7 @@ task do_test;
 endtask
 
 // This task REQUIRES that a write command is constructed by adding 1 to a read command
-task do_test_pair;
+task do_test_master_read_write_pair;
   input  [7:0] total_time;
 
   input  [3:0] command_1;      input  [3:0] data_type_1;
@@ -856,7 +856,7 @@ task do_test_pair;
 
   begin
     $display ("Reading at %t", $time);
-    do_test (total_time[7:0],  // the Read command
+    do_master_test (total_time[7:0],  // the Read command
          command_1[3:0], data_type_1[3:0],  // First Reference
          data_time_2[7:0], data_type_2[3:0],  // Optional Data
          data_time_3[7:0], data_type_3[3:0],
@@ -872,7 +872,7 @@ task do_test_pair;
          target_time_7[7:0], target_dts_7[2:0]);
 
     $display ("Writing at %t", $time);
-    do_test (total_time[7:0],  // the Write command
+    do_master_test (total_time[7:0],  // the Write command
          command_1[3:0] + 4'h1, data_type_1[3:0],  // First Reference
          data_time_2[7:0], data_type_2[3:0],  // Optional Data
          data_time_3[7:0], data_type_3[3:0],
@@ -963,7 +963,7 @@ endtask
 `ifdef BEGINNING_OPS
 
     $display ("Doing Read Reg, at time %t", $time);
-    do_test (8'h10,
+    do_master_test (8'h10,
          REG_READ, noop,
          8'h00, noop, 8'h00, noop, 8'h00, noop,
          8'h00, noop, 8'h00, noop, 8'h00, noop,
@@ -972,7 +972,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Write Reg, at time %t", $time);
-    do_test (8'h10,
+    do_master_test (8'h10,
          REG_WRITE, noop,  // First Reference
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -981,7 +981,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Fence, at time %t", $time);
-    do_test (8'h10,
+    do_master_test (8'h10,
          FENCE, noop,  // First Reference
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -992,7 +992,7 @@ endtask
 // Config References use Address Stepping.
 
     $display ("Doing Config refs, 1 word, no Wait States, at time %t", $time);
-    do_test_pair (8'h0C,
+    do_test_master_read_write_pair (8'h0C,
          CONFIG_READ, DATA_LAST,  // First Reference
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1001,7 +1001,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Config refs, 1 word, no Wait States, loose GNT, at time %t", $time);
-    do_test_pair (8'h18,
+    do_test_master_read_write_pair (8'h18,
          CONFIG_READ, DATA_LAST,  // First Reference
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1033,7 +1033,7 @@ endtask
 `ifdef NORMAL_OPS
 
     $display ("Doing Memory refs, 1 word, no Wait States, at time %t", $time);
-    do_test_pair (8'h0C,
+    do_test_master_read_write_pair (8'h0C,
          MEM_READ, DATA_LAST,  // First Reference
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1042,7 +1042,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory refs, 1 word, no Wait States, STOP, at time %t", $time);
-    do_test_pair (8'h0C,
+    do_test_master_read_write_pair (8'h0C,
          MEM_READ, DATA_LAST,  // First Reference
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1051,7 +1051,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory refs, 2 words, no Wait States, at time %t", $time);
-    do_test_pair (8'h0C,
+    do_test_master_read_write_pair (8'h0C,
          MEM_READ, DATA,  // First Reference
          8'h02, DATA_LAST, 8'h00, noop, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1060,7 +1060,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory refs, 2 words, no Wait States, STOP, at time %t", $time);
-    do_test_pair (8'h0C,
+    do_test_master_read_write_pair (8'h0C,
          MEM_READ, DATA,  // First Reference
          8'h02, DATA_LAST, 8'h00, noop, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1069,7 +1069,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory refs, 2 words, 1 Target Wait States, at time %t", $time);
-    do_test_pair (8'h0C,
+    do_test_master_read_write_pair (8'h0C,
          MEM_READ, DATA,  // First Reference
          8'h02, DATA_LAST, 8'h00, noop, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1078,7 +1078,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory refs, 3 words, no Wait States, at time %t", $time);  // 43
-    do_test_pair (8'h10,
+    do_test_master_read_write_pair (8'h10,
          MEM_READ, DATA,  // First Reference
          8'h02, DATA, 8'h03, DATA_LAST, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1087,7 +1087,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory refs, 3 words, no Wait States, STOP, at time %t", $time);
-    do_test_pair (8'h10,
+    do_test_master_read_write_pair (8'h10,
          MEM_READ, DATA,  // First Reference
          8'h02, DATA, 8'h03, DATA_LAST, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1096,7 +1096,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory refs, 3 words, Master Wait States, at time %t", $time);  // 29?
-    do_test_pair (8'h18,
+    do_test_master_read_write_pair (8'h18,
          MEM_READ, DATA,  // First Reference
          8'h03, DATA, 8'h07, DATA_LAST, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1105,7 +1105,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory refs, 3 words, no Wait States, Early STOP, at time %t", $time);
-    do_test_pair (8'h18,
+    do_test_master_read_write_pair (8'h18,
          MEM_READ, DATA,  // First Reference
          8'h02, DATA, 8'h03, DATA_LAST, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1114,7 +1114,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory refs, 3 words, no Wait States, Early STOP, at time %t", $time);
-    do_test_pair (8'h18,
+    do_test_master_read_write_pair (8'h18,
          MEM_READ, DATA,  // First Reference
          8'h02, DATA, 8'h03, DATA_LAST, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1123,7 +1123,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory refs, 3 words, no Wait States, Early STOP, at time %t", $time);
-    do_test_pair (8'h20,
+    do_test_master_read_write_pair (8'h20,
          MEM_READ, DATA,  // First Reference
          8'h02, DATA, 8'h08, DATA_LAST, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1144,7 +1144,7 @@ endtask
 // DEV, DEV_TRANSFER_DATA, DEV_RETRY_WITH_OLD_DATA, DEV_RETRY_WITH_NEW_DATA, TARGET_ABORT
 
     $display ("Doing Memory refs, 1 word, no Wait States, RETRY, at time %t  47, 48", $time);
-    do_test_pair (8'h12,
+    do_test_master_read_write_pair (8'h12,
          MEM_READ, DATA_LAST,  // First Reference
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1153,7 +1153,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory refs, 2 words, no Wait States, RETRY, at time %t  24, 34, 24, 35", $time);
-    do_test_pair (8'h18,
+    do_test_master_read_write_pair (8'h18,
          MEM_READ, DATA,  // First Reference
          8'h02, DATA_LAST, 8'h00, noop, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1162,7 +1162,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory refs, 2 words, no Wait States, RETRY, at time %t  16, 17", $time);
-    do_test_pair (8'h18,
+    do_test_master_read_write_pair (8'h18,
          MEM_READ, DATA,  // First Reference
          8'h08, DATA_LAST, 8'h00, noop, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1171,7 +1171,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory refs, 2 words, no Wait States, at time %t  12, 25", $time);
-    do_test_pair (8'h14,
+    do_test_master_read_write_pair (8'h14,
          MEM_READ, DATA,  // First Reference
          8'h02, DATA_LAST, 8'h00, noop, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1180,7 +1180,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory refs, 2 words, no Wait States, at time %t  12, 27, 56", $time);
-    do_test_pair (8'h14,
+    do_test_master_read_write_pair (8'h14,
          MEM_READ, DATA,  // First Reference
          8'h02, DATA_LAST, 8'h00, noop, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1189,7 +1189,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory refs, 3 words, Master Wait States, STOP, at time %t  12, 24, 39, 30,  12, 26, 43, 23**", $time);
-    do_test_pair (8'h18,
+    do_test_master_read_write_pair (8'h18,
          MEM_READ, DATA,  // First Reference
          8'h03, DATA, 8'h07, DATA_LAST, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1198,7 +1198,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory refs, 3 words, Master Wait States, RETRY, at time %t  12, 26, 32,  ", $time);
-    do_test_pair (8'h18,
+    do_test_master_read_write_pair (8'h18,
          MEM_READ, DATA,  // First Reference
          8'h02, DATA, 8'h07, DATA_LAST, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1218,7 +1218,7 @@ endtask
 // DEV, DEV_TRANSFER_DATA, DEV_RETRY_WITH_OLD_DATA, DEV_RETRY_WITH_NEW_DATA, TARGET_ABORT
 
     $display ("Doing Memory refs, 3 words, 5 Master Wait States, STOP, at time %t", $time);
-    do_test_pair (8'h18,
+    do_test_master_read_write_pair (8'h18,
          MEM_READ, DATA,  // First Reference
          8'h02, DATA, 8'h0A, DATA_LAST, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1227,7 +1227,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory refs, 3 words, 6 Master Wait States, STOP, at time %t", $time);
-    do_test_pair (8'h18,
+    do_test_master_read_write_pair (8'h18,
          MEM_READ, DATA,  // First Reference
          8'h02, DATA, 8'h0A, DATA_LAST, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1236,7 +1236,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory refs, 3 words, 7 Master Wait States, STOP, at time %t", $time);
-    do_test_pair (8'h1A,
+    do_test_master_read_write_pair (8'h1A,
          MEM_READ, DATA,  // First Reference
          8'h02, DATA, 8'h0A, DATA_LAST, 8'h00, noop,  // Optional Data
          8'h00, noop, 8'h00, noop, 8'h00, noop,  // Second reference
@@ -1256,7 +1256,7 @@ endtask
 // DEV, DEV_TRANSFER_DATA, DEV_RETRY_WITH_OLD_DATA, DEV_RETRY_WITH_NEW_DATA, TARGET_ABORT
 
     $display ("Doing Memory Refs, 1 word, Master Abort, at time %t", $time);
-    do_test_pair (8'h18,
+    do_test_master_read_write_pair (8'h18,
          MEM_READ, DATA_LAST,  // First Reference
          8'h00, DATA, 8'h00, DATA_LAST, 8'h00, noop,  // Optional Data
          8'h03, MEM_WRITE, 8'h04, DATA_LAST, 8'h00, noop,  // Second reference
@@ -1265,7 +1265,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory Refs, 1 word, Master Abort, at time %t", $time);
-    do_test_pair (8'h18,
+    do_test_master_read_write_pair (8'h18,
          MEM_READ, DATA,  // First Reference
          8'h02, DATA_LAST, 8'h00, DATA_LAST, 8'h00, noop,  // Optional Data
          8'h03, MEM_WRITE, 8'h04, DATA_LAST, 8'h00, noop,  // Second reference
@@ -1274,7 +1274,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory Refs, 1 word, Master Abort, at time %t", $time);
-    do_test_pair (8'h20,
+    do_test_master_read_write_pair (8'h20,
          MEM_READ, DATA,  // First Reference
          8'h10, DATA_LAST, 8'h00, DATA_LAST, 8'h00, noop,  // Optional Data
          8'h11, MEM_WRITE, 8'h12, DATA_LAST, 8'h00, noop,  // Second reference
@@ -1283,7 +1283,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory Refs, 1 word, Target Abort, at time %t", $time);
-    do_test_pair (8'h18,
+    do_test_master_read_write_pair (8'h18,
          MEM_READ, DATA_LAST,  // First Reference
          8'h00, DATA, 8'h00, DATA_LAST, 8'h00, noop,  // Optional Data
          8'h03, MEM_WRITE, 8'h04, DATA_LAST, 8'h00, noop,  // Second reference
@@ -1292,7 +1292,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory Refs, 1 word, Target Abort, at time %t", $time);
-    do_test_pair (8'h18,
+    do_test_master_read_write_pair (8'h18,
          MEM_READ, DATA,  // First Reference
          8'h02, DATA_LAST, 8'h00, DATA_LAST, 8'h00, noop,  // Optional Data
          8'h03, MEM_WRITE, 8'h04, DATA_LAST, 8'h00, noop,  // Second reference
@@ -1301,7 +1301,7 @@ endtask
          8'h00, noop, 8'h00, noop, 8'h00, noop);
 
     $display ("Doing Memory Refs, 1 word, Target Abort, at time %t", $time);
-    do_test_pair (8'h20,
+    do_test_master_read_write_pair (8'h20,
          MEM_READ, DATA,  // First Reference
          8'h10, DATA_LAST, 8'h00, DATA_LAST, 8'h00, noop,  // Optional Data
          8'h11, MEM_WRITE, 8'h12, DATA_LAST, 8'h00, noop,  // Second reference

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_vendor_lib.v,v 1.17 2001-08-31 11:11:05 bbeaver Exp $
+// $Id: pci_vendor_lib.v,v 1.18 2001-09-02 11:32:43 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -404,85 +404,4 @@ module pci_direct_io_pad (
 // The paramater `PCI_IO_PAD_LIBRARY_NAME can be used to call out a pad.
 endmodule
 `endif  // UNUSED
-
-// If the vendor has a flop which is particularly good at settling out of
-//   metastability, it should be used here.
-module synchronizer_flop (
-  data_in, clk_out, sync_data_out, async_reset
-);
-  input   data_in;
-  input   clk_out;
-  output  sync_data_out;
-  input   async_reset;
-
-  reg     sync_data_out;
-
-  always @(posedge clk_out or posedge async_reset)
-  begin
-    if (async_reset == 1'b1)
-    begin
-      sync_data_out <= 1'b0;
-    end
-    else
-    begin
-      sync_data_out <= data_in;
-    end
-  end
-endmodule
-
-// A dual-port SRAM.  This SRAM must latch the address for both the read
-//   port and the write port on the rising edge of the corresponding clock.
-// Enables must also be latched on the rising edge.
-// Write data is latched on the same rising edge as it's associated address
-//   and chip enable.
-// Data out comes some time after the rising clock edge in which Read_Enable
-//   is asserted.
-// If Read_Enable is NOT asserted, the SRAM returns garbage.
-module pci_2port_sram_16x1 (
-  write_clk, write_capture_data,
-  write_address, write_data,
-  read_clk, read_enable,
-  read_address, read_data
-);
-
-`include "pci_blue_options.vh"
-`include "pci_blue_constants.vh"
-
-  input   write_clk, write_capture_data;
-  input  [3:0] write_address;
-  input   write_data;
-  input   read_clk, read_enable;
-  input  [3:0] read_address;
-  output  read_data;
-
-`ifdef HOST_FIFOS_ARE_MADE_FROM_FLOPS
-`else  // HOST_FIFOS_ARE_MADE_FROM_FLOPS
-
-// store 16 bits of state
-  reg     PCI_Fifo_Mem [0:15];  // address limits, not bits in address
-
-// write port
-  always @(posedge write_clk)
-  begin
-    if (write_capture_data)
-    begin
-      PCI_Fifo_Mem[write_address[3:0]] <= write_data;
-    end
-    `NO_ELSE;  // can't do blah <= blah, because address may be unknown
-  end
-// Xilinx 4000 series and newer FPGAs contain a dual-port SRAM primitive with
-//   synchronous write and asynchronous read.  Latch the read address to make
-//   this primitive behave like a synchronous read SRAM
-  reg    [3:0] latched_read_address;
-  reg     latched_read_enable;
-  always @(posedge read_clk)
-  begin
-    latched_read_address[3:0] <= read_address[3:0];
-    latched_read_enable <= read_enable;
-  end
-
-  assign  read_data = (latched_read_enable)
-                    ? PCI_Fifo_Mem[latched_read_address[3:0]] : 1'bX;
-`endif  // HOST_FIFOS_ARE_MADE_FROM_FLOPS
-endmodule
 
