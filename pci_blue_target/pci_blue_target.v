@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_target.v,v 1.5 2001-06-08 08:40:39 bbeaver Exp $
+// $Id: pci_blue_target.v,v 1.6 2001-06-11 08:14:50 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -118,7 +118,7 @@ module pci_blue_target (
   pci_par_in_prev,     pci_par_in_comb,
   pci_target_par_out_next,
   pci_target_par_out_oe_comb,
-  pci_frame_in_prev,
+  pci_frame_in_prev,   pci_frame_in_comb,
   pci_irdy_in_prev,    pci_irdy_in_comb,
   pci_devsel_out_next, pci_d_t_s_out_oe_comb,
   pci_trdy_out_next,   pci_stop_out_next,
@@ -185,6 +185,7 @@ module pci_blue_target (
   output  pci_target_par_out_next;
   output  pci_target_par_out_oe_comb;
   input   pci_frame_in_prev;
+  input   pci_frame_in_comb;
   input   pci_irdy_in_prev;
   input   pci_irdy_in_comb;
   output  pci_devsel_out_next;
@@ -241,45 +242,82 @@ module pci_blue_target (
   input   pci_clk;
   input   pci_reset_comb;
 
-// NOTE WORKING temporarily set values to OE signals to let the bus not be X's
-  assign  pci_target_ad_out_oe_comb = 1'b0;
+// NOTE: WORKING temporarily set values to OE signals to let the bus not be X's
   assign  pci_target_par_out_oe_comb = 1'b0;
   assign  pci_target_perr_out_oe_comb = 1'b0;
   assign  pci_target_serr_out_oe_comb = 1'b0;
 
-  assign  pci_iface_response_data_load = 1'b0;
   assign  pci_iface_delayed_read_data_unload = 1'b0;
 
-// Signals which the Target uses to determine what to do:
-// Target_Address_Match
-// Target_Retry
-// Target_Disconnect_With_Data
-// Target_Disconnect_Without_Data
-// Target_Abort
-// Target_Read_Fifo_Avail
-// Target_Write_Fifo_Avail
-// Some indication of timeout?
+/*
+// Responses the PCI Controller sends over the Host Response Bus to indicate that
+//   progress has been made on transfers initiated over the Request Bus by the Host.
+// First, the Response which indicates that nothing should be put in the FIFO.
+`define PCI_HOST_RESPONSE_SPARE                          (4'h0)
+// Second, a Response repeating the Host Request the PCI Bus is presently servicing.
+`define PCI_HOST_RESPONSE_EXECUTED_ADDRESS_COMMAND       (4'h1)
+// Third, a Response which gives commentary about what is happening on the PCI bus.
+// These bits follow the layout of the PCI Config Register Status Half-word.
+// When this Response is received, bits in the data field indicate the following:
+// Bit 31: PERR Detected (sent if a Parity Error occurred on the Last Data Phase)
+// Bit 30: SERR Detected
+// Bit 29: Master Abort received
+// Bit 28: Target Abort received
+// Bit 27: Caused Target Abort
+// Bit 24: Caused PERR
+// Bit 18: Discarded a Delayed Read due to timeout
+// Bit 17: Target Retry or Disconnect (document that a Master Retry is requested)
+// Bit 16: Got Illegal sequence of commands over Host Request Bus.
+`define PCI_HOST_RESPONSE_REPORT_SERR_PERR_M_T_ABORT     (4'h2)
+// Fourth, a Response saying when the Write Fence has been disposed of.  After this
+//   is received, and the Delayed Read done, it is OK to queue more Write Requests.
+// This command will be returned in response to a Request issued with Data
+//   Bits 16 and 17 both set to 1'b0.
+`define PCI_HOST_RESPONSE_UNLOADING_WRITE_FENCE          (4'h3)
+// Fifth, a Response used to read and write the local PCI Controller's Config Registers.
+// This Response shares it's tags with the WRITE_FENCE Command.  Config References
+//   can be identified by noticing that Bits 16 or 17 are non-zero.
+// Data Bits [7:0] are the Byte Address of the Config Register being accessed.
+// Data Bits [15:8] are the single-byte Read Data returned when writing the Config Register.
+// Data Bit  [16] indicates that a Config Write has been done.
+// Data Bit  [17] indicates that a Config Read has been done.
+// This Response will be issued with either Data Bits 16 or 17 set to 1'b1.
+// `define PCI_HOST_RESPONSE_READ_WRITE_CONFIG_REGISTER     (4'h3)
+// Sixth, Responses indicating that Write Data was delivered, Read Data is available,
+//   End Of Burst, and that a Parity Error occurred the previous data cycle.
+`define PCI_HOST_RESPONSE_R_DATA_W_SENT                  (4'h4)
+`define PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST             (4'h5)
+`define PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR             (4'h6)
+`define PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST_PERR        (4'h7)
 
-// temporary signals to control the IO pads, until real state machines are made.
-  reg  [31:0] pci_data_out_next_prev;
-  reg  [3:0] pci_data_out_step_oe_next_prev;
-  reg  [3:0] pci_cbe_out_next_prev;
-  reg  [3:0] pci_cbe_out_oe_next_prev;
-  reg     pci_par_out_next_prev, pci_par_out_oe_next_prev;
-  reg     pci_frame_out_next_prev, pci_frame_out_oe_next_prev;
-  reg     pci_irdy_out_next_prev, pci_irdy_out_oe_next_prev;
-  reg     pci_devsel_out_next_prev, pci_d_t_s_out_oe_next_prev;
-  reg     pci_trdy_out_next_prev;
-  reg     pci_stop_out_next_prev;
-  reg     pci_perr_out_next_prev, pci_perr_out_oe_next_prev;
-  reg     pci_serr_out_oe_next_prev;
-  reg     pci_req_out_next_prev;
-  reg     pci_int_out_oe_next_prev;
-
-// Signals needed to implement delayed reads:
-  reg [31:0] pci_delayed_read_address;
-  reg [3:0] pci_delayed_read_command;
-  reg     pci_delayed_read_address_parity;
+// Writes from an External PCI Master can be completed immediately based on
+//   information available on the Host Response Bus.
+// Reads from an External PCI Master need to be completed in several steps.
+// First, the Address, Command, and one word containing a Read Mask are received.
+// Second, upon receiving a Response indicating that Read is being started, the Host
+//   controller must either issue a Write Fence onto the Host Request Bus.
+// Third the Host Controller must start putting Read Data into the Delayed_Read_Data
+//   FIFO.  The Host Controller can indicate End Of Burst or Target Abort there too.
+// The Host Controller must continue to service Write Requests while the Delayed Read
+//   is being acted on.   See the PCI Local Bus Spec Revision 2.2 section 3.3.3.3.4
+// If Bus Writes are done while the Delayed Read Data is being fetched, the PCI
+//   Bus Interface will watch to see if any writes overlap the Read address region.
+//   If a Write overlaps the Read address region, the PCI Interface will ask that the
+//   Read be re-issued.  The PCI Interface will also start flushing data out of
+//   the Delayed_Read_Data FIFO until a DATA_LAST entry is found.  The Host Intrface
+//   is REQUIRED to put one DATA_LAST or TARGET_ABORT entry into the Delayed_Read_Data
+//   FIFO after being instructed to reissue a Delayed Read.  All data up to and
+//   including that last entry will be flushed, and data following that point will
+//   be waited for to satisfy the Delayed Read Request.
+// Tags the Host Controller sends across the Delayed_Read_Data FIFO to indicate
+//   progress made on transfers initiated by the external PCI Bus Master.
+`define PCI_HOST_DELAYED_READ_DATA_SPARE               (3'b000)
+`define PCI_HOST_DELAYED_READ_DATA_VALID               (3'b001)
+`define PCI_HOST_DELAYED_READ_DATA_VALID_LAST          (3'b010)
+`define PCI_HOST_DELAYED_READ_DATA_VALID_PERR          (3'b101)
+`define PCI_HOST_DELAYED_READ_DATA_VALID_LAST_PERR     (3'b110)
+`define PCI_HOST_DELAYED_READ_DATA_TARGET_ABORT        (3'b011)
+*/
 
 // The Target State Machine has a pretty easy existence.  It responds
 //   at leasure to the transition of FRAME_L from unasserted HIGH to
@@ -299,17 +337,282 @@ module pci_blue_target (
 //   no more data is made available after a while.  The PCI Master
 //   must always transfer a last data item to communicate end of burst.
 
-// The state machine as described in Appendix B.
+  wire   Delayed_Read_FIFO_Empty = 1'b0;  // NOTE: WORKING
+  wire   Delayed_Read_FIFO_CONTAINS_ABORT = 1'b0;
+  wire   Delayed_Read_FIFO_CONTAINS_DATA_MORE = 1'b0;
+  wire   Delayed_Read_FIFO_CONTAINS_DATA_LAST = 1'b0;
+
+// Keep track of the present PCI Address, so the Target can respond
+// to the Delayed Read request when it is issued.
+// Configuration References will NOT result in Delayed Reads.
+// All other reads will become Delayed Reads, and a Read can be
+// further delayed if data does not arrive soon enough in the
+// middle of a Burst.
+// See the PCI Local Bus Spec Revision 2.2 section 3.5.1.1 and
+// 3.5.1.2 for details.
+// The bottom 2 bits of a PCI Address have special meaning to the
+// PCI Master and PCI Target.  See the PCI Local Bus Spec
+// Revision 2.2 section 3.2.2.1 and 3.2.2.2 for details.
+
+  reg    [31:0] Target_Delayed_Read_Address;
+  reg    [3:0] Target_Delayed_Read_Command;
+  reg     Target_Delayed_Read_Address_Parity;
+  reg     Grab_Target_Address, Inc_Target_Address;
+
+  always @(posedge pci_clk)
+  begin
+    if (Grab_Target_Address == 1'b1)
+    begin
+      Target_Delayed_Read_Address[31:0] <= pci_ad_in_prev[31:0];
+      Target_Delayed_Read_Command[3:0] <= pci_cbe_l_in_prev[3:0];
+      Target_Delayed_Read_Address_Parity <= 1'b0;  // NOTE WORKING
+    end
+    else
+    begin
+      if (Inc_Target_Address == 1'b1)
+      begin
+        Target_Delayed_Read_Address[31:0] <= Target_Delayed_Read_Address[31:0]
+                                           + 32'h00000004;
+      end
+      else
+      begin
+        Target_Delayed_Read_Address[31:0] <= Target_Delayed_Read_Address[31:0];
+      end
+      Target_Delayed_Read_Command[3:0] <= Target_Delayed_Read_Command[3:0];
+    end
+  end
+
+// Delayed Read Discard Counter
+// See the PCI Local Bus Spec Revision 2.2 section 3.3.3.3.3 for details.
+
+  reg    [14:0] Delayed_Read_Discard_Counter;
+  reg     Delayed_Read_Discard_Now;
+
+  always @(posedge pci_clk)
+  begin
+    if (pci_reset_comb)
+    begin
+      Delayed_Read_Discard_Counter[14:0] <= 15'h7FFF;
+      Delayed_Read_Discard_Now <= 1'b0;
+    end
+    else if (Grab_Target_Address)
+    begin
+      Delayed_Read_Discard_Counter[14:0] <= 15'h0000;
+      Delayed_Read_Discard_Now <= 1'b0;
+    end
+    else
+    begin
+      if (Delayed_Read_Discard_Counter[14:0] == 15'h7FFF)
+      begin
+        Delayed_Read_Discard_Counter[14:0] <= 15'h7FFF;
+        Delayed_Read_Discard_Now <= 1'b0;
+      end
+      else
+      begin
+        Delayed_Read_Discard_Counter[14:0] <=
+              Delayed_Read_Discard_Counter[14:0] + 15'h0001;
+        Delayed_Read_Discard_Now <=
+             (Delayed_Read_Discard_Counter[14:0] == 15'h7FFE);
+      end
+    end
+  end
+
+// Remember whether a Delayed Read has been started
+
+  reg     Delayed_Read_In_Progress;
+
+  always @(posedge pci_clk or posedge pci_reset_comb)
+  begin
+    if (pci_reset_comb)
+    begin
+      Delayed_Read_In_Progress <= 1'b0;
+    end
+    else
+    begin  // NOTE: WORKING
+      if (Delayed_Read_In_Progress && Delayed_Read_Discard_Now)
+      begin
+        Delayed_Read_In_Progress <= 1'b0;
+      end
+      else
+      begin
+        Delayed_Read_In_Progress <= 1'b0;  // NOTE WORKING
+      end
+    end
+  end
+
+// Target Initial Latency Counter.  Must respond within 16 Bus Clocks.
+// See the PCI Local Bus Spec Revision 2.2 section 3.5.1.1 for details.
+// NOTE: It would be better to ALWAYS make every read into a Delayed Read!
+
+// Target Subsequent Latency Counter.  Must make progress within 8 Bus Clocks.
+// See the PCI Local Bus Spec Revision 2.2 section 3.5.1.2 for details.
+
+  reg    [2:0] Target_Subsequent_Latency_Counter;
+  reg     Read_Subsequent_Latency_Disconnect;
+
+  always @(posedge pci_clk)
+  begin
+    if (pci_reset_comb)
+    begin
+      Target_Subsequent_Latency_Counter[2:0] <= 3'h0;
+      Read_Subsequent_Latency_Disconnect <= 1'b0;
+    end
+  end
+
+// The Target State Machine as described in Appendix B.
 // No Lock State Machine is implemented.
 // This design supports Medium Decode.  Fast Decode is not supported.
+//
+// Here is my interpretation of the Target State Machine:
+//
+// The Target is in one of 4 states when transferring data:
+// 1) Waiting,
+// 2) Transferring data with more to come,
+// 3) Transferring the last Data item.
+// 4) stopping a transfer
+//
+// The Target State Machine puts write data into the Response FIFO,
+// but receives data in response to reads from the Delayed Read Data FIFO.
+//
+// The two FIFOs can indicate that they
+// 1) contain no room or Read Data,
+// 2) contain Data which is not the last
+// 3) contain the last Data
+// 4) doing a retry, disconnect, or abort
+//
+// The Master can say that it wants a Wait State, that it wants
+// to transfer Data, that it wants to transfer the Last Data.
+//
+// The State Sequence is as follows:
+//                   FRAME   IRDY        DEVSEL   TRDY   STOP
+//    TARGET_IDLE,        FIFO Empty       0       0      0
+// Master No Frame     0      X            0       0      0  -> MASTER_IDLE
+//                   FRAME   IRDY        DEVSEL   TRDY   STOP
+//    TARGET_IDLE         FIFO Address     0       0      0
+// Master Don't Care   X      X            0       1      0  -> MASTER_ADDR
+//                   FRAME   IRDY        DEVSEL   TRDY   STOP
+//    TARGET_ADDR         FIFO Don't care  0       1      0
+// Master Don't Care   X      X            0       1      0  -> MASTER_WAIT
+//                   FRAME   IRDY        DEVSEL   TRDY   STOP
+//    TARGET_WAIT,        FIFO Empty       0       1      0
+// Master Wait         0      0            0       1      0  -> MASTER_WAIT
+// Master Data         1      0            0       1      0  -> MASTER_WAIT
+// Master Last Data    1      1            0       1      0  -> MASTER_WAIT
+//                   FRAME   IRDY        DEVSEL   TRDY   STOP
+//    TARGET_WAIT,        FIFO non-Last Data       1      0
+// Master Wait         0      0            0       1      1  -> MASTER_DATA_MORE
+// Master Data         1      0            0       1      1  -> MASTER_DATA_MORE
+// Master Last Data    1      1            0       0      1  -> MASTER_DATA_LAST
+//                   FRAME   IRDY        DEVSEL   TRDY   STOP
+//    TARGET_WAIT,        FIFO Last Data   0       1      0
+// Master Wait         0      0            0       0      1  -> MASTER_DATA_LAST
+// Master Data         1      0            0       0      1  -> MASTER_DATA_LAST
+// Master Last Data    1      1            0       0      1  -> MASTER_DATA_LAST
+//                   FRAME   IRDY        DEVSEL   TRDY   STOP
+//    TARGET_WAIT,        FIFO Abort       0       1      0
+// Master Wait         0      0            0       0      1  -> MASTER_DATA_LAST
+// Master Data         1      0            0       0      1  -> MASTER_DATA_LAST
+// Master Last Data    1      1            0       0      1  -> MASTER_DATA_LAST
+//                   FRAME   IRDY        DEVSEL   TRDY   STOP
+//    TARGET_DATA_MORE,   FIFO Empty       0       1      1
+// Master Wait         0      0            0       1      1  -> MASTER_DATA_MORE
+// Master Data         1      0            0       1      0  -> MASTER_WAIT
+// Master Last Data    1      1            0       0      1  -> MASTER_DATA_LAST
+//                   FRAME   IRDY        DEVSEL   TRDY   STOP
+//    TARGET_DATA_MORE,   FIFO non-Last Data       1      1
+// Master Wait         0      0            0       1      1  -> MASTER_DATA_MORE
+// Master Data         1      0            0       1      1  -> MASTER_DATA_MORE
+// Master Last Data    1      1            0       0      1  -> MASTER_DATA_LAST
+//                   FRAME   IRDY        DEVSEL   TRDY   STOP
+//    TARGET_DATA_MORE,   FIFO Last Data   0       1      1
+// Master Wait         0      0            0       1      1  -> MASTER_DATA_MORE
+// Master Data         1      0            0       0      1  -> MASTER_DATA_LAST
+// Master Last Data    1      1            0       0      1  -> MASTER_DATA_LAST
+//                   FRAME   IRDY        DEVSEL   TRDY   STOP
+//    TARGET_DATA_MORE,   FIFO Abort       0       1      1
+// Master Wait         0      0            0       1      1  -> MASTER_DATA_MORE
+// Master Data         1      0            0       0      1  -> MASTER_DATA_LAST
+// Master Last Data    1      1            0       0      1  -> MASTER_DATA_LAST
+//                   FRAME   IRDY        DEVSEL   TRDY   STOP
+//    TARGET_DATA_LAST,   FIFO Empty       0       0      1 (or if no Fast Back-to-Back)
+// Master Wait         0      0            0       0      1  -> MASTER_DATA_LAST
+// Master Data         1      0            0       0      0  -> MASTER_IDLE
+// Master Last Data    1      1            0       0      0  -> MASTER_IDLE
+//                   FRAME   IRDY        DEVSEL   TRDY   STOP
+//    TARGET_DATA_LAST,   FIFO Address     0       0      1 (and if Fast Back-to-Back)
+// Master Don't Care   X      X            0       1      0  -> MASTER_ADDR
+//                   FRAME   IRDY        DEVSEL   TRDY   STOP
+//    TARGET_STOP,        FIFO Empty       0       0      1 (or if no Fast Back-to-Back)
+// Master Don't Care   X      X            0       0      0  -> MASTER_IDLE
+//                   FRAME   IRDY        DEVSEL   TRDY   STOP
+//    TARGET_STOP,        FIFO Address     0       0      1 (and if Fast Back-to-Back)
+// Master Don't Care   X      X            0       1      0  -> MASTER_ADDR
+//
+// NOTE: that in all cases, the DEVSEL, TRDY, and STOP signals are calculated
+//   based on the FRAME and IRDY signals, which are very late and very
+//   timing critical.
+// The functions will be implemented as a 4-1 MUX using FRAME and IRDY
+//   as the selection variables.
+// The inputs to the DEVSEL, TRDY, and STOP MUX's will be decided based
+//   on the state the Target is in, and also on the contents of the
+//   Delayed Read Data FIFO.
+// NOTE WORKING THIS NEXT MAY BE WRONG
+// NOTE: that for both FRAME and IRDY, there are 5 possible functions of
+//   TRDY and STOP.  Both output bits might be all 0's, all 1's, and
+//   each has 3 functions which are not all 0's nor all 1's.
+// NOTE: These extremely timing critical functions will each be implemented
+//   as a single CLB in a Xilinx chip, with a 3-bit Function Selection
+//   paramater.  The 3 bits plus FRAME plus IRDY use up a 5-input LUT.
+//
+// The functions are as follows:
+//    Function Sel [2:0] FRAME  IRDY   ->  TRDY  STOP
+//                  0XX    X     X          0     0
+//
+//                  100    X     X          1     1
+//
+// Master Wait      101    1     0          1     0
+// Master Data      101    1     1          1     0
+// Master Last Data 101    0     1          1     0
+//
+// Master Wait      110    1     0          1     1
+// Master Data      110    1     1          1     0
+// Master Last Data 110    0     1          0     1
+//
+// Master Wait      111    1     0          1     1
+// Master Data      111    1     1          0     0
+// Master Last Data 111    0     1          0     0
+//
+// For each state, use the function:        F(TRDY) F(STOP)
+//    TARGET_IDLE,        FIFO Empty          000     000 (no FRAME, IRDY)
+//    TARGET_IDLE         FIFO Address        100     000 (Always FRAME)
+//    TARGET_ADDR         FIFO Don't care     100     000 (Always FRAME)
+//    TARGET_NOTME        FIFO Don't care     100     000 (Always FRAME)
+//    TARGET_WAIT,        FIFO Empty          101     101 (FRAME unless DRA)
+//    TARGET_WAIT,        FIFO non-Last Data  110     100
+//    TARGET_WAIT,        FIFO Last Data      000     100
+//    TARGET_WAIT,        FIFO Abort          000     100
+//    TARGET_DATA_MORE,   FIFO Empty          110     110
+//    TARGET_DATA_MORE,   FIFO non-Last Data  110     100
+//    TARGET_DATA_MORE,   FIFO Last Data      111     100
+//    TARGET_DATA_MORE,   FIFO Abort          111     100
+//    TARGET_DATA_LAST,   FIFO Empty          000     111 (or if no Fast Back-to-Back)
+//    TARGET_DATA_LAST,   FIFO Address        100     000 (and if Fast Back-to-Back)
+//    TARGET_STOP,        FIFO Empty          000     000 (or if no Fast Back-to-Back)
+//    TARGET_STOP,        FIFO Address        100     000 (and if Fast Back-to-Back)
 
-  parameter PCI_TARGET_IDLE    = 5'b00001;
-  parameter PCI_TARGET_B_BUSY  = 5'b00010;
-  parameter PCI_TARGET_S_DATA  = 5'b00100;
-  parameter PCI_TARGET_BACKOFF = 5'b01000;
-  parameter PCI_TARGET_TURN_AR = 5'b10000;
-  reg [4:0] PCI_Target_State;
-  wire [4:0] Next_PCI_Target_State;
+  parameter PCI_TARGET_IDLE      = 8'b00000001;  // Target in IDLE state
+  parameter PCI_TARGET_ADDR      = 8'b00000010;  // Target decodes Address
+  parameter PCI_TARGET_NOTME     = 8'b00000100;  // Some Other device is addressed
+  parameter PCI_TARGET_WAIT      = 8'b00001000;  // Waiting for Target Data
+  parameter PCI_TARGET_DATA_MORE = 8'b00010000;  // Target Transfers Data
+  parameter PCI_TARGET_DATA_LAST = 8'b00100000;  // Target Transfers Last Data
+  parameter PCI_TARGET_STOP      = 8'b01000000;  // Target waits till Frame goes away
+  reg    [7:0] PCI_Target_State;
+
+// These correspond to      {frame, irdy}
+  parameter MASTER_IDLE      = 2'b10;
+  parameter MASTER_DATA_MORE = 2'b11;
+  parameter MASTER_DATA_LAST = 2'b01;
 
 // Experience with the PCI Target interface teaches that the signals
 //   FRAME and IRDY are extremely time critical.  These signals cannot be
@@ -320,97 +623,86 @@ module pci_blue_target (
 //   I believe that it might be safer to implement it as gates, in order
 //   to make absolutely sure that there are the minimum number of loads on
 //   the FRAME and IRDY signals.
- 
+
   always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
   begin
     if (pci_reset_comb)
     begin
-      PCI_Target_State <= PCI_TARGET_IDLE;
+      PCI_Target_State[7:0] <= PCI_TARGET_IDLE;
     end
     else
     begin
-      case (PCI_Target_State)
+      case (PCI_Target_State[7:0])
       PCI_TARGET_IDLE:
         begin
         end
-      PCI_TARGET_B_BUSY:
+      PCI_TARGET_ADDR:
         begin
         end
-      PCI_TARGET_S_DATA:
+      PCI_TARGET_NOTME:
         begin
         end
-      PCI_TARGET_BACKOFF:
+      PCI_TARGET_WAIT:
         begin
         end
-      PCI_TARGET_TURN_AR:
+      PCI_TARGET_DATA_MORE:
+        begin
+        end
+      PCI_TARGET_DATA_LAST:
+        begin
+        end
+      PCI_TARGET_STOP:
         begin
         end
       default:
         begin
- //       $display ("PCI Target State Machine Unknown %x at time %t",
- //                           PCI_Target_State, $time);
+          PCI_Target_State[7:0] <= PCI_TARGET_IDLE;  // error
+// synopsys translate_off
+          $display ("PCI Target State Machine Unknown %x at time %t",
+                           PCI_Target_State[7:0], $time);
+// synopsys translate_on
         end
       endcase
     end
   end
 
-  always @(posedge pci_clk or posedge pci_reset_comb)
-  begin
-        if (pci_reset_comb)
-        begin
-            pci_data_out_step_oe_next_prev <= 4'h0;
-            pci_cbe_out_oe_next_prev <= 4'h0;
-            pci_par_out_oe_next_prev <= 1'b0;
-            pci_frame_out_oe_next_prev <= 1'b0;
-            pci_irdy_out_oe_next_prev <= 1'b0;
-            pci_d_t_s_out_oe_next_prev <= 1'b0;
-            pci_perr_out_oe_next_prev <= 1'b0;
-            pci_serr_out_oe_next_prev <= 1'b0;
-            pci_int_out_oe_next_prev <= 1'b0;
-        end
-        else
-        begin
-        end
-  end
-
-//  assign  pci_d_t_s_out_oe_comb = pci_d_t_s_out_oe_next_prev;
-//  assign  pci_target_perr_out_oe_comb = pci_perr_out_oe_next_prev;
-//  assign  pci_target_serr_out_oe_comb = pci_serr_out_oe_next_prev;
-
 // As quickly as possible, decide whether to present new Target Control Info
-// on AD bus or to continue sending old data.  The state machine needs to
-// know what happened too, so it can prepare the Control info for next time.
-// NOTE: IRDY and TRDY are very late.  3 nSec before clock edge!
+//   on Target Control bus, or to continue sending old data.  The state machine
+//   needs to know what happened too, so it can prepare the Control info for
+//   next time.
+// NOTE: FRAME and IRDY are very late.  3 nSec before clock edge!
+// NOTE: The DEVSEL_Next, TRDY_Next, and STOP_Next signals are latched in the
+//       output pads in the IO pad module.
 
-// NOTE THESE SEEM WRONG.  These will have to calculate what to do by
-// looking at Frame and IRDY as well as what the State Machine
-// wants to do.  There needs to be more combinational logic here.
-// Still, try to keep the loading on IRDY to a MINIMUM
+  wire   [2:0] PCI_Next_DEVSEL_Code = 3'h0;  // NOTE Working
+  wire   [2:0] PCI_Next_TRDY_Code = 3'h0;  // NOTE: Working
+  wire   [2:0] PCI_Next_STOP_Code = 3'h0;  // NOTE: Working
 
-pci_critical_AND_MUX pci_critical_AND_MUX_DEVSEL (
-  .d_0                        (),
-  .d_1                        (),
-  .sel_0                      (Target_Expects_IRDY),
-  .sel_1                      (pci_irdy_in_comb),
-  .q                          (pci_devsel_out_next)
-);
 
-pci_critical_AND_MUX pci_critical_AND_MUX_TRDY (
-  .d_0                        (),
-  .d_1                        (),
-  .sel_0                      (Target_Expects_IRDY),
-  .sel_1                      (pci_irdy_in_comb),
-  .q                          (pci_trdy_out_next)
-);
-
-pci_critical_AND_MUX pci_critical_AND_MUX_STOP (
-  .d_0                        (),
-  .d_1                        (),
-  .sel_0                      (Target_Expects_IRDY),
-  .sel_1                      (pci_irdy_in_comb),
-  .q                          (pci_stop_out_next)
-);
+  assign  pci_target_ad_out_oe_comb = 1'b0;
   assign  pci_d_t_s_out_oe_comb = 1'b0;
 
+  assign  pci_iface_response_data_load = 1'b0;
+
+pci_critical_next_devsel pci_critical_next_devsel (
+  .PCI_Next_DEVSEL_Code       (PCI_Next_DEVSEL_Code[2:0]),
+  .pci_frame_in_comb          (pci_frame_in_comb),
+  .pci_irdy_in_comb           (pci_irdy_in_comb),
+  .pci_devsel_out_next        (pci_devsel_out_next)
+);
+
+pci_critical_next_trdy pci_critical_next_Trdy (
+  .PCI_Next_TRDY_Code         (PCI_Next_TRDY_Code[2:0]),
+  .pci_frame_in_comb          (pci_frame_in_comb),
+  .pci_irdy_in_comb           (pci_irdy_in_comb),
+  .pci_trdy_out_next          (pci_trdy_out_next)
+);
+
+pci_critical_next_stop pci_critical_next_stop (
+  .PCI_Next_STOP_Code         (PCI_Next_STOP_Code[2:0]),
+  .pci_frame_in_comb          (pci_frame_in_comb),
+  .pci_irdy_in_comb           (pci_irdy_in_comb),
+  .pci_stop_out_next          (pci_stop_out_next)
+);
 endmodule
 

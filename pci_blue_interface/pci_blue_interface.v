@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_interface.v,v 1.5 2001-06-08 08:40:37 bbeaver Exp $
+// $Id: pci_blue_interface.v,v 1.6 2001-06-11 08:14:49 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -125,13 +125,15 @@ module pci_blue_interface (
                       pci_cbe_out_oe_comb,
   pci_par_in_prev,    pci_par_in_comb,
                       pci_par_out_next,    pci_par_out_oe_comb,
-  pci_frame_in_prev,  pci_frame_out_next,  pci_frame_out_oe_comb,
+  pci_frame_in_prev,  pci_frame_in_comb,
+                      pci_frame_out_next,  pci_frame_out_oe_comb,
   pci_irdy_in_prev,   pci_irdy_in_comb,
                       pci_irdy_out_next,   pci_irdy_out_oe_comb,
   pci_devsel_in_prev, pci_devsel_out_next, pci_d_t_s_out_oe_comb,
   pci_trdy_in_prev,   pci_trdy_in_comb,
                       pci_trdy_out_next,
-  pci_stop_in_prev,   pci_stop_out_next,
+  pci_stop_in_prev,   pci_stop_in_comb,
+  pci_stop_out_next,
   pci_perr_in_prev,   pci_perr_out_next,   pci_perr_out_oe_comb,
   pci_serr_in_prev,                        pci_serr_out_oe_comb,
 `ifdef PCI_EXTERNAL_IDSEL
@@ -188,7 +190,7 @@ module pci_blue_interface (
   output  pci_cbe_out_oe_comb;
   input   pci_par_in_prev, pci_par_in_comb;
   output  pci_par_out_next, pci_par_out_oe_comb;
-  input   pci_frame_in_prev;
+  input   pci_frame_in_prev, pci_frame_in_comb;
   output  pci_frame_out_next, pci_frame_out_oe_comb;
   input   pci_irdy_in_prev, pci_irdy_in_comb;
   output  pci_irdy_out_next, pci_irdy_out_oe_comb;
@@ -196,7 +198,7 @@ module pci_blue_interface (
   output  pci_devsel_out_next, pci_d_t_s_out_oe_comb;
   input   pci_trdy_in_prev, pci_trdy_in_comb;
   output  pci_trdy_out_next;
-  input   pci_stop_in_prev;
+  input   pci_stop_in_prev, pci_stop_in_comb;
   output  pci_stop_out_next;
   input   pci_perr_in_prev;
   output  pci_perr_out_next, pci_perr_out_oe_comb;
@@ -1096,6 +1098,7 @@ monitor_pci_interface_host_port monitor_pci_interface_host_port (
   wire   [3:0] pci_iface_request_cbe;
   wire   [31:0] pci_iface_request_data;
   wire    pci_iface_request_data_available_meta;
+  wire    pci_iface_request_two_words_available_meta;
   wire    pci_iface_request_data_unload, pci_iface_request_error;
   wire   [3:0] pci_iface_response_type;
   wire   [3:0] pci_iface_response_cbe;
@@ -1108,7 +1111,7 @@ monitor_pci_interface_host_port monitor_pci_interface_host_port (
   wire    pci_iface_delayed_read_data_unload, pci_iface_delayed_read_error;
  
 // Instantiate the Host_Request_FIFO, from the Host to the PCI Interface
-pci_fifo_storage_Nx39 pci_host_request_fifo (
+pci_fifo_storage_request pci_fifo_storage_request (
   .reset_flags_async          (host_reset_to_PCI_interface),
   .fifo_mode                  (2'b01),  // Mode 2`b01 means write data, then update flag, read together
 // NOTE WORKING need to take into consideration `DOUBLE_SYNC_PCI_HOST_SYNCHRONIZERS
@@ -1124,6 +1127,7 @@ pci_fifo_storage_Nx39 pci_host_request_fifo (
   .read_sync_clk              (pci_sync_clk),
   .read_remove                (pci_iface_request_data_unload),
   .read_data_available_meta   (pci_iface_request_data_available_meta),  // NOTE Needs extra settling time to avoid metastability
+  .read_two_words_available_meta (pci_iface_request_two_words_available_meta),  // NOTE Needs extra settling time to avoid metastability
   .read_data                  ({pci_iface_request_type[2:0],
                                 pci_iface_request_cbe[3:0],
                                 pci_iface_request_data[31:0]}),
@@ -1131,7 +1135,7 @@ pci_fifo_storage_Nx39 pci_host_request_fifo (
 );
 
 // Instantiate the Host_Response_FIFO, from the PCI Interface to the Host
-pci_fifo_storage_Nx40 pci_host_response_fifo (
+pci_fifo_storage_response pci_fifo_storage_response (
   .reset_flags_async          (host_reset_to_PCI_interface),
   .fifo_mode                  (2'b10),  // Mode 2`b10 means write together, read flag, then read data
 // NOTE WORKING need to take into consideration `DOUBLE_SYNC_PCI_HOST_SYNCHRONIZERS
@@ -1154,7 +1158,7 @@ pci_fifo_storage_Nx40 pci_host_response_fifo (
 );
 
 // Instantiate the Host_Delayed_Read_Data_FIFO, from the Host to the PCI Interface
-pci_fifo_storage_Nx35 pci_delayed_read_data_fifo (
+pci_fifo_storage_delayed_read pci_fifo_storage_delayed_read (
   .reset_flags_async          (host_reset_to_PCI_interface),
   .fifo_mode                  (2'b01),  // Mode 2`b01 means write data, then update flag, read together
 // NOTE WORKING need to take into consideration `DOUBLE_SYNC_PCI_HOST_SYNCHRONIZERS
@@ -1215,6 +1219,7 @@ pci_blue_target pci_blue_target (
   .pci_target_par_out_next    (pci_target_par_out_next),
   .pci_target_par_out_oe_comb (pci_target_par_out_oe_comb),
   .pci_frame_in_prev          (pci_frame_in_prev),
+  .pci_frame_in_comb          (pci_frame_in_comb),
   .pci_irdy_in_prev           (pci_irdy_in_prev),
   .pci_irdy_in_comb           (pci_irdy_in_comb),
   .pci_devsel_out_next        (pci_devsel_out_next),
@@ -1318,6 +1323,7 @@ pci_blue_master pci_blue_master (
   .pci_iface_request_cbe      (pci_iface_request_cbe[3:0]),
   .pci_iface_request_data     (pci_iface_request_data[31:0]),
   .pci_iface_request_data_available_meta (pci_iface_request_data_available_meta),
+  .pci_iface_request_two_words_available_meta (pci_iface_request_two_words_available_meta),
   .pci_iface_request_data_unload (pci_iface_request_data_unload),
   .pci_iface_request_error    (pci_iface_request_error),
 // Signals from the Master to the Target to insert Status Info into the Response FIFO.
