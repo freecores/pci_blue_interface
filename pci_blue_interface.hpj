@@ -1,0 +1,42 @@
+<!DOCTYPE SimulationProject SYSTEM "hdl-prj.dtd">
+<SimulationProject Logfile="verilog.log" Keyfile="..\..\VLogger\verilog.key" Language="Verilog" DelayType="typical" AddTopLevelSignals="1" FileNamesShown="1" HideEmptyLists="1" ShowWatch="1" DumpWatch="0" InteractiveMode="1" ParametersAreWatchable="0" ClearLogBeforeCompile="1" CreateLogFileDuringSim="1" AutoParseProject="0" LanguageTemplate="C:\SYNAPTICAD\templatefiles\diagram.v">
+  <DirList>
+    <Directory>C:\SYNAPTICAD\</Directory>
+    <Directory>C:\VLOGGER\</Directory>
+    <Directory>pci_blue_include\</Directory>
+    <Directory>C:\free_ip\pci_blue_interface\</Directory>
+  </DirList>
+  <LibFileList>
+    <File>pci_test_system\pci_test_top.v</File>
+    <File>Readme</File>
+    <File>pci_blue_include\pci_blue_constants.vh</File>
+    <File>pci_blue_include\pci_blue_options.vh</File>
+    <File>pci_example_chip\pci_example_host_controller.v</File>
+    <File>pci_test_system\pci_test_commander.v</File>
+    <File>reminders.v</File>
+    <File>pci_bus_monitor\pci_bus_monitor.v</File>
+    <File>pci_vendor_lib\pci_vendor_lib.v</File>
+    <File>pci_example_chip\pci_example_chip.v</File>
+    <File>pci_example_chip\pci_target_pads.v</File>
+    <File>pci_example_chip\pci_clk_reset_pads.v</File>
+    <File>pci_behaviorial_device\pci_behaviorial_device.v</File>
+    <File>pci_behaviorial_device\pci_behaviorial_master.v</File>
+    <File>pci_behaviorial_device\pci_behaviorial_target.v</File>
+    <File>pci_example_chip\monitor_pci_interface_host_port.v</File>
+    <File>pci_blue_arbiter\pci_blue_arbiter.v</File>
+    <File>pci_blue_interface\pci_blue_interface.v</File>
+    <File>pci_blue_fifos\pci_blue_fifos.v</File>
+    <File>pci_blue_fifos\pci_blue_fifo_flags.v</File>
+    <File>pci_blue_master\pci_blue_master.v</File>
+    <File>pci_blue_target\pci_blue_target.v</File>
+  </LibFileList>
+  <LibDirList>
+    <Directory>C:\SYNAPTICAD\lib\verilog\</Directory>
+    <Directory>C:\VLOGGER\lib\verilog\</Directory>
+  </LibDirList>
+  <LibExtensionList>
+    <Extension>.v</Extension>
+    <Extension>.vo</Extension>
+    <Extension>.vh</Extension>
+  </LibExtensionList>
+</SimulationProject>
