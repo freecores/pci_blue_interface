@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_master.v,v 1.15 2001-08-06 10:32:37 bbeaver Exp $
+// $Id: test_pci_master.v,v 1.16 2001-08-10 11:59:14 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -92,8 +92,14 @@ module pci_test_master (
   pci_perr_in_prev, pci_serr_in_prev,
   pci_state,  // TEMPORARY
   pci_fifo_state,  // TEMPORARY
+  pci_retry_type,
   pci_retry_address,  // TEMPORARY
+  pci_retry_command,
+  pci_retry_write_reg,
+  Doing_Config_Reference,
+  fifo_contains_address,
   pci_retry_data,  // TEMPORARY
+  pci_retry_data_type,
   pci_target_full,  // TEMPORARY
   pci_bus_full,  // TEMPORARY
   one_word_avail,  // TEMPORARY
@@ -102,7 +108,12 @@ module pci_test_master (
   more,  // TEMPORARY
   two_more,  // TEMPORARY
   last,  // TEMPORARY
-  working,  // TEMPORARY
+  working,
+  new_addr_new_data,   // TEMPORARY
+  old_addr_new_data,   // TEMPORARY
+  old_addr_old_data,   // TEMPORARY
+  new_data,
+  inc,   // TEMPORARY
   master_got_parity_error,
   master_caused_serr,
   master_caused_master_abort,
@@ -141,15 +152,27 @@ module pci_test_master (
   output  pci_perr_in_prev, pci_serr_in_prev;
   output [4:0] pci_state;  // TEMPORARY
   output [1:0] pci_fifo_state;  // TEMPORARY
+  output [2:0] pci_retry_type;  // TEMPORARY
   output [31:0] pci_retry_address;  // TEMPORARY
+  output [3:0] pci_retry_command;  // TEMPORARY
+  output  pci_retry_write_reg;
+  output  Doing_Config_Reference;
+  output  fifo_contains_address;
   output [31:0] pci_retry_data;  // TEMPORARY
+  output [2:0] pci_retry_data_type;
   output  pci_target_full;  // TEMPORARY
   output  pci_bus_full;  // TEMPORARY
   output  one_word_avail;  // TEMPORARY
   output  two_words_avail;  // TEMPORARY
   output  addr_aval;  // TEMPORARY
   output  more, two_more, last;
-  output  working;  // TEMPORARY
+  output  working;
+  output  new_addr_new_data;     // TEMPORARY
+  output  old_addr_new_data;     // TEMPORARY
+  output  old_addr_old_data;     // TEMPORARY
+  output  new_data;
+  output  inc;     // TEMPORARY
+
   output  master_got_parity_error;
   output  master_caused_serr;
   output  master_caused_master_abort;
@@ -159,8 +182,14 @@ module pci_test_master (
 
 // GROSS debugging signal. Only here to put signal in waveform.
   assign  pci_state[4:0]        = pci_blue_master.PCI_Master_State[4:0];                  // TEMPORARY
+  assign  pci_retry_type[2:0]   = {pci_blue_master.Master_Retry_Address_Type[2:0]};       // TEMPORARY
   assign  pci_retry_address[31:0] = {pci_blue_master.Master_Retry_Address[31:2], 2'b0};   // TEMPORARY
+  assign  pci_retry_command[3:0]  = pci_blue_master.Master_Retry_Command[3:0];            // TEMPORARY
+  assign  pci_retry_write_reg   = pci_blue_master.Master_Retry_Write_Reg;                 // TEMPORARY
+  assign  Doing_Config_Reference = pci_blue_master.Master_Doing_Config_Reference;         // TEMPORARY
   assign  pci_retry_data[31:0]  = pci_blue_master.Master_Retry_Data[31:0];                // TEMPORARY
+  assign  pci_retry_data_type[2:0] = pci_blue_master.Master_Retry_Data_Type[2:0];         // TEMPORARY
+  assign  fifo_contains_address = pci_blue_master.Request_FIFO_CONTAINS_ADDRESS;          // TEMPORARY
   assign  pci_target_full       = pci_blue_master.master_to_target_status_full;           // TEMPORARY
   assign  pci_bus_full          = pci_blue_master.master_request_full;                    // TEMPORARY
   assign  two_words_avail       = pci_blue_master.request_fifo_two_words_available_meta;  // TEMPORARY
@@ -169,7 +198,12 @@ module pci_test_master (
   assign  more                  = pci_blue_master.Request_FIFO_CONTAINS_DATA_MORE;        // TEMPORARY
   assign  two_more              = pci_blue_master.Request_FIFO_CONTAINS_DATA_TWO_MORE;    // TEMPORARY
   assign  last                  = pci_blue_master.Request_FIFO_CONTAINS_DATA_LAST;        // TEMPORARY
-  assign  working               = pci_blue_master.Master_Abort_Detected;         // TEMPORARY
+  assign  working               = pci_blue_master.working;       // TEMPORARY
+  assign  new_addr_new_data     = pci_blue_master.proceed_with_new_address_plus_new_data;        // TEMPORARY
+  assign  old_addr_new_data     = pci_blue_master.proceed_with_stored_address_plus_new_data;     // TEMPORARY
+  assign  old_addr_old_data     = pci_blue_master.proceed_with_stored_address_plus_stored_data;  // TEMPORARY
+  assign  new_data              = pci_blue_master.proceed_with_new_data;                  // TEMPORARY
+  assign  inc                   = pci_blue_master.inc_stored_address;                     // TEMPORARY
 
 // PCI signals
   wire    pci_req_out_next, pci_req_out_oe_comb;
@@ -193,6 +227,7 @@ module pci_test_master (
 // Signal to control Request pin if on-chip PCI devices share it
   wire    Master_Forced_Off_Bus_By_Target_Abort;
   wire    PERR_Detected_While_Master_Read;
+  wire    This_Chip_Driving_IRDY = 1'b0;  // NOTE: use GNT instead.
 
   wire   [2:0] master_to_target_status_type;
   wire   [PCI_BUS_CBE_RANGE:0] master_to_target_status_cbe;
@@ -507,6 +542,7 @@ endtask
       do_clocks (4'h4);
 
 // WORKING
+`ifdef WORKING
 
     $display ("Doing Config Read, 1 word, no Wait States, at time %t", $time);
     do_reset;
@@ -1123,6 +1159,8 @@ endtask
     pci_trdy;
       do_clocks (4'h8);
 
+`endif  // WORKING
+
 // Concept:  test all exceptional cases:
 // These include: Grant removed during Address Stepping,
 // Master Abort before and after last data offered,
@@ -1147,11 +1185,19 @@ endtask
     pci_devsel;
     pci_trdy;
       do_clocks (4'h1);
-    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_2);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_3);  // too late?
       do_clocks (4'h4);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_0);  // Should re-arbitrate
     pci_devsel;
     pci_trdy;
       do_clocks (4'h3);
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h2);
+    pci_grant;
+      do_clocks (4'h1);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
     pci_devsel;
     pci_trdy;
       do_clocks (4'h8);
@@ -1172,13 +1218,18 @@ endtask
       do_clocks (4'h1);
     write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_1);
       do_clocks (4'h4);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_2);  // Should re-arbitrate
     pci_devsel;
     pci_trdy;
       do_clocks (4'h3);
     pci_devsel;
     pci_trdy;
+      do_clocks (4'h3);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
       do_clocks (4'h8);
-
 
     $display ("Doing Memory Read, 3 words, 6 Master Wait State, at time %t", $time);
     do_reset;
@@ -1198,6 +1249,8 @@ endtask
       do_clocks (4'h4);
     pci_devsel;
     pci_trdy;
+      do_clocks (4'h3);
+    pci_grant;
       do_clocks (4'h8);
 
     $display ("Doing Memory Write, 3 words, 6 Master Wait State, at time %t", $time);
@@ -1218,6 +1271,8 @@ endtask
       do_clocks (4'h4);
     pci_devsel;
     pci_trdy;
+      do_clocks (4'h3);
+    pci_grant;
       do_clocks (4'h8);
 
     $display ("Doing Memory Read, 3 words, 7 Master Wait State, at time %t", $time);
@@ -1238,7 +1293,8 @@ endtask
       do_clocks (4'h3);
     pci_devsel;
     pci_trdy;
-      do_clocks (4'h1);
+      do_clocks (4'h3);
+    pci_grant;
       do_clocks (4'h8);
 
     $display ("Doing Memory Write, 3 words, 7 Master Wait State, at time %t", $time);
@@ -1259,7 +1315,8 @@ endtask
       do_clocks (4'h3);
     pci_devsel;
     pci_trdy;
-      do_clocks (4'h1);
+      do_clocks (4'h3);
+    pci_grant;
       do_clocks (4'h8);
 
 
@@ -1503,6 +1560,7 @@ pci_blue_master pci_blue_master (
   .Master_Exposes_Data_On_TRDY (Master_Exposes_Data_On_TRDY),
   .Master_Forces_PERR         (Master_Forces_PERR),
   .PERR_Detected_While_Master_Read (PERR_Detected_While_Master_Read),
+  .This_Chip_Driving_IRDY     (This_Chip_Driving_IRDY),
 // Signal to control Request pin if on-chip PCI devices share it
   .Master_Forced_Off_Bus_By_Target_Abort (Master_Forced_Off_Bus_By_Target_Abort),
 // Host Interface Request FIFO used to ask the PCI Interface to initiate

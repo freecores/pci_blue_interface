@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_master.v,v 1.31 2001-08-06 10:32:36 bbeaver Exp $
+// $Id: pci_blue_master.v,v 1.32 2001-08-10 11:59:13 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -143,6 +143,7 @@ module pci_blue_master (
   Master_Captures_Data_On_TRDY,
   Master_Forces_PERR,
   PERR_Detected_While_Master_Read,
+  This_Chip_Driving_IRDY,
 // Signal to control Request pin if on-chip PCI devices share it
   Master_Forced_Off_Bus_By_Target_Abort,
 // Host Interface Request FIFO used to ask the PCI Interface to initiate
@@ -212,6 +213,7 @@ module pci_blue_master (
   output  Master_Captures_Data_On_TRDY;
   output  Master_Forces_PERR;
   input   PERR_Detected_While_Master_Read;
+  input   This_Chip_Driving_IRDY;
 // Signal to control Request pin if on-chip PCI devices share it
   output  Master_Forced_Off_Bus_By_Target_Abort;
 // Host Interface Request FIFO used to ask the PCI Interface to initiate
@@ -261,7 +263,9 @@ module pci_blue_master (
   wire    proceed_with_new_address_plus_new_data;
   wire    proceed_with_stored_address_plus_new_data;
   wire    proceed_with_stored_address_plus_stored_data;
+  wire    proceed_with_new_data;
   wire    inc_stored_address;
+  wire    Finished_With_FIFO_Flush;
   wire    Fast_Back_to_Back_Possible;
   wire    Master_Discards_Request_FIFO_Entry_After_Abort;
 
@@ -504,7 +508,7 @@ module pci_blue_master (
 
 // This clock, the data previously in the delay element is being discarded.
   wire    Master_Capturing_Retry_Data = Master_Previously_Full  // notice that data
-                                      & ~master_request_full;   // transferred to PCI bus
+                                      & ~master_request_full;   // transfered to PCI bus
 
 // Classify Address and Data just sent out onto PCI bus
   wire    Master_Issued_Address = Master_Capturing_Retry_Data  // used several places
@@ -743,9 +747,10 @@ module pci_blue_master (
 // The Master get to keep the bus until the counter counts to it's maximum value
 //   AND Gnt is removed.  Don't time out if GNT is not removed, or if the counter
 //   has not counted to Max.  The duration of a transfer, therefore, is the
-//   Latency Counter plus 1.  NOTE I assume that fast back-to-back transfers
-//   are not allowed when GNT is removed, but the book doesn't say that.
+//   Latency Counter plus 1.
 // See the PCI Local Bus Spec Revision 2.2 section 3.5.4 for details.
+// NOTE: I assume that fast back-to-back transfers are not allowed when GNT is
+//   removed, but the book doesn't say that.
   reg    [7:0] Master_Bus_Latency_Counter;
   reg     Master_Bus_Latency_Disconnect_Reg;
 
@@ -811,23 +816,20 @@ module pci_blue_master (
 //   or Stored Address plus next Data in FIFO containing Byte Strobes,
 //   or Stored Address plus Stored Data containing Byte Strobes.
 
-  wire   [2:0] Next_Request_Type = proceed_with_new_address_plus_new_data
-                      ? pci_request_fifo_type_current[2:0]
-                      : Master_Retry_Address_Type[2:0];
-
   wire    Request_FIFO_CONTAINS_ADDRESS =
                master_enable  // only start (or retry) a reference if enabled
              & master_to_target_status_loadable
              & master_to_target_status_two_words_free  // room for status to Target
              & (   (   proceed_with_new_address_plus_new_data
-                     & request_fifo_two_words_available_meta)  // address plus data
+                     & request_fifo_two_words_available_meta
+                     & (   (pci_request_fifo_type_current[2:0] ==
+                                PCI_HOST_REQUEST_ADDRESS_COMMAND)  // Not if Housekeeping
+                         | (pci_request_fifo_type_current[2:0] ==
+                                PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR)
+                   )  // new address plus new data
                  | (   proceed_with_stored_address_plus_new_data
                      & request_fifo_data_available_meta)  // stored address plus data
-                 | proceed_with_stored_address_plus_stored_data)  // both stored
-             & (   (Next_Request_Type[2:0] ==
-                                PCI_HOST_REQUEST_ADDRESS_COMMAND)
-                 | (Next_Request_Type[2:0] ==
-                                PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR));
+                 | proceed_with_stored_address_plus_stored_data) );  // both stored
 
 // Classify PCI Command to decide whether to do address stepping or Config references
   wire   [PCI_BUS_CBE_RANGE:0] Next_Request_Command =
@@ -844,29 +846,18 @@ module pci_blue_master (
 // Either Data or Data Last must follow the Address item
   wire   [2:0] Next_Data_Type =
                         (   proceed_with_new_address_plus_new_data
-                          | proceed_with_stored_address_plus_new_data)
+                          | proceed_with_stored_address_plus_new_data
+                          | proceed_with_new_data )
                       ? pci_request_fifo_type_current[2:0]
                       : Master_Retry_Data_Type[2:0];
-
-  wire    Request_FIFO_CONTAINS_DATA_TWO_MORE =
-               master_to_target_status_loadable
-             & master_to_target_status_two_words_free  // room for status to Target
-             & (   (   (   proceed_with_new_address_plus_new_data
-                         | proceed_with_stored_address_plus_new_data)
-                     & request_fifo_two_words_available_meta)
-                 | (   proceed_with_stored_address_plus_stored_data
-                     &  request_fifo_data_available_meta) )
-             & (   (Next_Data_Type[2:0] ==
-                                PCI_HOST_REQUEST_W_DATA_RW_MASK)
-                 | (Next_Data_Type[2:0] ==
-                                PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR));
 
   wire    Request_FIFO_CONTAINS_DATA_MORE =
                master_to_target_status_loadable  // room for status to Target
              & (   (   (   proceed_with_new_address_plus_new_data
-                         | proceed_with_stored_address_plus_new_data)
-                     & request_fifo_data_available_meta)
-                 | (   proceed_with_stored_address_plus_stored_data) )
+                         | proceed_with_stored_address_plus_new_data
+                         | proceed_with_new_data )
+                     & request_fifo_data_available_meta )
+                 | proceed_with_stored_address_plus_stored_data )
              & (   (Next_Data_Type[2:0] ==
                                 PCI_HOST_REQUEST_W_DATA_RW_MASK)
                  | (Next_Data_Type[2:0] ==
@@ -875,13 +866,25 @@ module pci_blue_master (
   wire    Request_FIFO_CONTAINS_DATA_LAST =
                master_to_target_status_loadable  // room for status to Target
              & (   (   (   proceed_with_new_address_plus_new_data
-                         | proceed_with_stored_address_plus_new_data)
-                     & request_fifo_data_available_meta)
-                 | (   proceed_with_stored_address_plus_stored_data) )
+                         | proceed_with_stored_address_plus_new_data
+                         | proceed_with_new_data )
+                     & request_fifo_data_available_meta )
+                 | proceed_with_stored_address_plus_stored_data )
              & (   (Next_Data_Type[2:0] ==
                                 PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST)
                  | (Next_Data_Type[2:0] ==
                                 PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR));
+
+// By the time this gets to DATA_MORE state, it has already exposed
+//   the data being stored for retries.  All that matters is the FIFO.
+  wire    Request_FIFO_CONTAINS_DATA_TWO_MORE =  // used in DATA_MORE
+               master_to_target_status_loadable
+             & master_to_target_status_two_words_free  // room for status to Target
+             & request_fifo_two_words_available_meta  // data in FIFO
+             & (   (pci_request_fifo_type_current[2:0] ==
+                                PCI_HOST_REQUEST_W_DATA_RW_MASK)
+                 | (pci_request_fifo_type_current[2:0] ==
+                                PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR));
 
 // The Master State Machine as described in the PCI Local Bus Spec
 //   Revision 2.2 Appendix B.
@@ -934,10 +937,10 @@ module pci_blue_master (
 //
 // Here is my interpretation of the Master State Machine:
 //
-// The Master is in one of 3 states when transferring data:
+// The Master is in one of 3 states when transfering data:
 // 1) Waiting,
-// 2) Transferring data with more to come,
-// 3) Transferring the last Data item.
+// 2) Transfering data with more to come,
+// 3) Transfering the last Data item.
 //
 // NOTE: The PCI Spec says that the Byte Enables driven by the Master
 //   must be valid on all clocks.  Therefore, the Master cannot
@@ -987,11 +990,11 @@ module pci_blue_master (
 
   parameter PCI_MASTER_DATA_MORE         = 5'b1_11_00;  // 1C Master Transfers Data
 
-  parameter PCI_MASTER_NODATA_TURN       = 5'b1_01_00;  // 14 Target Transfers More Data as Last, then No Data
+  parameter PCI_MASTER_EARLY_LAST_TURN   = 5'b1_01_00;  // 14 Target Transfers More Data as Last, then No Data
   parameter PCI_MASTER_STOP_TURN         = 5'b1_01_01;  // 15 Target Abort or Disconnect makes Turn Around
 
   parameter PCI_MASTER_DATA_LAST         = 5'b1_01_10;  // 16 Master Transfers Last Data
-  parameter PCI_MASTER_DATA_MORE_TO_LAST = 5'b1_01_11;  // 17 Master Transfers Regular Data as Last
+  parameter PCI_MASTER_DATA_MORE_AS_LAST = 5'b1_01_11;  // 17 Master Transfers Regular Data as Last
 
   parameter PCI_MASTER_LAST_IDLE         = 5'b0_00_01;  // 01 Master goes Idle, undriving bus immediately
 
@@ -1133,28 +1136,29 @@ function [MS_Range:0] Master_Next_State;
             TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_MORE_PENDING;       // 16
             TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN;          // 17
             TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_MORE_PENDING;       // 18
-            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_TO_LAST;  // 19
+            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_AS_LAST;  // 19
             `NO_DEFAULT;
             endcase
           end
           else if (Timeout_Forces_Disconnect == 1'b1)  // NOTE: shortcut; even if no data
           begin
             case ({trdy_in, stop_in})  // synopsys parallel_case
-            TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_TO_LAST;  // 20
+            TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_AS_LAST;  // 20
             TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN;          // 21
-            TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_TO_LAST;  // 22
-            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_TO_LAST;  // 23
+            TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_AS_LAST;  // 22
+            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_AS_LAST;  // 23
             `NO_DEFAULT;
             endcase
           end
-          else if (   (FIFO_CONTAINS_DATA_MORE == 1'b1)
-                    | (FIFO_CONTAINS_DATA_LAST == 1'b1))
+          else if (   (Timeout_Forces_Disconnect == 1'b0)
+                    & (   (FIFO_CONTAINS_DATA_MORE == 1'b1)
+                        | (FIFO_CONTAINS_DATA_LAST == 1'b1)) )
           begin
             case ({trdy_in, stop_in})  // synopsys parallel_case
             TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE;          // 24
             TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN;          // 25
             TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE;          // 26
-            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_TO_LAST;  // 27
+            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_AS_LAST;  // 27
             `NO_DEFAULT;
             endcase
           end
@@ -1183,7 +1187,7 @@ function [MS_Range:0] Master_Next_State;
             TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE;     // 29
             TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN;     // 30
             TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_MORE_PENDING;  // 31
-            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_NODATA_TURN;   // 32
+            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_EARLY_LAST_TURN; // 32
             `NO_DEFAULT;
             endcase
           end
@@ -1193,27 +1197,30 @@ function [MS_Range:0] Master_Next_State;
             TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE;    // 33
             TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN;    // 34
             TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_LAST;    // 35
-            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_NODATA_TURN;  // 36
+            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_EARLY_LAST_TURN; // 36
             `NO_DEFAULT;
             endcase
           end
-          else if (Timeout_Forces_Disconnect == 1'b1)  // NOTE: shortcut; even if no data
+          else if (   (FIFO_CONTAINS_DATA_LAST == 1'b0)
+                    & (Timeout_Forces_Disconnect == 1'b1) )  // NOTE: shortcut; even if no data
           begin
             case ({trdy_in, stop_in})  // synopsys parallel_case
             TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE;    // 37
             TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN;    // 38
-            TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_TO_LAST;  // 39 bug?
-            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_NODATA_TURN;  // 40
+            TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_AS_LAST;  // 39 bug?
+            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_EARLY_LAST_TURN; // 40
             `NO_DEFAULT;
             endcase
           end
-          else if (FIFO_CONTAINS_DATA_TWO_MORE == 1'b1)
+          else if (   (FIFO_CONTAINS_DATA_LAST == 1'b0)
+                    & (Timeout_Forces_Disconnect == 1'b0)
+                    & (FIFO_CONTAINS_DATA_TWO_MORE == 1'b1) )
           begin
             case ({trdy_in, stop_in})  // synopsys parallel_case
             TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE;    // 41
             TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_STOP_TURN;    // 42
             TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE;    // 43
-            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_NODATA_TURN;  // 44
+            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_EARLY_LAST_TURN; // 44
             `NO_DEFAULT;
             endcase
           end
@@ -1226,19 +1233,19 @@ function [MS_Range:0] Master_Next_State;
 // synopsys translate_on
           end
         end
-// Enter NODATA_TURN State when Master says More, but Target says Last
-// The present data is transferred, the next data is not.
+// Enter EARLY_LAST_TURN State when Master says More, but Target says Last
+// The present data is transfered, the next data is not.  Drive IRDY, CBE, Data if write
 // NOTE: No specific term to get to Bus Park.  It is not necessary to go directly
 //    to a parked condition.  Get to park by going through IDLE.  See the PCI
 //    Local Bus Spec Revision 2.2 section 3.4.3 for details.
-      PCI_MASTER_NODATA_TURN:
+      PCI_MASTER_EARLY_LAST_TURN:
         begin
           Master_Next_State[MS_Range:0] = PCI_MASTER_IDLE;  // Covered
         end
 // Enter STOP_TURN when Master asserting FRAME and either IRDY or not IRDY,
 //   and either a Master Abort happens, or a Target Abort happens, or a
-//   Target Retry with no data transferred happens.
-// The waiting data is not transferred.
+//   Target Retry with no data transfered happens.  Drive IRDY, CBE, Data if write
+// The waiting data is not transfered.
 // NOTE: No specific term to get to Bus Park.  It is not necessary to go directly
 //    to a parked condition.  Get to park by going through IDLE.  See the PCI
 //    Local Bus Spec Revision 2.2 section 3.4.3 for details.
@@ -1290,33 +1297,33 @@ function [MS_Range:0] Master_Next_State;
 // synopsys translate_on
           end
         end
-// Enter MORE_TO_LAST State for 1 of several reasons:
+// Enter MORE_AS_LAST State for 1 of several reasons:
 // 1) Master waiting for second Data to become available, and Target says early Last.
-//      Make the datain escrow into an early Last.
+//      Make the data in escrow into an early Last.
 // 2) Master waiting for Target to accept More Data, and bus timeout occurs,
 //      and Target says More.  Make the NEW data into an early Last.
 // The data sent is sent as a Last Data, even if it is a More Data.
-// NOTE in case 2 above, the LAST might terminate with a STOP!
+// NOTE: in case case of timeout, the MORE_AS_LAST might terminate with a STOP!
 // NOTE: No specific term to get to Bus Park.  It is not necessary to go directly
 //    to a parked condition.  Get to park by going through IDLE.  See the PCI
 //    Local Bus Spec Revision 2.2 section 3.4.3 for details.
-      PCI_MASTER_DATA_MORE_TO_LAST:
+      PCI_MASTER_DATA_MORE_AS_LAST:
         begin
           begin
             case ({trdy_in, stop_in})  // synopsys parallel_case
-            TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_TO_LAST;  // 54
+            TARGET_IDLE:      Master_Next_State[MS_Range:0] = PCI_MASTER_DATA_MORE_AS_LAST;  // 54
             TARGET_TAR:       Master_Next_State[MS_Range:0] = PCI_MASTER_LAST_IDLE;  // 55
-            TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_IDLE;       // 56
-            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_IDLE;       // 57
+            TARGET_DATA_MORE: Master_Next_State[MS_Range:0] = PCI_MASTER_LAST_IDLE;  // 56
+            TARGET_DATA_LAST: Master_Next_State[MS_Range:0] = PCI_MASTER_LAST_IDLE;  // 57
             `NO_DEFAULT;
             endcase
           end
         end
 // Enter LAST_IDLE when Master asserting IRDY and not FRAME,
 //   and either a Master Abort happens, or a Target Abort happens, or a
-//   Target Retry with no data transferred happens.
-// This state is the same as STOP_TURN, except CBE, Data, and IRDY are not driven.
-// The waiting data is not transferred.
+//   Target Retry with no data transfered happens, or a target transfer finishes.
+// This state is the same as STOP_TURN, except IRDY, CBE, and Data, are not driven.
+// The waiting data is not transfered.
 // NOTE: No specific term to get to Bus Park.  It is not necessary to go directly
 //    to a parked condition.  Get to park by going through IDLE.  See the PCI
 //    Local Bus Spec Revision 2.2 section 3.4.3 for details.
@@ -1340,17 +1347,21 @@ endfunction
 // Start a reference when the bus is idle, or immediately if fast back-to-back.
 // pci_frame_in_critical and pci_irdy_in_critical are VERY LATE.
 // pci_gnt_in_critical is VERY LATE, but not as late as the other two.
-// NOTE: WORKING: Very Subtle point.  The PCI Master may NOT look at the value
+// NOTE: Very Subtle point.  The PCI Master may NOT look at the value
 //   of signals it drove itself the previous clock.  The driver of a PCI bus
 //   receives the value it drove later than all other devices.  See the PCI
 //   Local Bus Spec Revision 2.2 section 3.10 item 9 for details.
 //   FRAME isn't a problem, because it is driven 1 clock before IRDY.
-//   This must therefore NOT look at IRDY unless it very sure that the the
-//   data is constant for 2 clocks.  How?
-// NOTE: It seems that FRAME and IRDY in must use the output value when they are driving
-// NOTE: WORKING: Make sure Frame and IRDY are internally fed back when locally driven
+//   Therefore hold off for 1 clock after this chip's target is done with
+//   the PC bus.
+// This will mean that this master is 1 clock slower than it could be
+//   in the case when this chip did a bus master transfer on the bus,
+//   then then tried to do an immediate (but non-back-to-back) Master transfer.
+// This might happen when there are several masters all on-chip, but not
+//   sharing a single PCI interface.
   wire    external_pci_bus_available_critical = pci_gnt_in_critical
-                        & ~pci_frame_in_critical & ~pci_irdy_in_critical;
+                        & ~pci_frame_in_critical & ~pci_irdy_in_critical
+                        & ~This_Chip_Driving_IRDY;
 
 // State Machine controlling the PCI Master.
 //   Every clock, this State Machine transitions based on the LATCHED
@@ -1382,25 +1393,27 @@ endfunction
 //    right before the flops.  Make 4 functions from the 1 function above.
 
 // Actual State Machine includes async reset
+  always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
+  begin
+    if (pci_reset_comb == 1'b1)
+      PCI_Master_State[MS_Range:0] <= PCI_MASTER_IDLE;
+    else if (pci_reset_comb == 1'b0)
+      PCI_Master_State[MS_Range:0] <= PCI_Master_Next_State[MS_Range:0];
+    else
+      PCI_Master_State[MS_Range:0] <= MS_X;
+  end
+
+// Make delayed version, used for active release of FRAME and IRDY.
   reg    [MS_Range:0] PCI_Master_Prev_State;
 
   always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
   begin
     if (pci_reset_comb == 1'b1)
-    begin
-      PCI_Master_State[MS_Range:0] <= PCI_MASTER_IDLE;
       PCI_Master_Prev_State[MS_Range:0] <= PCI_MASTER_IDLE;
-    end
     else if (pci_reset_comb == 1'b0)
-    begin
-      PCI_Master_State[MS_Range:0] <= PCI_Master_Next_State[MS_Range:0];
       PCI_Master_Prev_State[MS_Range:0] <= PCI_Master_State[MS_Range:0];
-    end
     else
-    begin
-      PCI_Master_State[MS_Range:0] <= MS_X;
       PCI_Master_Prev_State[MS_Range:0] <= MS_X;
-    end
   end
 
 // Classify the Present State to make the terms below easier to understand.
@@ -1413,19 +1426,14 @@ endfunction
   wire    Master_In_Step_State =
                       (PCI_Master_State[MS_Range:0] == PCI_MASTER_STEP);
 
-  wire    Master_In_Idle_Park_Step_State =
-                      (Master_In_Idle_State == 1'b1)
-                    | (Master_In_Park_State == 1'b1)
-                    | (Master_In_Step_State == 1'b1);
-
   wire    Master_In_Addr_State =
                       (PCI_Master_State[MS_Range:0] == PCI_MASTER_ADDR)
                     | (PCI_Master_State[MS_Range:0] == PCI_MASTER_ADDR64);
 
-  wire    Master_In_Park_Step_Addr_State =
-                      (Master_In_Park_State == 1'b1)
-                    | (Master_In_Step_State == 1'b1)
-                    | (Master_In_Addr_State == 1'b1);
+// NOTE: Becomes ADDR64 when this learns how to send 64-bit addresses, AND
+//       the particular reference IS a 64-bit Address reference,
+  wire    Master_Sending_First_Data =
+                      (PCI_Master_State[MS_Range:0] == PCI_MASTER_ADDR);
 
   wire    Master_In_No_IRDY_State =
                       (PCI_Master_State[MS_Range:0] == PCI_MASTER_MORE_PENDING)
@@ -1434,142 +1442,204 @@ endfunction
   wire    Master_In_Data_More_State =
                       (PCI_Master_State[MS_Range:0] == PCI_MASTER_DATA_MORE);
 
+  wire    Master_In_Early_Last_Turn_State =
+                      (PCI_Master_State[MS_Range:0] == PCI_MASTER_EARLY_LAST_TURN);
+
+  wire    Master_In_Stop_Turn_State =
+                      (PCI_Master_State[MS_Range:0] == PCI_MASTER_STOP_TURN);
+
+  wire    Master_In_Data_Last_State =
+                      (PCI_Master_State[MS_Range:0] == PCI_MASTER_DATA_LAST)
+                    | (PCI_Master_State[MS_Range:0] == PCI_MASTER_DATA_MORE_AS_LAST);
+
+  wire    Master_In_Stop_Turn_Last_Idle_State =
+                      (PCI_Master_State[MS_Range:0] == PCI_MASTER_STOP_TURN)
+                    | (PCI_Master_State[MS_Range:0] == PCI_MASTER_LAST_IDLE);
+
+// combined decodes
+  wire    Master_In_Idle_Park_Step_State =
+                      (Master_In_Idle_State == 1'b1)
+                    | (Master_In_Park_State == 1'b1)
+                    | (Master_In_Step_State == 1'b1);
+
+  wire    Master_In_Park_Step_Addr_State =
+                      (Master_In_Park_State == 1'b1)
+                    | (Master_In_Step_State == 1'b1)
+                    | (Master_In_Addr_State == 1'b1);
+
+  wire    Master_Trying_To_Transfer_Data  =
+                      (Master_In_No_IRDY_State == 1'b1)
+                    | (Master_In_Data_More_State == 1'b1)
+                    | (Master_In_Data_Last_State == 1'b1);
+
+  wire    Master_In_Last_Data_Phase =
+                      (Master_In_Data_Last_State == 1'b1)
+                    | (Master_In_Stop_Turn_State == 1'b1)
+                    | (Master_In_Early_Last_Turn_State == 1'b1);
+
+  wire    Master_Transfering_Data_If_TRDY =
+                      (Master_In_Data_More_State == 1'b1)
+                    | (Master_In_Data_Last_State == 1'b1);
+
+  wire    Master_Transfering_Read_Data_If_TRDY =
+                      ~Master_Retry_Write
+                    & (   (Master_In_Data_More_State == 1'b1)
+                        | (Master_In_Data_Last_State == 1'b1) );
+
+  wire    Master_In_Read_State =
+                       ~Master_Retry_Write
+                    &  (   (Master_In_Addr_State == 1'b1)
+                         | (Master_In_No_IRDY_State == 1'b1)
+                         | (Master_In_Data_More_State == 1'b1)
+                         | (Master_In_Data_Last_State == 1'b1) );
+
+  wire    Master_In_No_Data_Turn_State =
+                      (Master_In_Stop_Turn_State == 1'b1)
+                    | (Master_In_Early_Last_Turn_State == 1'b1);
+
   wire    Master_Asserting_Frame =
                       (Master_In_Addr_State == 1'b1)
                     | (Master_In_No_IRDY_State == 1'b1)
                     | (Master_In_Data_More_State == 1'b1);
 
-  wire    Master_In_Data_Last_State =
-                      (PCI_Master_State[MS_Range:0] == PCI_MASTER_DATA_LAST)
-                    | (PCI_Master_State[MS_Range:0] == PCI_MASTER_DATA_MORE_TO_LAST);
-
-  wire    Master_Transferring_Data_If_TRDY =
-                      (PCI_Master_State[MS_Range:0] == PCI_MASTER_DATA_MORE)
-                    | (PCI_Master_State[MS_Range:0] == PCI_MASTER_DATA_LAST)
-                    | (PCI_Master_State[MS_Range:0] == PCI_MASTER_DATA_MORE_TO_LAST);
-
-  wire    Master_Transferring_Read_Data_If_TRDY = ~Master_Retry_Write
-                    & (   (PCI_Master_State[MS_Range:0] == PCI_MASTER_DATA_MORE)
-                        | (PCI_Master_State[MS_Range:0] == PCI_MASTER_DATA_LAST)
-                        | (PCI_Master_State[MS_Range:0] == PCI_MASTER_DATA_MORE_TO_LAST));
-
-  wire    Master_In_Read_State =  ~Master_Retry_Write
-                    &  (   (PCI_Master_State[MS_Range:0] == PCI_MASTER_ADDR)
-                         | (PCI_Master_State[MS_Range:0] == PCI_MASTER_MORE_PENDING)
-                         | (PCI_Master_State[MS_Range:0] == PCI_MASTER_LAST_PENDING)
-                         | (PCI_Master_State[MS_Range:0] == PCI_MASTER_DATA_MORE)
-                         | (PCI_Master_State[MS_Range:0] == PCI_MASTER_DATA_LAST)
-                         | (PCI_Master_State[MS_Range:0] == PCI_MASTER_DATA_MORE_TO_LAST) );
-
-  wire    Master_In_Nodata_Turn_State =
-                      (PCI_Master_State[MS_Range:0] == PCI_MASTER_NODATA_TURN);
-
-  wire    Master_In_Stop_Turn_State =
-                      (PCI_Master_State[MS_Range:0] == PCI_MASTER_STOP_TURN);
-
-  wire    Master_In_Last_Idle_State =
-                      (PCI_Master_State[MS_Range:0] == PCI_MASTER_LAST_IDLE);
+  wire    Master_Asserting_IRDY =
+                      (Master_In_Data_More_State == 1'b1)
+                    | (Master_In_No_Data_Turn_State == 1'b1)
+                    | (Master_In_Data_Last_State == 1'b1);
 
 // Retry info is encoded in the state machine activity.
-// If the State Sequence goes IDLE/PARK, STEP, IDLE, then reuse the Address.
-// If the State is STOP_TURN, either flush if Master Abort or Target Abort,
-//   or reuse the Address + Data after Target Disconnect.
-// If the State is NODATA_TURN, always reuse the Address + Data.
-// If the State Sequence goes PCI_MASTER_DATA_MORE_TO_LAST, IDLE, reuse the Address.
-// If the State is LAST_IDLE, either flush if Master Abort or Target Abort,
-//   or reuse the Address + Data after Target Disconnect.  The flush
-//   must not remove data from the FIFO if the data just issued was DATA_LAST.
-// Increment Address if:  In DATA_MORE and ack to PENDING, MORE, LAST, NODATA_TURN,
-//   or in DATA_MORE_TO_LAST and ack to IDLE
-// In cases where just Address is available, wait for Data before going to ADDR
-// In cases where Addr and Data are available, if data_more wait for data before
-//   leaving more_pending (as usual)
-
-// NOTE: WORKING: any way to keep AD bus from latching data when Target is using it?
-// NOTE: WORKING: this would allow the always latch term to not be critical.
+//
+// in state step: retry nodata if goes back to idle
+// in state more_pending:  Flush if Master Abort (stop_turn), retry data or flush if goes to stop_turn
+// in state data_more:     Flush if Master Abort (stop_turn), retry data or flush if goes to stop_turn
+// in state data_more:     retry nodata if taken as last, indicated by transfer to early_last_turn
+// in state data_last:     Flush if Master Abort (last_idle), retry data or flush if goes to last_idle
+// in state more_to_last:  retry data or flush if goes to last_idle because of termination
+// in state more_to_last:  retry nodata if goes to last_idle because of good transfer
+//
+// Taken another way,
+// if stop_turn or last_idle, and Master_Abort, flush
+// if stop_turn or last_idle, and not Master_Abort, and Target Abort, flush
+// if stop_turn or last_idle, and not Master_Abort, and not Target Abort,
+//   and no data transfered, retry data
+// if early_last, retry without data
+// if last_idle and data transfered, retry without data
 
 // Keep track of the stored Address and Data validity
-// NOTE: These signals are delayed from when the data goes onto the bus
-// NOTE: WORKING: These signals must go away when the data is comsumed, to not mess up the rest of the packet. 
   reg     Need_To_Retry_Address_But_No_Data, Need_To_Retry_Address_Plus_Data;
+  reg     Delayed_Need_To_Retry_Address_But_No_Data;
+  reg     Delayed_Need_To_Retry_Address_Plus_Data;
   reg     Need_To_Flush_FIFO, Need_To_Inc_Stored_Address;
-  reg     Need_To_Delay_Next_Req;
+  reg     In_Middle_Of_Reference;
+  reg     Prev_Master_Abort;
 
   always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
   begin
     if (pci_reset_comb == 1'b1)
     begin
+      Prev_Master_Abort <= 1'b0;
+      In_Middle_Of_Reference <= 1'b0;
       Need_To_Retry_Address_But_No_Data <= 1'b0;
       Need_To_Retry_Address_Plus_Data <= 1'b0;
       Need_To_Flush_FIFO <= 1'b0;
       Need_To_Inc_Stored_Address <= 1'b0;
-      Need_To_Delay_Next_Req <= 1'b0;
+      Delayed_Need_To_Retry_Address_But_No_Data <= 1'b0;
+      Delayed_Need_To_Retry_Address_Plus_Data <= 1'b0;
     end
     else if (pci_reset_comb == 1'b0)
     begin
-      Need_To_Retry_Address_But_No_Data <=
-                      (   (PCI_Master_Prev_State[MS_Range:0] == PCI_MASTER_STEP)
-                        & (PCI_Master_State[MS_Range:0] == PCI_MASTER_IDLE) )
-                    | (   (PCI_Master_Prev_State[MS_Range:0] == PCI_MASTER_DATA_MORE_TO_LAST)
-                        & (PCI_Master_State[MS_Range:0] == PCI_MASTER_IDLE) )
-                    | (   (Need_To_Retry_Address_But_No_Data == 1'b1)
-                        & (Master_In_No_IRDY_State == 1'b0) );  // NOTE: WORKING
+      Prev_Master_Abort <= Master_Abort_Detected;
 
-      Need_To_Retry_Address_Plus_Data <=
-                      (   (PCI_Master_Prev_State[MS_Range:0] == PCI_MASTER_STOP_TURN)
-                        & (pci_trdy_in_prev == 1'b1) )
+      In_Middle_Of_Reference <= (Master_Sending_First_Data == 1'b1)
+                              | (Master_Trying_To_Transfer_Data == 1'b1);
+
+      Need_To_Flush_FIFO <=  // if master or target abort
+                      (   (Master_In_Stop_Turn_Last_Idle_State == 1'b1)
+                        & (   (Prev_Master_Abort == 1'b1)  // master abort
+                            | (   (pci_devsel_in_prev == 1'b0)
+                                & (pci_trdy_in_prev == 1'b0)
+                                & (pci_stop_in_prev == 1'b1) )  // target abort
+                          )
+                      )
+                    | (   (Need_To_Flush_FIFO == 1'b1)
+                        & (Finished_With_FIFO_Flush == 1'b0) );
+
+      Need_To_Retry_Address_Plus_Data <=  // data not accepted, but more data available
+                      (   (Master_In_Stop_Turn_Last_Idle_State == 1'b1)
+                        & (Prev_Master_Abort == 1'b0)
+                        & (   (pci_devsel_in_prev == 1'b1)
+                            & (pci_trdy_in_prev == 1'b0)
+                            & (pci_stop_in_prev == 1'b1) )  // no transfer and stop
+                      )
                     | (   (Need_To_Retry_Address_Plus_Data == 1'b1)
-                        & (Master_In_No_IRDY_State == 1'b0) );  // NOTE: WORKING
+                        & (Master_In_No_IRDY_State == 1'b0) );  // till granted again
 
-      Need_To_Flush_FIFO <=
-                      (   (PCI_Master_Prev_State[MS_Range:0] == PCI_MASTER_STOP_TURN)
-                        & (pci_trdy_in_prev == 1'b0) )
-                    | (1'b0);  // NOTE: WORKING
+      Need_To_Retry_Address_But_No_Data <=  // data accepted, but more data available
+                      (   (Master_In_Stop_Turn_Last_Idle_State == 1'b1)
+                        & (Prev_Master_Abort == 1'b0)
+                        & (   (pci_devsel_in_prev == 1'b1)
+                            & (pci_trdy_in_prev == 1'b1) )  // transfer with or without stop
+                      )
+                    | (Master_In_Early_Last_Turn_State == 1'b1)
+                    | (   (Need_To_Retry_Address_But_No_Data == 1'b1)
+                        & (Master_In_No_IRDY_State == 1'b0) );  // till granted again
 
-// NOTE: WORKING: need to look at DEVSEL here, to detect Aborts vs. Retries.
+      Need_To_Inc_Stored_Address <=  // what happened when exiting transfer state
+                      (   (PCI_Master_Prev_State[MS_Range:0] ==
+                                                 PCI_MASTER_DATA_MORE)
+                        | (PCI_Master_Prev_State[MS_Range:0] ==
+                                                 PCI_MASTER_DATA_LAST)
+                        | (PCI_Master_Prev_State[MS_Range:0] ==
+                                                 PCI_MASTER_DATA_MORE_AS_LAST) )
+                    & (pci_trdy_in_prev == 1'b1);
 
-// NOTE: WORKING: Need to flush data from FIFO.  The data might have come in and
-//  been placed onto the bus (and sent to the Target).  Or the data might get there
-//  late and not be available until after the Master Abort happens.
-// In either case, need to flush until a Data Last is seen exiting the FIFO.
-      Need_To_Inc_Stored_Address <=
-                      (   (PCI_Master_Prev_State[MS_Range:0] == PCI_MASTER_DATA_MORE)
-                        & (PCI_Master_State[MS_Range:0] == PCI_MASTER_MORE_PENDING) )
-                    | (   (PCI_Master_Prev_State[MS_Range:0] == PCI_MASTER_DATA_MORE)
-                        & (PCI_Master_State[MS_Range:0] == PCI_MASTER_DATA_MORE) )
-                    | (   (PCI_Master_Prev_State[MS_Range:0] == PCI_MASTER_DATA_MORE)
-                        & (PCI_Master_State[MS_Range:0] == PCI_MASTER_DATA_LAST) )
-                    | (   (PCI_Master_Prev_State[MS_Range:0] == PCI_MASTER_DATA_MORE)
-                        & (PCI_Master_State[MS_Range:0] == PCI_MASTER_NODATA_TURN) )
-                    | (   (PCI_Master_Prev_State[MS_Range:0] == PCI_MASTER_DATA_MORE_TO_LAST)
-                        & (PCI_Master_State[MS_Range:0] == PCI_MASTER_IDLE) );  // NOTE: WORKING
-      Need_To_Delay_Next_Req = 1'b0;  // NOTE: WORKING: Need to include case of Step and no ACK
+      Delayed_Need_To_Retry_Address_But_No_Data <= Need_To_Retry_Address_But_No_Data;
+      Delayed_Need_To_Retry_Address_Plus_Data <= Need_To_Retry_Address_Plus_Data;
     end
     else
     begin
+      Prev_Master_Abort <= 1'bX;
+      In_Middle_Of_Reference <= 1'bX;
       Need_To_Retry_Address_But_No_Data <= 1'bX;
       Need_To_Retry_Address_Plus_Data <= 1'bX;
       Need_To_Flush_FIFO <= 1'bX;
       Need_To_Inc_Stored_Address <= 1'bX;
-      Need_To_Delay_Next_Req <= 1'bX;
+      Delayed_Need_To_Retry_Address_But_No_Data <= 1'bX;
+      Delayed_Need_To_Retry_Address_Plus_Data <= 1'bX;
     end
   end
 
-// Want to DELAY after an request after an abort or disconnect.  This will let
-//   other people use the bus, and will let all my pipelines settle!
 // Tell the Fifo Entry Classifier how to act upon the FIFO contents;
   assign  proceed_with_new_address_plus_new_data =
-                 ~Need_To_Delay_Next_Req
+                 ~In_Middle_Of_Reference
                & ~Need_To_Retry_Address_But_No_Data
                & ~Need_To_Retry_Address_Plus_Data
                & ~Need_To_Flush_FIFO;
   assign  proceed_with_stored_address_plus_new_data =
-                 ~Need_To_Delay_Next_Req
-               &  Need_To_Retry_Address_But_No_Data;
+                 ~In_Middle_Of_Reference
+               &  Need_To_Retry_Address_But_No_Data
+               &  Delayed_Need_To_Retry_Address_But_No_Data
+               & ~Need_To_Flush_FIFO;
   assign  proceed_with_stored_address_plus_stored_data =
-                 ~Need_To_Delay_Next_Req
-               &  Need_To_Retry_Address_Plus_Data;
+                 ~In_Middle_Of_Reference
+               &  Need_To_Retry_Address_Plus_Data
+               &  Delayed_Need_To_Retry_Address_Plus_Data
+               & ~Need_To_Flush_FIFO;
+  assign  proceed_with_new_data = In_Middle_Of_Reference;  // stop bypassing data
   assign  inc_stored_address = Need_To_Inc_Stored_Address;
+
+
+wire working = pci_stop_in_prev;  // ***
+
+  assign  Finished_With_FIFO_Flush = 1'b0;  // NOTE: WORKING: Make FLUSH state machine
+
+
+// NOTE: TOADS: first, need to make retries and flushes to work, plus re-steps.
+// NOTE: TOADS: second, need to work on WORKING: assigns
+// NOTE: TOADS: third, need to rewrite state machine into 4 based on TRDY, STOP, plus 2 based on Bus Available
+
+// NOTE: WORKING: any way to keep AD bus from latching data when Target is using it?
+// NOTE: WORKING: this would allow the always latch term to not be critical.
 
 // Calculate several control signals used to direct data and control
 // These signals depend on the present state of the PCI Master State
@@ -1584,9 +1654,14 @@ endfunction
                   (   (Request_FIFO_CONTAINS_ADDRESS == 1'b1)  // Address
                     & (external_pci_bus_available_critical == 1'b1)  // Have bus  // NOTE: WORKING: REMOVE!
                     & (   (Master_In_Idle_State == 1'b1)
-                        | (Master_In_Park_State == 1'b1)) )
-                | (Master_In_Addr_State == 1'b1)  // First Data
-//              | 1'b0;  // NOTE: WORKING  Need Fast Back-to-Back Address term
+                        | (Master_In_Park_State == 1'b1) )
+                    & (proceed_with_new_address_plus_new_data == 1'b1)
+                  )
+                | (   (Master_In_Addr_State == 1'b1)  // First Data
+                    & (   (proceed_with_new_address_plus_new_data == 1'b1)
+                        | (proceed_with_stored_address_plus_new_data == 1'b1) )
+                  )
+//              | 1'b0;  // NOTE: WORKING:  Need Fast Back-to-Back Address term
                 | Master_Discards_Request_FIFO_Entry_After_Abort;
 
 // This signal controls the actual PCI IO Pads, and results in data the next clock.
@@ -1595,18 +1670,16 @@ endfunction
                     & (   (Master_In_Idle_State == 1'b1)
                         | (Master_In_Park_State == 1'b1)))
                 | (Master_In_Addr_State == 1'b1);  // First Data
-//              | 1'b0;  // NOTE: WORKING  Need Fast Back-to-Back Address term
+//              | 1'b0;  // NOTE: WORKING:  Need Fast Back-to-Back Address term
 
 // This signal controls the unloading of the Request FIFO in this module.
-  assign  Master_Consumes_Request_FIFO_If_TRDY =
-                  Master_Transferring_Data_If_TRDY
-                | 1'b0;  // NOTE: WORKING  Might put fast back-to-back term here!
+  assign  Master_Consumes_Request_FIFO_If_TRDY = Master_In_Data_More_State;
 
 // This signal controls the actual PCI IO Pads, and results in data the next clock.
-  assign  Master_Exposes_Data_On_TRDY = Master_Consumes_Request_FIFO_If_TRDY;  // drive outputs  // NOTE: WORKING  Only on READS!
+  assign  Master_Exposes_Data_On_TRDY = Master_Consumes_Request_FIFO_If_TRDY;  // drive outputs  // NOTE: WORKING:  Only on READS!
 
 // This signal tells the Target to grab data from the PCI bus this clock.
-  assign  Master_Captures_Data_On_TRDY = Master_Consumes_Request_FIFO_If_TRDY;  // drive outputs  // NOTE: WORKING  Only on READS!
+  assign  Master_Captures_Data_On_TRDY = Master_Consumes_Request_FIFO_If_TRDY;  // drive outputs  // NOTE: WORKING:  Only on READS!
 
 // Start the Master Abort counter looking for DEVSEL whenever an Address is sent out.
   assign  Master_Clear_Master_Abort_Counter =
@@ -1614,11 +1687,11 @@ endfunction
                       | (Master_In_Addr_State == 1'b1);
 
 // Start the Data Latency Counter whenever Address or IRDY & TRDY
-  reg     Master_Transferring_Data_If_TRDY_prev;
+  reg     Master_Transfering_Data_If_TRDY_prev;
 
   always @(posedge pci_clk)
   begin
-    Master_Transferring_Data_If_TRDY_prev <= Master_Transferring_Data_If_TRDY;
+    Master_Transfering_Data_If_TRDY_prev <= Master_Transfering_Data_If_TRDY;
   end
 
 // Data Latency Timer counts whenever Master waiting for more Master Data.
@@ -1636,26 +1709,26 @@ endfunction
 // This signal muxes the Stored Data onto the PCI bus during retries.
   wire    Master_Select_Stored_Data =
                         proceed_with_stored_address_plus_stored_data
-                      & (PCI_Master_State[MS_Range:0] == PCI_MASTER_ADDR);
+                      & (Master_Sending_First_Data == 1'b1);
 
-  assign  Master_Mark_Status_Entry_Flushed = 1'b0;  // NOTE: WORKING
-  assign  Master_Discards_Request_FIFO_Entry_After_Abort = 1'b0;  // NOTE: WORKING
-  assign  Master_Got_Retry = 1'b0;  // NOTE: WORKING
+  assign  Master_Mark_Status_Entry_Flushed = 1'b0;  // NOTE: WORKING:
+  assign  Master_Discards_Request_FIFO_Entry_After_Abort = 1'b0;  // NOTE: WORKING:
+  assign  Master_Got_Retry = 1'b0;  // NOTE: WORKING:
 
 // NOTE: WORKING: this plays in to the idea that fast back-to-back does NOT
 //   need to look at the FRAME and IRDY.  IT just lunges ahead, until it
 //   sees the Bus Latency Timer time out.  Fast Back-to-Back therefore depends
 //   on whether the timeout happens.
-  assign  Fast_Back_to_Back_Possible = 1'b0;  // NOTE: WORKING
-  assign  Master_Forced_Off_Bus_By_Target_Abort = 1'b0;  // NOTE: WORKING
-  assign  Master_Forces_PERR = 1'b0;  // NOTE: WORKING
+  assign  Fast_Back_to_Back_Possible = 1'b0;  // NOTE: WORKING:
+  assign  Master_Forced_Off_Bus_By_Target_Abort = 1'b0;  // NOTE: WORKING:
+  assign  Master_Forces_PERR = 1'b0;  // NOTE: WORKING:
 
-  assign  master_got_parity_error = 1'b0;  // NOTE: WORKING
-  assign  master_caused_serr = 1'b0;  // NOTE: WORKING
-  assign  master_caused_master_abort = 1'b0;  // NOTE: WORKING
-  assign  master_got_target_abort = 1'b0;  // NOTE: WORKING
-  assign  master_caused_parity_error = 1'b0;  // NOTE: WORKING
-  assign  master_asked_to_retry = 1'b0;  // NOTE: WORKING
+  assign  master_got_parity_error = 1'b0;  // NOTE: WORKING:
+  assign  master_caused_serr = 1'b0;  // NOTE: WORKING:
+  assign  master_caused_master_abort = 1'b0;  // NOTE: WORKING:
+  assign  master_got_target_abort = 1'b0;  // NOTE: WORKING:
+  assign  master_caused_parity_error = 1'b0;  // NOTE: WORKING:
+  assign  master_asked_to_retry = 1'b0;  // NOTE: WORKING:
 
 // Whenever the Master is told to get off the bus due to a Target Termination,
 // it must remove it's Request for one clock when the bus goes idle and
@@ -1663,7 +1736,7 @@ endfunction
 // See the PCI Local Bus Spec Revision 2.2 section 3.4.1 for details.
 // Request whenever enabled, and an Address is available in the Master FIFO
 // or a retried address is available.
-  assign  pci_req_out_next = Request_FIFO_CONTAINS_ADDRESS
+  assign  pci_req_out_next = (Request_FIFO_CONTAINS_ADDRESS  == 1'b1)
                            & (Master_In_Idle_Park_Step_State == 1'b1);
 
 // PCI Request is tri-stated when Reset is asserted.
@@ -1691,10 +1764,10 @@ endfunction
   assign  pci_cbe_out_oe_comb = PCI_Master_State[4];
 
   assign  pci_frame_out_next = PCI_Master_Next_State[3];
-  assign  pci_frame_out_oe_comb = PCI_Master_State[3] | PCI_Master_Prev_State[3];
+  assign  pci_frame_out_oe_comb = PCI_Master_State[3] | PCI_Master_Prev_State[3];  // NOTE: GLITCH?
 
   assign  pci_irdy_out_next = PCI_Master_Next_State[2];
-  assign  pci_irdy_out_oe_comb = PCI_Master_State[2] | PCI_Master_Prev_State[2];
+  assign  pci_irdy_out_oe_comb = PCI_Master_State[2] | PCI_Master_Prev_State[2];  // NOTE: GLITCH?
 
 // synopsys translate_off
 // Check that the Request FIFO is getting entries in the allowed order
@@ -1790,331 +1863,334 @@ endfunction
 // synopsys translate_off
 `ifdef VERBOSE_MASTER_DEVICE
 // Look inside the master module and try to call out transition names.
-  reg     prev_master_abort, prev_fifo_contains_address, prev_fifo_contains_data_more;
+  reg     prev_fifo_contains_address;
+  reg     prev_fifo_contains_data_more, prev_fifo_contains_data_two_more;
   reg     prev_fifo_contains_data_last, prev_timeout_forces_disconnect;
   reg     prev_back_to_back_possible, prev_doing_config_reference;
   reg     prev_bus_available, prev_config_reference;
   always @(posedge pci_clk)
   begin
     prev_bus_available <= external_pci_bus_available_critical;
-    prev_master_abort <= Master_Abort_Detected;
     prev_fifo_contains_address <= Request_FIFO_CONTAINS_ADDRESS;
     prev_config_reference <= Master_Doing_Config_Reference;
     prev_fifo_contains_data_more <= Request_FIFO_CONTAINS_DATA_MORE;
+    prev_fifo_contains_data_two_more <= Request_FIFO_CONTAINS_DATA_TWO_MORE;
     prev_fifo_contains_data_last <= Request_FIFO_CONTAINS_DATA_LAST;
-    prev_timeout_forces_disconnect <= Master_Data_Latency_Disconnect;
+    prev_timeout_forces_disconnect <= Master_Data_Latency_Disconnect
+                                    | Master_Bus_Latency_Disconnect;
     prev_back_to_back_possible <= Fast_Back_to_Back_Possible;
     prev_doing_config_reference <= Master_Doing_Config_Reference;
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_IDLE)
          & (prev_bus_available == 1'b1)
          & (prev_fifo_contains_address == 1'b0) )
-      $display ("transition 1 seen");
+      $display ("transition 1 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_IDLE)
          & (prev_bus_available == 1'b1)
          & (prev_fifo_contains_address == 1'b1)
          & (prev_config_reference == 1'b1) )
-      $display ("transition 2 seen");
+      $display ("transition 2 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_IDLE)
          & (prev_bus_available == 1'b1)
          & (prev_fifo_contains_address == 1'b1)
          & (prev_config_reference == 1'b0) )
-      $display ("transition 3 seen");
+      $display ("transition 3 seen at %t", $time);
 //    if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_IDLE)
 //         & (PCI_Master_State[4:0] == PCI_MASTER_IDLE) )
 //      $display ("transition 4 seen");
 
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_PARK)
+         & (prev_bus_available == 1'b1)
          & (prev_fifo_contains_address == 1'b0) )
-      $display ("transition 5 seen");
+      $display ("transition 5 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_PARK)
          & (prev_bus_available == 1'b1)
          & (prev_fifo_contains_address == 1'b1)
          & (prev_config_reference == 1'b1) )
-      $display ("transition 6 seen");
+      $display ("transition 6 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_PARK)
          & (prev_bus_available == 1'b1)
          & (prev_fifo_contains_address == 1'b1)
          & (prev_config_reference == 1'b0) )
-      $display ("transition 7 seen");
+      $display ("transition 7 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_PARK)
-         & (PCI_Master_State[4:0] == PCI_MASTER_IDLE) )
-      $display ("transition 8 seen");
+         & (prev_bus_available == 1'b0) )
+      $display ("transition 8 seen at %t", $time);
 
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_STEP)
-         & (PCI_Master_State[4:0] == PCI_MASTER_ADDR) )
-      $display ("transition 9 seen");
+         & (prev_bus_available == 1'b1) )
+      $display ("transition 9 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_STEP)
-         & (PCI_Master_State[4:0] == PCI_MASTER_IDLE) )
-      $display ("transition 10 seen");
+         & (prev_bus_available == 1'b0) )
+      $display ("transition 10 seen at %t", $time);
 
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_ADDR)
-         & (PCI_Master_State[4:0] == PCI_MASTER_LAST_PENDING) )
-      $display ("transition 11 seen");
+         & (prev_fifo_contains_data_last == 1'b1) )
+      $display ("transition 11 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_ADDR)
-         & (PCI_Master_State[4:0] == PCI_MASTER_MORE_PENDING) )
-      $display ("transition 12 seen");
+         & (prev_fifo_contains_data_last == 1'b0) )
+      $display ("transition 12 seen at %t", $time);
 
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_MORE_PENDING)
-         & (prev_master_abort == 1'b1) )
-      $display ("transition 15 seen");
+         & (Prev_Master_Abort == 1'b1) )
+      $display ("transition 15 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_MORE_PENDING)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
+         & (prev_timeout_forces_disconnect == 1'b0)
          & (prev_fifo_contains_data_more == 1'b0)
          & (prev_fifo_contains_data_last == 1'b0)
-         & (prev_timeout_forces_disconnect == 1'b0)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b00) )
-      $display ("transition 16 seen");
+      $display ("transition 16 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_MORE_PENDING)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
+         & (prev_timeout_forces_disconnect == 1'b0)
          & (prev_fifo_contains_data_more == 1'b0)
          & (prev_fifo_contains_data_last == 1'b0)
-         & (prev_timeout_forces_disconnect == 1'b0)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b01) )
-      $display ("transition 17 seen");
+      $display ("transition 17 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_MORE_PENDING)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
+         & (prev_timeout_forces_disconnect == 1'b0)
          & (prev_fifo_contains_data_more == 1'b0)
          & (prev_fifo_contains_data_last == 1'b0)
-         & (prev_timeout_forces_disconnect == 1'b0)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b10) )
-      $display ("transition 18 seen");
+      $display ("transition 18 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_MORE_PENDING)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
+         & (prev_timeout_forces_disconnect == 1'b0)
          & (prev_fifo_contains_data_more == 1'b0)
          & (prev_fifo_contains_data_last == 1'b0)
-         & (prev_timeout_forces_disconnect == 1'b0)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b11) )
-      $display ("transition 19 seen");
+      $display ("transition 19 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_MORE_PENDING)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_timeout_forces_disconnect == 1'b1)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b00) )
-      $display ("transition 20 seen");
+      $display ("transition 20 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_MORE_PENDING)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_timeout_forces_disconnect == 1'b1)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b01) )
-      $display ("transition 21 seen");
+      $display ("transition 21 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_MORE_PENDING)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_timeout_forces_disconnect == 1'b1)
-         & (prev_master_abort == 1'b0)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b10) )
-      $display ("transition 22 seen");
+      $display ("transition 22 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_MORE_PENDING)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_timeout_forces_disconnect == 1'b1)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b11) )
-      $display ("transition 23 seen");
+      $display ("transition 23 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_MORE_PENDING)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_timeout_forces_disconnect == 1'b0)
          & (   (prev_fifo_contains_data_more == 1'b1)
              | (prev_fifo_contains_data_last == 1'b1) )
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b00) )
-      $display ("transition 24 seen");
+      $display ("transition 24 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_MORE_PENDING)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_timeout_forces_disconnect == 1'b0)
          & (   (prev_fifo_contains_data_more == 1'b1)
              | (prev_fifo_contains_data_last == 1'b1) )
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b01) )
-      $display ("transition 25 seen");
+      $display ("transition 25 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_MORE_PENDING)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_timeout_forces_disconnect == 1'b0)
          & (   (prev_fifo_contains_data_more == 1'b1)
              | (prev_fifo_contains_data_last == 1'b1) )
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b10) )
-      $display ("transition 26 seen");
+      $display ("transition 26 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_MORE_PENDING)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_timeout_forces_disconnect == 1'b0)
          & (   (prev_fifo_contains_data_more == 1'b1)
              | (prev_fifo_contains_data_last == 1'b1) )
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b11) )
-      $display ("transition 27 seen");
+      $display ("transition 27 seen at %t", $time);
 
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE)
-         & (prev_master_abort == 1'b1) )
-      $display ("transition 28 seen");
+         & (Prev_Master_Abort == 1'b1) )
+      $display ("transition 28 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE)
-         & (prev_master_abort == 1'b0)
-         & (prev_fifo_contains_data_more == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_fifo_contains_data_last == 1'b0)
          & (prev_timeout_forces_disconnect == 1'b0)
+         & (prev_fifo_contains_data_two_more == 1'b0)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b00) )
-      $display ("transition 29 seen");
+      $display ("transition 29 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE)
-         & (prev_master_abort == 1'b0)
-         & (prev_fifo_contains_data_more == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_fifo_contains_data_last == 1'b0)
          & (prev_timeout_forces_disconnect == 1'b0)
+         & (prev_fifo_contains_data_two_more == 1'b0)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b01) )
-      $display ("transition 30 seen");
+      $display ("transition 30 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE)
-         & (prev_master_abort == 1'b0)
-         & (prev_fifo_contains_data_more == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_fifo_contains_data_last == 1'b0)
          & (prev_timeout_forces_disconnect == 1'b0)
+         & (prev_fifo_contains_data_two_more == 1'b0)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b10) )
-      $display ("transition 31 seen");
+      $display ("transition 31 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE)
-         & (prev_master_abort == 1'b0)
-         & (prev_fifo_contains_data_more == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_fifo_contains_data_last == 1'b0)
          & (prev_timeout_forces_disconnect == 1'b0)
+         & (prev_fifo_contains_data_two_more == 1'b0)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b11) )
-      $display ("transition 32 seen");
+      $display ("transition 32 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_fifo_contains_data_last == 1'b1)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b00) )
-      $display ("transition 33 seen");
+      $display ("transition 33 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_fifo_contains_data_last == 1'b1)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b01) )
-      $display ("transition 34 seen");
+      $display ("transition 34 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_fifo_contains_data_last == 1'b1)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b10) )
-      $display ("transition 35 seen");
+      $display ("transition 35 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_fifo_contains_data_last == 1'b1)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b11) )
-      $display ("transition 36 seen");
+      $display ("transition 36 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_fifo_contains_data_last == 1'b0)
          & (prev_timeout_forces_disconnect == 1'b1)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b00) )
-      $display ("transition 37 seen");
+      $display ("transition 37 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_fifo_contains_data_last == 1'b0)
          & (prev_timeout_forces_disconnect == 1'b1)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b01) )
-      $display ("transition 38 seen");
+      $display ("transition 38 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_fifo_contains_data_last == 1'b0)
          & (prev_timeout_forces_disconnect == 1'b1)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b10) )
-      $display ("transition 39 seen");
+      $display ("transition 39 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_fifo_contains_data_last == 1'b0)
          & (prev_timeout_forces_disconnect == 1'b1)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b11) )
-      $display ("transition 40 seen");
+      $display ("transition 40 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE)
-         & (prev_master_abort == 1'b0)
-         & (prev_fifo_contains_data_more == 1'b1)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_fifo_contains_data_last == 1'b0)
          & (prev_timeout_forces_disconnect == 1'b0)
+         & (prev_fifo_contains_data_two_more == 1'b1)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b00) )
-      $display ("transition 41 seen");
+      $display ("transition 41 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE)
-         & (prev_master_abort == 1'b0)
-         & (prev_fifo_contains_data_more == 1'b1)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_fifo_contains_data_last == 1'b0)
          & (prev_timeout_forces_disconnect == 1'b0)
+         & (prev_fifo_contains_data_two_more == 1'b1)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b01) )
-      $display ("transition 42 seen");
+      $display ("transition 42 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE)
-         & (prev_master_abort == 1'b0)
-         & (prev_fifo_contains_data_more == 1'b1)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_fifo_contains_data_last == 1'b0)
          & (prev_timeout_forces_disconnect == 1'b0)
+         & (prev_fifo_contains_data_two_more == 1'b1)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b10) )
-      $display ("transition 43 seen");
+      $display ("transition 43 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE)
-         & (prev_master_abort == 1'b0)
-         & (prev_fifo_contains_data_more == 1'b1)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_fifo_contains_data_last == 1'b0)
          & (prev_timeout_forces_disconnect == 1'b0)
+         & (prev_fifo_contains_data_two_more == 1'b1)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b11) )
-      $display ("transition 44 seen");
+      $display ("transition 44 seen at %t", $time);
 
 
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_LAST)
-         & (prev_master_abort == 1'b1) )
-      $display ("transition 45 seen");
+         & (Prev_Master_Abort == 1'b1) )
+      $display ("transition 45 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_LAST)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (   (prev_fifo_contains_address == 1'b0)
              | (   (prev_fifo_contains_address == 1'b1)
                  & (prev_doing_config_reference == 1'b1) )
              | (prev_back_to_back_possible == 1'b0) )
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b00) )
-      $display ("transition 46 seen");
+      $display ("transition 46 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_LAST)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (   (prev_fifo_contains_address == 1'b0)
              | (   (prev_fifo_contains_address == 1'b1)
                  & (prev_doing_config_reference == 1'b1) )
              | (prev_back_to_back_possible == 1'b0) )
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b01) )
-      $display ("transition 47 seen");
+      $display ("transition 47 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_LAST)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (   (prev_fifo_contains_address == 1'b0)
              | (   (prev_fifo_contains_address == 1'b1)
                  & (prev_doing_config_reference == 1'b1) )
              | (prev_back_to_back_possible == 1'b0) )
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b10) )
-      $display ("transition 48 seen");
+      $display ("transition 48 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_LAST)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (   (prev_fifo_contains_address == 1'b0)
              | (   (prev_fifo_contains_address == 1'b1)
                  & (prev_doing_config_reference == 1'b1) )
              | (prev_back_to_back_possible == 1'b0) )
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b11) )
-      $display ("transition 49 seen");
+      $display ("transition 49 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_LAST)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_fifo_contains_address == 1'b1)
          & (prev_doing_config_reference == 1'b0)
          & (prev_back_to_back_possible == 1'b1)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b00) )
-      $display ("transition 50 seen");
+      $display ("transition 50 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_LAST)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_fifo_contains_address == 1'b1)
          & (prev_doing_config_reference == 1'b0)
          & (prev_back_to_back_possible == 1'b1)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b01) )
-      $display ("transition 51 seen");
+      $display ("transition 51 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_LAST)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_fifo_contains_address == 1'b1)
          & (prev_doing_config_reference == 1'b0)
          & (prev_back_to_back_possible == 1'b1)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b10) )
-      $display ("transition 52 seen");
+      $display ("transition 52 seen at %t", $time);
     if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_LAST)
-         & (prev_master_abort == 1'b0)
+         & (Prev_Master_Abort == 1'b0)
          & (prev_fifo_contains_address == 1'b1)
          & (prev_doing_config_reference == 1'b0)
          & (prev_back_to_back_possible == 1'b1)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b11) )
-      $display ("transition 53 seen");
+      $display ("transition 53 seen at %t", $time);
 
-    if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE_TO_LAST)
+    if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE_AS_LAST)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b00) )
-      $display ("transition 54 seen");
-    if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE_TO_LAST)
+      $display ("transition 54 seen at %t", $time);
+    if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE_AS_LAST)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b01) )
-      $display ("transition 55 seen");
-    if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE_TO_LAST)
+      $display ("transition 55 seen at %t", $time);
+    if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE_AS_LAST)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b10) )
-      $display ("transition 56 seen");
-    if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE_TO_LAST)
+      $display ("transition 56 seen at %t", $time);
+    if (   (PCI_Master_Prev_State[4:0] == PCI_MASTER_DATA_MORE_AS_LAST)
          & ({pci_trdy_in_prev, pci_stop_in_prev} == 2'b11) )
-      $display ("transition 57 seen");
+      $display ("transition 57 seen at %t", $time);
   end
 `endif  // VERBOSE_MASTER_DEVICE
 // synopsys translate_on
