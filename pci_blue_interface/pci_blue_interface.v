@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_interface.v,v 1.21 2001-08-05 06:35:42 bbeaver Exp $
+// $Id: pci_blue_interface.v,v 1.22 2001-08-12 04:30:51 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -288,6 +288,7 @@ pci_synchronizer_flop sync_reset_flop (
 
 // Synchronization of signal which says PCI Interface sees some sort of error
   wire    target_config_reg_signals_some_error;
+
 pci_synchronizer_flop sync_error_flop (
   .data_in                    (target_config_reg_signals_some_error),
   .clk_out                    (host_sync_clk),
@@ -999,6 +1000,8 @@ $display ("Got Last Read Data");  // NOTE WORKING
 // Data Bits [15:8] are the single-byte Read Data returned when writing the Config Register.
 // Data Bit  [16] indicates that a Config Write has been done.
 // Data Bit  [17] indicates that a Config Read has been done.
+// Data Bits [20:18] are used to select individual function register sets in the
+//   case that a multi-function PCI interface is created.
         `PCI_HOST_RESPONSE_R_DATA_W_SENT:
         `PCI_HOST_RESPONSE_R_DATA_W_SENT_LAST:
         `PCI_HOST_RESPONSE_R_DATA_W_SENT_PERR:
@@ -1108,6 +1111,51 @@ $display ("Got Last Read Data");  // NOTE WORKING
     end
     `NO_ELSE;
   end
+
+// Detect whether an SERR is signaled.  This does not correspond to any bits in
+//   the CONFIG register space. However, a System Controller needs to see this.
+//
+// SERR is an odd signal.  It is valid for ONLY the first clock it is
+//   seen to be asserted LOW.  So look for negative transitions.
+// See the PCI Local Bus Spec Revision 2.2 section 3.7.4.2 for details.
+
+// Once SERR is debounced, it is safe to look at it in verilog.
+  wire    SERR_sync;
+
+pci_synchronizer_flop sync_SERR_flop (
+  .data_in                    (pci_serr_in_prev),
+  .clk_out                    (pci_sync_clk),
+  .sync_data_out              (SERR_sync),
+  .async_reset                (host_reset_to_PCI_interface)
+);
+
+  reg     SERR_prev, SERR_prev_prev;
+  reg     SERR_Detected;
+
+  always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
+  begin
+    if (pci_reset_comb == 1'b1)
+    begin
+      SERR_prev <= 1'b0;
+      SERR_prev_prev <= 1'b0;
+      SERR_Detected <= 1'b0;
+    end
+    else if (pci_reset_comb == 1'b0)
+    begin
+      SERR_prev <= SERR_sync;
+      SERR_prev_prev <= SERR_prev_prev;
+      SERR_Detected <=  (SERR_prev_prev_prev == 1'b0)
+                      & (SERR_prev_prev == 1'b0)
+                      & (SERR_sync == 1'b1);
+    end
+// synopsys translate_off
+      else
+      SERR_prev <= 1'bX;
+      SERR_prev_prev <= 1'bX;
+      SERR_Detected <= 1'bX;
+// synopsys translate_on
+  end
+
 
 // Wires connecting the Host FIFOs to the PCI Interface
   wire   [2:0] pci_request_fifo_type;
@@ -1323,6 +1371,7 @@ pci_blue_target pci_blue_target (
   wire    Master_Force_AD_to_Address_Data_Critical, Master_Exposes_Data_On_TRDY;
   wire    Master_Forces_PERR;
   wire    PERR_Detected_While_Master_Read;
+  wire    This_Chip_Driving_IRDY;
 // Signal to control Request pin if on-chip PCI devices share it
   wire    Master_Forced_Off_Bus_By_Target_Abort;
 
@@ -1358,6 +1407,7 @@ pci_blue_master pci_blue_master (
   .Master_Exposes_Data_On_TRDY (Master_Exposes_Data_On_TRDY),
   .Master_Forces_PERR         (Master_Forces_PERR),
   .PERR_Detected_While_Master_Read (PERR_Detected_While_Master_Read),
+  .This_Chip_Driving_IRDY     (This_Chip_Driving_IRDY),
 // Signal to control Request pin if on-chip PCI devices share it
   .Master_Forced_Off_Bus_By_Target_Abort (Master_Forced_Off_Bus_By_Target_Abort),
 // Host Interface Request FIFO used to ask the PCI Interface to initiate
@@ -1416,6 +1466,8 @@ pci_critical_data_latch_enable pci_critical_data_latch_enable (
   .pci_ad_out_en_next         (pci_ad_out_en_next)
 );
 
+// NOTE: WORKING: assign this here until bus sharing is operational
+  assign  This_Chip_Driving_IRDY = 1'b0;
 // At a slower pace decide whether to output enable the Data pads.
   assign  pci_ad_out_oe_comb =  pci_master_ad_out_oe_comb
                               | pci_target_ad_out_oe_comb;

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_master.v,v 1.18 2001-08-11 15:01:35 bbeaver Exp $
+// $Id: test_pci_master.v,v 1.19 2001-08-12 04:30:52 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -89,7 +89,7 @@ module pci_test_master (
   pci_devsel_in_comb, pci_devsel_in_prev,
   pci_trdy_in_critical, pci_trdy_in_prev,
   pci_stop_in_critical, pci_stop_in_prev,
-  pci_perr_in_prev, pci_serr_in_prev,
+  pci_perr_in_prev,
   pci_state,  // TEMPORARY
   pci_fifo_state,  // TEMPORARY
   pci_retry_type,
@@ -149,7 +149,7 @@ module pci_test_master (
   output  pci_devsel_in_comb, pci_devsel_in_prev;
   output  pci_trdy_in_critical, pci_trdy_in_prev;
   output  pci_stop_in_critical, pci_stop_in_prev;
-  output  pci_perr_in_prev, pci_serr_in_prev;
+  output  pci_perr_in_prev;
   output [4:0] pci_state;  // TEMPORARY
   output [1:0] pci_fifo_state;  // TEMPORARY
   output [2:0] pci_retry_type;  // TEMPORARY
@@ -220,7 +220,7 @@ module pci_test_master (
   reg     pci_devsel_in_prev, pci_devsel_in_comb;
   reg     pci_trdy_in_prev, pci_trdy_in_critical;
   reg     pci_stop_in_prev, pci_stop_in_critical;
-  reg     pci_perr_in_prev, pci_serr_in_prev;
+  reg     pci_perr_in_prev;
   wire    Master_Force_AD_to_Address_Data_Critical;
   wire    Master_Captures_Data_On_TRDY, Master_Exposes_Data_On_TRDY;
   wire    Master_Forces_PERR;
@@ -447,12 +447,6 @@ task pci_perr;
   end
 endtask
 
-task pci_serr;
-  begin
-    pci_serr_in_prev = 1'b1;
-  end
-endtask
-
 // delay signals like the Pads delay them
   always @(posedge pci_clk)
   begin
@@ -464,7 +458,6 @@ endtask
     pci_trdy_in_prev <= pci_trdy_in_critical;
     pci_stop_in_prev <= pci_stop_in_critical;
     pci_perr_in_prev <= pci_perr_in_comb;
-    pci_serr_in_prev <= pci_serr_in_comb;
   end
 
 // Remove signals which are set for 1 clock by tasks to create activity
@@ -487,7 +480,6 @@ endtask
     pci_stop_in_critical <= 1'b0;
     pci_stop_in_prev <= pci_stop_in_critical;
     pci_perr_in_prev <= 1'b0;
-    pci_serr_in_prev <= 1'b0;
   end
 
   always @(posedge pci_clk)
@@ -504,7 +496,6 @@ endtask
     pci_trdy_in_critical <= 1'b0;
     pci_stop_in_critical <= 1'b0;
     pci_perr_in_prev <= 1'b0;
-    pci_serr_in_prev <= 1'b0;
   end
 
   initial
@@ -2162,7 +2153,6 @@ pci_blue_master pci_blue_master (
   .pci_stop_in_prev           (pci_stop_in_prev),
   .pci_stop_in_critical       (pci_stop_in_critical),
   .pci_perr_in_prev           (pci_perr_in_prev),
-  .pci_serr_in_prev           (pci_serr_in_prev),
 // Signals to control shared AD bus, Parity, and SERR signals
   .Master_Force_AD_to_Address_Data_Critical (Master_Force_AD_to_Address_Data_Critical),
   .Master_Captures_Data_On_TRDY (Master_Captures_Data_On_TRDY),
