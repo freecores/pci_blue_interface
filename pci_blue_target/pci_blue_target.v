@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_target.v,v 1.22 2001-09-11 09:25:04 bbeaver Exp $
+// $Id: pci_blue_target.v,v 1.23 2001-09-12 05:10:56 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -821,18 +821,36 @@ module pci_blue_target (
 // See the PCI Local Bus Spec Revision 2.2 section 3.5.1.1 for details.
 // NOTE: It would be better to ALWAYS make every Memory read into a Delayed Read!
 
+  reg    [2:0] Target_Initial_Latency_Counter;
+  reg     Target_Initial_Latency_Disconnect;
+
+  always @(posedge pci_clk)
+  begin
+    if (pci_reset_comb == 1'b1)
+    begin
+      Target_Initial_Latency_Counter[2:0] <= 3'h0;
+      Target_Initial_Latency_Disconnect <= 1'b0;
+    end
+    else if (pci_reset_comb == 1'b0)
+    begin
+    end
+    else
+    begin  // NOTE: WORKING
+    end
+  end
+
 // Target Subsequent Latency Counter.  Must make progress within 8 Bus Clocks.
 // See the PCI Local Bus Spec Revision 2.2 section 3.5.1.2 for details.
 
   reg    [2:0] Target_Subsequent_Latency_Counter;
-  reg     Read_Subsequent_Latency_Disconnect;
+  reg     Target_Subsequent_Latency_Disconnect;
 
   always @(posedge pci_clk)
   begin
     if (pci_reset_comb == 1'b1)
     begin
       Target_Subsequent_Latency_Counter[2:0] <= 3'h0;
-      Read_Subsequent_Latency_Disconnect <= 1'b0;
+      Target_Subsequent_Latency_Disconnect <= 1'b0;
     end
     else if (pci_reset_comb == 1'b0)
     begin
@@ -1165,24 +1183,31 @@ module pci_blue_target (
 //   Delayed Read Data FIFO.
 
 // State Variables are closely related to PCI Control Signals:
-//  They are (in order) AD_OE, DEVSEL_L, TRDY_L, STOP_L, State_[1,0]
-  parameter PCI_TARGET_IDLE_000             = 6'b0_000_00;  // 00 Target in IDLE state
-  parameter PCI_TARGET_NOT_ME_000           = 6'b0_000_01;  // 01 Target in IDLE state
+//  They are (in order) AD_OE, DEVSEL_L, TRDY_L, STOP_L, State_[1,0], HEX state value
+  parameter PCI_TARGET_IDLE_000                   = 6'b0_000_00;  // 00 Idle
+  parameter PCI_TARGET_NOT_ME_000                 = 6'b0_000_01;  // 01 Not Me
 
-  parameter PCI_TARGET_DEVSEL_WAIT_100      = 6'b1_100_00;  // 30 Target Wait State
+  parameter PCI_TARGET_DEVSEL_READ_WAIT_100       = 6'b0_100_00;
+  parameter PCI_TARGET_DEVSEL_READ_DATA_110       = 6'b0_110_00;
+  parameter PCI_TARGET_DEVSEL_READ_DATA_STOP_111  = 6'b0_111_00;
+  parameter PCI_TARGET_DEVSEL_READ_STOP_101       = 6'b0_101_00;
 
-  parameter PCI_TARGET_DEVSEL_DATA_110      = 6'b1_110_00;  // 38 Target Transfers Data
+  parameter PCI_TARGET_READ_ABORT_FIRST_100       = 6'b0_100_01;
+  parameter PCI_TARGET_READ_ABORT_SECOND_001      = 6'b0_001_00;
 
-  parameter PCI_TARGET_DEVSEL_STOP_101      = 6'b1_101_00;  // 34 Master Transfers Data
+  parameter PCI_TARGET_DEVSEL_WRITE_WAIT_100      = 6'b1_100_00;
+  parameter PCI_TARGET_DEVSEL_WRITE_DATA_110      = 6'b1_110_00;
+  parameter PCI_TARGET_DEVSEL_WRITE_DATA_STOP_111 = 6'b1_111_00;
+  parameter PCI_TARGET_DEVSEL_WRITE_STOP_101      = 6'b1_101_00;
 
-  parameter PCI_TARGET_ABORT_FIRST_100      = 6'b1_100_01;  // 31 Target Starting ABORT
-  parameter PCI_TARGET_ABORT_SECOND_001     = 6'b1_001_00;  // 24 Target Starting ABORT
+  parameter PCI_TARGET_WRITE_ABORT_FIRST_100      = 6'b1_100_01;
+  parameter PCI_TARGET_WRITE_ABORT_SECOND_001     = 6'b1_001_00;
 
   parameter TS_Range = 5;
   parameter TS_X = {(TS_Range+1){1'bX}};
 
 // Classify the activity of the External Master.
-// These correspond to      {frame, irdy}
+// These correspond to      {frame, irdy}, HEX state value
   parameter MASTER_IDLE      = 2'b00;
   parameter MASTER_WAIT      = 2'b10;
   parameter MASTER_DATA_MORE = 2'b11;
@@ -1223,9 +1248,6 @@ function [TS_Range:0] Target_Next_State_MASTER_IDLE;
   input   Response_FIFO_has_Room;
   input   DELAYED_READ_FIFO_CONTAINS_DATA;
   input   Timeout_Forces_Disconnect;
-  input   frame_in;
-  input   irdy_in;
-  input   Back_to_Back_Possible;
 
   begin
     case (Target_Present_State[TS_Range:0])  // synopsys parallel_case
@@ -1250,9 +1272,6 @@ function [TS_Range:0] Target_Next_State_MASTER_WAIT;
   input   Response_FIFO_has_Room;
   input   DELAYED_READ_FIFO_CONTAINS_DATA;
   input   Timeout_Forces_Disconnect;
-  input   frame_in;
-  input   irdy_in;
-  input   Back_to_Back_Possible;
 
   begin
     case (Target_Present_State[TS_Range:0])  // synopsys parallel_case
@@ -1277,9 +1296,6 @@ function [TS_Range:0] Target_Next_State_MASTER_DATA_MORE;
   input   Response_FIFO_has_Room;
   input   DELAYED_READ_FIFO_CONTAINS_DATA;
   input   Timeout_Forces_Disconnect;
-  input   frame_in;
-  input   irdy_in;
-  input   Back_to_Back_Possible;
 
   begin
     case (Target_Present_State[TS_Range:0])  // synopsys parallel_case
@@ -1304,9 +1320,6 @@ function [TS_Range:0] Target_Next_State_MASTER_DATA_LAST;
   input   Response_FIFO_has_Room;
   input   DELAYED_READ_FIFO_CONTAINS_DATA;
   input   Timeout_Forces_Disconnect;
-  input   frame_in;
-  input   irdy_in;
-  input   Back_to_Back_Possible;
 
   begin
     case (Target_Present_State[TS_Range:0])  // synopsys parallel_case
@@ -1337,40 +1350,40 @@ endfunction
   wire   [TS_Range:0] PCI_Target_Next_State_MASTER_IDLE =
               Target_Next_State_MASTER_IDLE (
                 PCI_Target_State[TS_Range:0],
-                Response_FIFO_has_Room,
-                DELAYED_READ_FIFO_CONTAINS_DATA,
-                Timeout_Forces_Disconnect,
-                Back_to_Back_Possible
+                pci_response_fifo_room_available_meta,
+                pci_delayed_read_fifo_data_available_meta,
+                Target_Initial_Latency_Disconnect
+                    | Target_Subsequent_Latency_Disconnect
               );
 
 // Assign the result to a variable for later use.
   wire   [TS_Range:0] PCI_Target_Next_State_MASTER_WAIT =
               Target_Next_State_MASTER_WAIT (
                 PCI_Target_State[TS_Range:0],
-                Response_FIFO_has_Room,
-                DELAYED_READ_FIFO_CONTAINS_DATA,
-                Timeout_Forces_Disconnect,
-                Back_to_Back_Possible
+                pci_response_fifo_room_available_meta,
+                pci_delayed_read_fifo_data_available_meta,
+                Target_Initial_Latency_Disconnect
+                    | Target_Subsequent_Latency_Disconnect
               );
 
 // Assign the result to a variable for later use.
   wire   [TS_Range:0] PCI_Target_Next_State_MASTER_DATA_MORE =
               Target_Next_State_MASTER_DATA_MORE (
                 PCI_Target_State[TS_Range:0],
-                Response_FIFO_has_Room,
-                DELAYED_READ_FIFO_CONTAINS_DATA,
-                Timeout_Forces_Disconnect,
-                Back_to_Back_Possible
+                pci_response_fifo_room_available_meta,
+                pci_delayed_read_fifo_data_available_meta,
+                Target_Initial_Latency_Disconnect
+                    | Target_Subsequent_Latency_Disconnect
               );
 
 // Assign the result to a variable for later use.
   wire   [TS_Range:0] PCI_Target_Next_State_MASTER_DATA_LAST =
               Target_Next_State_MASTER_DATA_LAST (
                 PCI_Target_State[TS_Range:0],
-                Response_FIFO_has_Room,
-                DELAYED_READ_FIFO_CONTAINS_DATA,
-                Timeout_Forces_Disconnect,
-                Back_to_Back_Possible
+                pci_response_fifo_room_available_meta,
+                pci_delayed_read_fifo_data_available_meta,
+                Target_Initial_Latency_Disconnect
+                    | Target_Subsequent_Latency_Disconnect
               );
 
 // NOTE: WORKING: write using manually instantiated (?) fast MUX, then OR
@@ -1497,6 +1510,19 @@ pci_blue_config_regs pci_blue_config_regs (
 
 // Debugging and correctness checking stuff below.  NOT used in synthesized design.
 
+// They are (in order) AD_OE, DEVSEL_L, TRDY_L, STOP_L, State_[1,0]
+// PCI_TARGET_IDLE_000             = 6'b0_000_00;
+// PCI_TARGET_NOT_ME_000           = 6'b0_000_01;
+// 
+// PCI_TARGET_DEVSEL_WAIT_100      = 6'b1_100_00;
+// 
+// PCI_TARGET_DEVSEL_DATA_110      = 6'b1_110_00;
+// 
+// PCI_TARGET_DEVSEL_STOP_101      = 6'b1_101_00;
+// 
+// PCI_TARGET_ABORT_FIRST_100      = 6'b1_100_01;
+// PCI_TARGET_ABORT_SECOND_001     = 6'b1_001_00;
+
 function [TS_Range:0] Target_Next_State;
   input  [TS_Range:0] Target_Present_State;
   input   Response_FIFO_has_Room;
@@ -1504,7 +1530,6 @@ function [TS_Range:0] Target_Next_State;
   input   Timeout_Forces_Disconnect;
   input   frame_in;
   input   irdy_in;
-  input   Back_to_Back_Possible;
 
   begin
 // synopsys translate_off
@@ -1534,14 +1559,14 @@ function [TS_Range:0] Target_Next_State;
 endfunction
 
   assign  PCI_Target_Next_State_Full_Function[TS_Range:0] =
-              Target_Next_State_Full_Function (
+              Target_Next_State (
                 PCI_Target_State[TS_Range:0],
-                Response_FIFO_has_Room,
-                DELAYED_READ_FIFO_CONTAINS_DATA,
-                Timeout_Forces_Disconnect,
+                pci_response_fifo_room_available_meta,
+                pci_delayed_read_fifo_data_available_meta,
+                Target_Initial_Latency_Disconnect
+                    | Target_Subsequent_Latency_Disconnect,
                 pci_frame_in_critical,
-                pci_irdy_in_critical,
-                Back_to_Back_Possible
+                pci_irdy_in_critical
               );
 
   always @(posedge pci_clk)
