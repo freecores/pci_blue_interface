@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_fifos.v,v 1.12 2001-08-15 10:31:46 bbeaver Exp $
+// $Id: pci_blue_fifos.v,v 1.13 2001-08-19 04:03:20 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -290,7 +290,7 @@ pci_fifo_storage_Nx3 pci_fifo_storage_Nx3_38_36 (
   .read_data                  (read_data[38:36])
 );
 
-
+// synopsys translate_off
 `ifdef NORMAL_PCI_CHECKS
 `ifdef HOST_FIFO_DEPTH_3
   wire   [3:0] address_limit = 4'b0011;
@@ -337,6 +337,7 @@ pci_fifo_storage_Nx3 pci_fifo_storage_Nx3_38_36 (
     `NO_ELSE;
   end
 `endif  // NORMAL_PCI_CHECKS
+// synopsys translate_on
 endmodule
 
 // Verilog module used to implement the 40-bit-wide Host Response FIFO
@@ -384,56 +385,6 @@ module pci_fifo_storage_response (
   wire   [39:0] write_data_int;
   reg    [39:0] write_data_reg;
 
-// Note Make single FLOP which is used by FIFO Instantiator to know
-// whether the FIFO Write Port has room or not.
-// The Writer needs to only set this single Flop to indicate that
-// the FIFO is full.  This module will try to mark the FIFO Empty
-// whenever it can.  It can perform the actual FIFO load without
-// concern for whether more data is available from the instantiating module
-
-// FIFO Data Available Flag, which hopefully can operate with an
-// Unload signal which has a MAX of 3 nSec setup time to the read clock.
-  always @(posedge write_clk or posedge reset_flags_async)
-  begin
-    if (reset_flags_async == 1'b1)
-    begin
-      write_buffer_full_reg <= 1'b0;
-    end
-    else
-    begin
-      if (write_submit)  // NOTE write_submit is VERY LATE.  3 nSec before clock
-      begin
-        write_buffer_full_reg <=  // only say full if no more room available
-                      write_buffer_full_reg | ~write_room_available_meta_raw;
-      end
-      else  // ~write_submit
-      begin
-        write_buffer_full_reg <=  // say valid if any data available
-                      write_buffer_full_reg & ~write_room_available_meta_raw;
-      end
-    end
-  end
-
-// Indicate to Fifo Instantier that room is available on the Write Port.
-  assign  write_room_available_meta =
-                     write_room_available_meta_raw | ~write_buffer_full_reg;       
-
-// Move data from holding register to FIFO whenever there is room.
-  assign  write_submit_int = write_room_available_meta_raw
-                          & write_buffer_full_reg;
-
-// Capture new data to the holding register if it is certain that the
-// FIFO will consume the data in there now.
-  always @(posedge write_clk)
-  begin
-    write_data_reg[39:0] = write_submit_int
-                         ? write_data[39:0] : write_data_reg[39:0];
-  end
-
-// Pass buffered data to the FIFO.
-  assign  write_data_int[38:0] = write_buffer_full_reg
-                        ? write_data_reg[38:0] : write_data[38:0];
-
   wire    read_two_words_available_meta;  // unused
 
 pci_blue_fifo_flags pci_fifo_flags_response (
@@ -442,10 +393,10 @@ pci_blue_fifo_flags pci_fifo_flags_response (
   .write_data_before_flag_const       (write_data_before_flag_const),
   .write_clk                  (write_clk),
   .write_sync_clk             (write_sync_clk),
-  .write_submit               (write_submit_int),
+  .write_submit               (write_submit),
   .write_capture_data         (write_capture_data),
   .write_room_available_meta  (write_room_available_meta_raw),
-  .write_two_words_available_meta  (write_two_words_available_meta_raw),
+  .write_two_words_available_meta  (write_two_words_available_meta),
   .write_address              (write_address[3:0]),
   .write_error                (write_error),
   .read_flag_before_data_const        (read_flag_before_data_const),
@@ -464,7 +415,7 @@ pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_7_0 (
   .write_clk                  (write_clk),
   .write_capture_data         (write_capture_data),
   .write_address              (write_address[3:0]),
-  .write_data                 (write_data_int[7:0]),
+  .write_data                 (write_data[7:0]),
   .read_clk                   (read_clk),
   .read_enable                (read_enable),
   .read_address               (read_address[3:0]),
@@ -474,7 +425,7 @@ pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_15_8 (
   .write_clk                  (write_clk),
   .write_capture_data         (write_capture_data),
   .write_address              (write_address[3:0]),
-  .write_data                 (write_data_int[15:8]),
+  .write_data                 (write_data[15:8]),
   .read_clk                   (read_clk),
   .read_enable                (read_enable),
   .read_address               (read_address[3:0]),
@@ -484,7 +435,7 @@ pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_23_16 (
   .write_clk                  (write_clk),
   .write_capture_data         (write_capture_data),
   .write_address              (write_address[3:0]),
-  .write_data                 (write_data_int[23:16]),
+  .write_data                 (write_data[23:16]),
   .read_clk                   (read_clk),
   .read_enable                (read_enable),
   .read_address               (read_address[3:0]),
@@ -494,7 +445,7 @@ pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_31_24 (
   .write_clk                  (write_clk),
   .write_capture_data         (write_capture_data),
   .write_address              (write_address[3:0]),
-  .write_data                 (write_data_int[31:24]),
+  .write_data                 (write_data[31:24]),
   .read_clk                   (read_clk),
   .read_enable                (read_enable),
   .read_address               (read_address[3:0]),
@@ -504,12 +455,14 @@ pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_39_32 (
   .write_clk                  (write_clk),
   .write_capture_data         (write_capture_data),
   .write_address              (write_address[3:0]),
-  .write_data                 (write_data_int[39:32]),
+  .write_data                 (write_data[39:32]),
   .read_clk                   (read_clk),
   .read_enable                (read_enable),
   .read_address               (read_address[3:0]),
   .read_data                  (read_data[39:32])
 );
+
+// synopsys translate_off
 `ifdef NORMAL_PCI_CHECKS
 `ifdef HOST_FIFO_DEPTH_3
   wire   [3:0] address_limit = 4'b0011;
@@ -556,6 +509,7 @@ pci_fifo_storage_Nx8 pci_fifo_storage_Nx8_39_32 (
     `NO_ELSE;
   end
 `endif  // NORMAL_PCI_CHECKS
+// synopsys translate_on
 endmodule
 
 // Verilog module used to implement the 35-bit-wide Delayed_Read Data FIFO
@@ -672,6 +626,8 @@ pci_fifo_storage_Nx3 pci_fifo_storage_Nx3_34_32 (
   .read_address               (read_address[3:0]),
   .read_data                  (read_data[34:32])
 );
+
+// synopsys translate_off
 `ifdef NORMAL_PCI_CHECKS
 `ifdef HOST_FIFO_DEPTH_3
   wire   [3:0] address_limit = 4'b0011;
@@ -718,6 +674,7 @@ pci_fifo_storage_Nx3 pci_fifo_storage_Nx3_34_32 (
     `NO_ELSE;
   end
 `endif  // NORMAL_PCI_CHECKS
+// synopsys translate_on
 endmodule
 
 module pci_fifo_storage_Nx8 (

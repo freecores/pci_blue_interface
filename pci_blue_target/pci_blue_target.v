@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_target.v,v 1.20 2001-08-15 10:31:47 bbeaver Exp $
+// $Id: pci_blue_target.v,v 1.21 2001-08-19 04:03:21 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -263,8 +263,6 @@ module pci_blue_target (
   input   pci_clk;
   input   pci_reset_comb;
 
-
-
 // The PCI Blue Target gets data from the pci_delayed_read_fifo.
 // There are 2 main types of entries:
 // 1) Data sequences which are driven to the PCI bus (or discarded in the
@@ -394,16 +392,212 @@ module pci_blue_target (
                                 & ~target_delayed_read_full;
   assign  pci_delayed_read_fifo_data_unload = prefetching_delayed_read_fifo_data;  // drive outputs
 
+/*
+// NOTE: WORKING: This is a copy of what was in the FIFO.  It is also implemented above.
+
+// FIFO Data Available Flag, which hopefully can operate with an
+// Unload signal which has a MAX of 3 nSec setup time to the read clock.
+  always @(posedge pci_clk or posedge pci_reset_comb)
+  begin
+    if (pci_reset_comb == 1'b1)
+    begin
+      write_buffer_full_reg <= 1'b0;
+    end
+    else if (pci_reset_comb == 1'b0)
+    begin
+      if (write_submit)  // NOTE write_submit is VERY LATE.  3 nSec before clock
+      begin
+        write_buffer_full_reg <=  // only say full if no more room available
+                      write_buffer_full_reg | ~write_room_available_meta_raw;
+      end
+      else  // ~write_submit
+      begin
+        write_buffer_full_reg <=  // say valid if any data available
+                      write_buffer_full_reg & ~write_room_available_meta_raw;
+      end
+    end
+    else
+    begin
+      write_buffer_full_reg <= 1'bX;
+    end
+  end
+
+// Indicate to Fifo Instantier that room is available on the Write Port.
+  assign  write_room_available_meta =
+                     write_room_available_meta_raw | ~write_buffer_full_reg;       
+
+// Move data from holding register to FIFO whenever there is room.
+  assign  write_submit_int = write_room_available_meta_raw
+                          & write_buffer_full_reg;
+
+// Capture new data to the holding register if it is certain that the
+// FIFO will consume the data in there now.
+  always @(posedge write_clk)
+  begin
+    write_data_reg[39:0] = write_submit_int
+                         ? write_data[39:0] : write_data_reg[39:0];
+  end
+
+// Pass buffered data to the FIFO.
+  assign  write_data_int[38:0] = write_buffer_full_reg
+                        ? write_data_reg[38:0] : write_data[38:0];
+ */
+
 // Add an extra level of pipelining to the PCI Response FIFO.  The IO pads
 //   have flops in them, but the flops can't hold.  The extra level of flops
 //   on the way to the Response FIFO lets the target safely say that 2 words
-//   of storage are available.  This ultimately should make it easier to
-//   fill the FIFO without having a large load on IRDY.
+//   of storage are available.
+//
+// NOTE: IRDY and TRDY are already latched, so this set of flops does not help
+//   the loading on these critical signals.  All the fancy stuff seems to be on
+//   the read side.
+// NOTE: On incoming data, I decided to delay the insertion of the data into
+//   the FIFO until Parity is valid, one clock later.  The Parity Signal In
+//   is the actual combinational parity data, so it needs to be super-fast
+//   on the way to the Response FIFO.  It will be written into one of the
+//   flops, which I HOPE are implemented as enablable flops, not with an
+//   explicit external hold circuit.
+// NOTE: This makes ALL PCI READS done by the Master, and ALL PCI ACTIVITY
+//   initialized by an external master, take 1 clock longer than it needs to.
+//   It simplifies the Host Interface, however, and makes it more likely
+//   that the user will use the interface correctly.
 
-// NOTE: CONTROVERSIAL!  Can this be built without the extra delay?  What if
-//    I added a "Two Words of Room" signal to the FIFO?  DO THAT ANYWAY!
 
 
+
+
+// Watch Master Activity as indicated by the Master_To_Target_Status
+// Want to know when a Read or Fence are being done.
+// NOTE: This Status Info is actually available BEFORE OR AT THE SAME TIME
+//   as the data is presented to the PCI bus.
+  parameter WAITING_FOR_READ_OR_FENCE = 3'b000;
+  parameter DOING_FENCE     = 3'b001;
+  parameter DOING_READ      = 3'b010;
+  parameter ENDING_READ     = 3'b011;
+  parameter DOING_REGISTER  = 3'b101;
+  parameter DOING_WRITE     = 3'b110;
+  parameter ENDING_WRITE    = 3'b111;
+
+  reg   [2:0] Master_Able_To_Block_During_Delayed_Read;
+
+  always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
+  begin
+    if (pci_reset_comb == 1'b1)
+    begin
+      Master_Able_To_Block_During_Delayed_Read[2:0] <= WAITING_FOR_READ_OR_FENCE;
+    end
+    else if (pci_reset_comb == 1'b0)
+    begin
+      if (   (master_to_target_status_available == 1'b1)
+           & (master_to_target_status_type[2:0] ==
+                                   PCI_HOST_REQUEST_INSERT_WRITE_FENCE)
+           & (master_to_target_status_data[17:16] == 2'b00) )
+      begin
+        Master_Able_To_Block_During_Delayed_Read[2:0] <= DOING_FENCE;
+      end
+      else if (   (master_to_target_status_available == 1'b1)
+                & (master_to_target_status_type[2:0] ==
+                                   PCI_HOST_REQUEST_INSERT_WRITE_FENCE)
+                & (master_to_target_status_data[17:16] != 2'b00) )
+      begin
+        Master_Able_To_Block_During_Delayed_Read[2:0] <= DOING_REGISTER;
+      end
+      else if (   (master_to_target_status_available == 1'b1)
+                & (   (master_to_target_status_type[2:0] ==
+                                   PCI_HOST_REQUEST_ADDRESS_COMMAND)
+                    | (master_to_target_status_type[2:0] ==
+                                   PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR) )
+                & ((master_to_target_status_cbe[PCI_BUS_CBE_RANGE:0]
+                                     & PCI_COMMAND_ANY_WRITE_MASK)
+                                        == `PCI_BUS_CBE_ZERO) )
+      begin
+        Master_Able_To_Block_During_Delayed_Read[2:0] <= DOING_READ;
+      end
+      else if (   (master_to_target_status_available == 1'b0)
+                & (Master_Able_To_Block_During_Delayed_Read[1:0] == DOING_READ) )
+      begin
+        Master_Able_To_Block_During_Delayed_Read[2:0] <= DOING_READ;
+      end
+      else if (   (master_to_target_status_available == 1'b1)
+                & (Master_Able_To_Block_During_Delayed_Read[1:0] == DOING_READ)
+                & (   (master_to_target_status_type[2:0] ==
+                                   PCI_HOST_REQUEST_W_DATA_RW_MASK)
+                    | (master_to_target_status_type[2:0] ==
+                                   PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR)
+                    | (master_to_target_status_type[2:0] ==
+                                   PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST)
+                    | (master_to_target_status_type[2:0] ==
+                                   PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR) ) )
+      begin
+        Master_Able_To_Block_During_Delayed_Read[2:0] <= ENDING_READ;
+      end
+      else if (   (master_to_target_status_available == 1'b1)
+                & (   (master_to_target_status_type[2:0] ==
+                                   PCI_HOST_REQUEST_ADDRESS_COMMAND)
+                    | (master_to_target_status_type[2:0] ==
+                                   PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR) )
+                & ((master_to_target_status_cbe[PCI_BUS_CBE_RANGE:0]
+                                     & PCI_COMMAND_ANY_WRITE_MASK)
+                                        != `PCI_BUS_CBE_ZERO) )
+      begin
+        Master_Able_To_Block_During_Delayed_Read[2:0] <= DOING_WRITE;
+      end
+      else if (   (master_to_target_status_available == 1'b0)
+                & (Master_Able_To_Block_During_Delayed_Read[1:0] == DOING_WRITE) )
+      begin
+        Master_Able_To_Block_During_Delayed_Read[2:0] <= DOING_WRITE;
+      end
+      else if (   (master_to_target_status_available == 1'b1)
+                & (Master_Able_To_Block_During_Delayed_Read[1:0] == DOING_WRITE)
+                & (   (master_to_target_status_type[2:0] ==
+                                   PCI_HOST_REQUEST_W_DATA_RW_MASK)
+                    | (master_to_target_status_type[2:0] ==
+                                   PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR)
+                    | (master_to_target_status_type[2:0] ==
+                                   PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST)
+                    | (master_to_target_status_type[2:0] ==
+                                   PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR) ) )
+      begin
+        Master_Able_To_Block_During_Delayed_Read[2:0] <= ENDING_WRITE;
+      end
+      else  // between references
+      begin
+        Master_Able_To_Block_During_Delayed_Read[2:0] <= WAITING_FOR_READ_OR_FENCE;
+      end
+    end
+    else
+    begin
+      Master_Able_To_Block_During_Delayed_Read[2:0] <= 2'bX;
+    end
+  end
+
+// Pass Register Read/Write commands from the Status Register to the Response
+//   FIFO.  This can of course only happen if the Status Register is available.
+//   On reads, the data must be substituted for the data from the Host.
+// Pass Write data from the Status register to the Response FIFO unchanged.
+// Pass the Request FIFO Fence through to the Response FIFO, but ONLY when
+//   it is not held off because of a synchronization due to a delayed read.
+// Pass the Read Command and Read Data CBE info from the Status Register
+//   to the Response FIFO, but ONLY when it is not held off because of a
+//   synchronization due to a delayed read.
+// NOTE: The Response FIFO needs to get the Read Data, which is available in
+//   the IO pad Flops, and it must get the Read Data Parity Error indication.
+//   The Read Parity Error Indication is calculated based in the Latched
+//   Parity Info and the critical direct Parity IN.  The Parity Error Info
+//   must be calculated early enough that it can set up into the Response FIFO.
+// Last but not least, note that Read traffic means that the Read Byte Enables
+//   and Read Command must be unloaded early from the Status FIFO, to allow
+//   the next word to be ready to issue.  That means that the info might be
+//   unloaded before the Target returns data.  Carefully monitor the
+//   Latched (!) Frame and IRDY signals to see when to proceed.
+
+  wire    Holding_Off_Reads_And_Fences_Due_To_Delayed_Read;
+  wire    Holding_Off_Register_References_Due_To_PCI_Activity;
+
+
+
+
+// First get Fence, Register Read/Write, Master Write, Master Read.
 
 // Plan: Add an extra level of pipelining on the AD bus(?).  I think this MIGHT be
 //       necessary because sometimes the FIFO may be full, but data comes in.
@@ -435,7 +629,7 @@ module pci_blue_target (
 // Signals driven to control the external PCI interface
   wire   [PCI_BUS_DATA_RANGE:0] pci_config_write_data;
   wire   [PCI_BUS_DATA_RANGE:0] pci_config_read_data;
-  wire   [7:2] pci_config_address;
+  wire   [PCI_BUS_DATA_RANGE:0] pci_config_address;
   wire   [PCI_BUS_CBE_RANGE:0] pci_config_byte_enables;
   wire    pci_config_write_req;
 
@@ -443,10 +637,6 @@ module pci_blue_target (
   wire    target_memory_enable;
   wire    target_perr_enable, either_perr_enable;
   wire    target_serr_enable, either_serr_enable;
-  wire   [`PCI_BASE_ADDR0_MATCH_RANGE] base_register_0;
-`ifdef PCI_BASE_ADDR1_MATCH_ENABLE
-  wire   [`PCI_BASE_ADDR1_MATCH_RANGE] base_register_1;
-`endif  // PCI_BASE_ADDR1_MATCH_ENABLE
 
 // Signals from the Master or the Target to set bits in the Status Register
   wire    target_caused_abort;
@@ -632,21 +822,6 @@ module pci_blue_target (
   wire   Delayed_Read_FIFO_CONTAINS_DATA_MORE = 1'b0;
   wire   Delayed_Read_FIFO_CONTAINS_DATA_LAST = 1'b0;
 
-// Address Compare logic to discover whether a non-config reference is for
-// this PCI controller.
-// NOTE: The number of valid MSB bits in the Base Address Registers, and the
-//       number of Base Registers, is set in the file pci_blue_options.vh
-
-// NOTE: WORKING need to take into account type, special, config refs
-  wire    PCI_Base_Address_Hit =
-`ifdef PCI_BASE_ADDR1_MATCH_ENABLE
-                          (pci_ad_in_prev[`PCI_BASE_ADDR1_MATCH_RANGE]
-                                == base_register_1[`PCI_BASE_ADDR1_MATCH_RANGE])
-                        |
-`endif  // PCI_BASE_ADDR1_MATCH_ENABLE
-                          (pci_ad_in_prev[`PCI_BASE_ADDR0_MATCH_RANGE]
-                                == base_register_0[`PCI_BASE_ADDR0_MATCH_RANGE]);
-
 // Target Initial Latency Counter.  Must respond within 16 Bus Clocks.
 // See the PCI Local Bus Spec Revision 2.2 section 3.5.1.1 for details.
 // NOTE: It would be better to ALWAYS make every Memory read into a Delayed Read!
@@ -819,19 +994,63 @@ module pci_blue_target (
   wire    Delayed_Read_Write_Collision =
                 (pci_ad_in_prev[31:7] ==  Target_Delayed_Read_Address[31:7])
               | (pci_ad_in_prev[31:7] == (Target_Delayed_Read_Address[31:7]
-                                          + 25'h0000001) );
+                                                              + 25'h0000001) );
 
 // The Target State Machine as described in Appendix B.
 // No Lock State Machine is implemented.
+// At this time, this device only supports 32-bit addresses.
 // This design supports Medium Decode.  Fast Decode is not supported.
+//
+// At the beginning of a transfer, the Master asserts the Address and Command
+//   information for the command.  FRAME was deasserted HIGH the previous clock
+//   (IRDY was either value), and FRAME is asserted LOW this clock, while
+//   IRDY is always deasserted HIGH.
+// A very fast device might immediately assert DEVSEL using Fast Decode.
+// This device latches the Address Info, and only asserts DEVSEL the next
+//   clock.  This gives this state machine time to discover if the Address
+//   the external PCI Device is asserting has the correct parity.
+// NOTE: The Parity Path is a critical path for this design.
+// NOTE: If this device wanted to support 64-bit addresses on a 32-bit bus,
+//   it would have to delay the assertion of DEVSEL one extra clock to let
+//   the larity bit be sampled for the second address word.
+// NOTE: 64-bit addresses on a 64-bit bus are OK, because all data is
+//   available the first clock.
+// See the PCI Local Bus Spec Revision 2.2 section 3.9 for details.
+//
+// The Target might decide that the reference is not for us, either due to
+//   an address mismatch, a command mismatch, or an address parity error.
+// In all cases, no DEVSEL is created.
+// The Target might know that the address DOES match this device.  In all
+//   such cases, a DEVSEL is required.
+// The Target can be in any state.  It is required to service Write Bursts
+//   at all times.
+// The Target might be idle.  If it is called upon to start a Read, it will
+//   issue a RETRY and start a Delayed Read cycle.
+// If the Target is in Delayed Read mode, it will issue a Retry for any
+//   command which is not identical to the Read Command it is executing.
+// If the Target is in Delayed Read mode, and the initial Read is re-issued,
+//   and data is not available, the Target also issues a Delayed Read.
+// Once in a Read or Write Burst, the Target might issue a Disconnect
+//   without data if it is not able to service the Master request fast enough.
+// The Target will also start issuing lots of Target Disconnects when the
+//   address it is serving is close to the upper edge of the Base Address range.
+//
+// If the Target is serving a Delayed Read and the Master issues a Master
+//   Termination, the Target needs to flush unused data out of the Delayed
+//   Read FIFO.
+// If the Target is working on a Delayed Read, and it services Write requests
+//   at the same time, and a Write is so close to the present Read Address that
+//   stale data might be in the Delayed Read FIFO, the Target needs to flush
+//   the Delayed Read FIFO and ask for the data to be re-issued.
 //
 // Here is my interpretation of the Target State Machine:
 //
-// The Target is in one of 4 states when transferring data:
-// 1) Waiting,
-// 2) Transferring data with more to come,
-// 3) Transferring the last Data item.
-// 4) Stopping a transfer
+// The Target is in one of 5 states when transferring data:
+// 1) Waiting for an address,
+// 2) Waiting for data,
+// 3) Transferring data with more to come,
+// 4) Transferring the last Data item.
+// 5) Stopping a transfer
 //
 // The Target State Machine puts write data into the Response FIFO,
 // but receives data in response to reads from the Delayed Read Data FIFO.
@@ -845,6 +1064,9 @@ module pci_blue_target (
 // The Master can say that it wants a Wait State, that it wants
 // to transfer Data, or that it wants to transfer the Last Data.
 //
+
+
+// NOTE: WORKING: get rid of this comment
 // The State Sequence is as follows:
 //                   FRAME   IRDY        DEVSEL   TRDY   STOP
 //    TARGET_IDLE,        FIFO Don't care  0       0      0
@@ -939,64 +1161,13 @@ module pci_blue_target (
 // NOTE: that in all cases, the DEVSEL, TRDY, and STOP signals are calculated
 //   based on the FRAME and IRDY signals, which are very late and very
 //   timing critical.
+//
 // The functions will be implemented as a 4-1 MUX using FRAME and IRDY
 //   as the selection variables.
+//
 // The inputs to the DEVSEL, TRDY, and STOP MUX's will be decided based
 //   on the state the Target is in, and also on the contents of the
 //   Delayed Read Data FIFO.
-// NOTE WORKING THIS NEXT MAY BE WRONG
-// NOTE: that for both FRAME and IRDY, there are 5 possible functions of
-//   TRDY and STOP.  Both output bits might be all 0's, all 1's, and
-//   each has 3 functions which are not all 0's nor all 1's.
-// NOTE: These extremely timing critical functions will each be implemented
-//   as a single CLB in a Xilinx chip, with a 3-bit Function Selection
-//   paramater.  The 3 bits plus FRAME plus IRDY use up a 5-input LUT.
-//
-// The functions are as follows:
-//    Function Sel [2:0] FRAME  IRDY   ->  TRDY  STOP
-//                  0XX    X     X          0     0
-//
-//                  100    X     X          1     1
-//
-// Master Wait      101    1     0          1     0
-// Master Data      101    1     1          1     0
-// Master Last Data 101    0     1          1     0
-//
-// Master Wait      110    1     0          1     1
-// Master Data      110    1     1          1     0
-// Master Last Data 110    0     1          0     1
-//
-// Master Wait      111    1     0          1     1
-// Master Data      111    1     1          0     0
-// Master Last Data 111    0     1          0     0
-//
-// For each state, use the function:        F(TRDY) F(STOP)
-//    TARGET_IDLE,        FIFO Empty          000     000 (no FRAME, IRDY)
-//    TARGET_IDLE         FIFO Address        100     000 (Always FRAME)
-//    TARGET_ADDR         FIFO Don't care     100     000 (Always FRAME)
-//    TARGET_NOT_ME       FIFO Don't care     100     000 (Always FRAME)
-//    TARGET_WAIT,        FIFO Empty          101     101 (FRAME unless DRA)
-//    TARGET_WAIT,        FIFO non-Last Data  110     100
-//    TARGET_WAIT,        FIFO Last Data      000     100
-//    TARGET_WAIT,        FIFO Abort          000     100
-//    TARGET_DATA_MORE,   FIFO Empty          110     110
-//    TARGET_DATA_MORE,   FIFO non-Last Data  110     100
-//    TARGET_DATA_MORE,   FIFO Last Data      111     100
-//    TARGET_DATA_MORE,   FIFO Abort          111     100
-//    TARGET_DATA_LAST,   FIFO Empty          000     111 (or if no Fast Back-to-Back)
-//    TARGET_DATA_LAST,   FIFO Address        100     000 (and if Fast Back-to-Back)
-//    TARGET_STOP,        FIFO Empty          000     000 (or if no Fast Back-to-Back)
-//    TARGET_STOP,        FIFO Address        100     000 (and if Fast Back-to-Back)
-
-  parameter PCI_TARGET_IDLE      = 8'b00000001;  // Target in IDLE state
-  parameter PCI_TARGET_ADDR      = 8'b00000010;  // Target decodes Address
-  parameter PCI_TARGET_NOT_ME    = 8'b00000100;  // Some Other device is addressed
-  parameter PCI_TARGET_WAIT      = 8'b00001000;  // Waiting for Target Data
-  parameter PCI_TARGET_DATA_MORE = 8'b00010000;  // Target Transfers Data
-  parameter PCI_TARGET_DATA_LAST = 8'b00100000;  // Target Transfers Last Data
-  parameter PCI_TARGET_ABORT     = 8'b01000000;  // Target waits till Frame goes away
-  parameter PCI_TARGET_STOP      = 8'b10000000;  // Target waits till Frame goes away
-  reg    [7:0] PCI_Target_State;
 
 // State Variables are closely related to PCI Control Signals:
 //  They are (in order) AD_OE, DEVSEL_L, TRDY_L, STOP_L, State_[1,0]
@@ -1015,7 +1186,7 @@ module pci_blue_target (
   parameter TS_Range = 5;
   parameter TS_X = {(TS_Range+1){1'bX}};
 
-// Classify the activity of the External Target.
+// Classify the activity of the External Master.
 // These correspond to      {frame, irdy}
   parameter MASTER_IDLE      = 2'b10;
   parameter MASTER_DATA_MORE = 2'b11;
@@ -1040,7 +1211,7 @@ module pci_blue_target (
 
 // Given a present Target State and all appropriate inputs, calculate the next state.
 // Here is how to think of it for now: When a clock happens, this says what to do now
-function [TS_Range:0] Target_Next_State;
+function [TS_Range:0] Target_Next_State_Full_Function;
   input  [TS_Range:0] Target_Present_State;
   input   Response_FIFO_has_Room;
   input   DELAYED_READ_FIFO_CONTAINS_DATA;
@@ -1055,7 +1226,7 @@ function [TS_Range:0] Target_Next_State;
          & (   ((frame_in ^ frame_in) === 1'bX)
              | ((irdy_in ^ irdy_in) === 1'bX)))
     begin
-      Target_Next_State[TS_Range:0] = TS_X;  // error
+      Target_Next_State_Full_Function[TS_Range:0] = TS_X;  // error
       $display ("*** %m PCI Target State Machine FRAME, IRDY Unknown %x %x at time %t",
                   frame_in, irdy_in, $time);
     end
@@ -1065,67 +1236,37 @@ function [TS_Range:0] Target_Next_State;
     case (Target_Present_State[TS_Range:0])  // synopsys parallel_case
     default:
       begin
-        Target_Next_State[TS_Range:0] = TS_X;  // error
+        Target_Next_State_Full_Function[TS_Range:0] = TS_X;  // error
 // synopsys translate_off
         if ($time > 0)
           $display ("*** %m PCI Target State Machine Unknown %x at time %t",
-                         Target_Next_State[TS_Range:0], $time);
+                         Target_Next_State_Full_Function[TS_Range:0], $time);
 // synopsys translate_on
       end
     endcase
   end
 endfunction
 
+// synopsys translate_off
+  wire   [TS_Range:0] PCI_Target_Next_State_Full_Function;  // forward declaration
+// synopsys translate_on
 
-// This Case Statement is supposed to implement the Target State Machine.
-//   I believe that it might be safer to implement it as gates, in order
-//   to make absolutely sure that there are the minimum number of loads on
-//   the FRAME and IRDY signals.
+// Make delayed version, used for active release of FRAME and IRDY.
+  reg    [TS_Range:0] PCI_Target_Prev_State;
 
   always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
   begin
     if (pci_reset_comb == 1'b1)
-    begin
-      PCI_Target_State[7:0] <= PCI_TARGET_IDLE;
-    end
+      PCI_Target_Prev_State[TS_Range:0] <= PCI_TARGET_IDLE_000;
     else if (pci_reset_comb == 1'b0)
-    begin
-      case (PCI_Target_State[7:0])
-      PCI_TARGET_IDLE:
-        begin
-        end
-      PCI_TARGET_ADDR:
-        begin
-        end
-      PCI_TARGET_NOT_ME:
-        begin
-        end
-      PCI_TARGET_WAIT:
-        begin
-        end
-      PCI_TARGET_DATA_MORE:
-        begin
-        end
-      PCI_TARGET_DATA_LAST:
-        begin
-        end
-      PCI_TARGET_STOP:
-        begin
-        end
-      default:
-        begin
-          PCI_Target_State[7:0] <= PCI_TARGET_IDLE;  // error
-// synopsys translate_off
-          $display ("PCI Target State Machine Unknown %x at time %t",
-                           PCI_Target_State[7:0], $time);
-// synopsys translate_on
-        end
-      endcase
-    end
+      PCI_Target_Prev_State[TS_Range:0] <= PCI_Target_State[TS_Range:0];
     else
-    begin  // NOTE: WORKING
-    end
+      PCI_Target_Prev_State[TS_Range:0] <= TS_X;
   end
+
+// Classify the Present State to make the terms below easier to understand.
+  wire    Target_In_Idle_State =
+                      (PCI_Target_State[TS_Range:0] == PCI_TARGET_IDLE_000);
 
 // As quickly as possible, decide whether to present new Target Control Info
 //   on Target Control bus, or to continue sending old data.  The state machine
@@ -1155,7 +1296,7 @@ endfunction
   assign  pci_delayed_read_fifo_data_unload = 1'b0;  // NOTE: WORKING
 
   assign  pci_config_write_data[PCI_BUS_DATA_RANGE:0] = `PCI_BUS_DATA_ZERO;  // NOTE: WORKING
-  assign  pci_config_address[7:2] = 6'h00;  // NOTE: WORKING
+  assign  pci_config_address[PCI_BUS_DATA_RANGE:0] = 6'h00;  // NOTE: WORKING
   assign  pci_config_byte_enables[PCI_BUS_CBE_RANGE:0] = `PCI_BUS_CBE_ZERO;  // NOTE: WORKING
   assign  pci_config_write_req = 1'b0;  // NOTE: WORKING
 
@@ -1169,9 +1310,11 @@ endfunction
 pci_blue_config_regs pci_blue_config_regs (
   .pci_config_write_data      (pci_config_write_data[PCI_BUS_DATA_RANGE:0]),
   .pci_config_read_data       (pci_config_read_data[PCI_BUS_DATA_RANGE:0]),
-  .pci_config_address         (pci_config_address[7:2]),
+  .pci_config_address         (pci_config_address[PCI_BUS_DATA_RANGE:0]),
   .pci_config_byte_enables    (pci_config_byte_enables[PCI_BUS_CBE_RANGE:0]),
   .pci_config_write_req       (pci_config_write_req),
+// Indication that the reference is acceptable
+  .PCI_Base_Address_Hit       (PCI_Base_Address_Hit),
 // Signals from the Config Registers to enable features in the Master and Target
   .target_memory_enable       (target_memory_enable),
   .master_enable              (master_enable),
@@ -1179,10 +1322,6 @@ pci_blue_config_regs pci_blue_config_regs (
   .either_serr_enable         (either_serr_enable),
   .master_fast_b2b_en         (master_fast_b2b_en),
   .master_latency_value       (master_latency_value[7:0]),
-  .base_register_0            (base_register_0[`PCI_BASE_ADDR0_MATCH_RANGE]),
-`ifdef PCI_BASE_ADDR1_MATCH_ENABLE
-  .base_register_1            (base_register_1[`PCI_BASE_ADDR1_MATCH_RANGE]),
-`endif  // PCI_BASE_ADDR1_MATCH_ENABLE
 // Signals from the Master or the Target to set bits in the Status Register
   .master_caused_parity_error (master_caused_parity_error),
   .target_caused_abort        (target_caused_abort),
@@ -1195,5 +1334,126 @@ pci_blue_config_regs pci_blue_config_regs (
   .pci_clk                    (pci_clk),
   .pci_reset_comb             (pci_reset_comb)
 );
+
+// synopsys translate_off
+
+// Debugging and correctness checking stuff below.  NOT used in synthesized design.
+
+function [TS_Range:0] Target_Next_State_Full_Function;
+  input  [TS_Range:0] Target_Present_State;
+  input   Response_FIFO_has_Room;
+  input   DELAYED_READ_FIFO_CONTAINS_DATA;
+  input   Timeout_Forces_Disconnect;
+  input   frame_in;
+  input   irdy_in;
+  input   Back_to_Back_Possible;
+
+// State Machine controlling the PCI Master.
+//   Every clock, this State Machine transitions based on the LATCHED
+//   versions of TRDY and STOP.  At the same time, combinational logic
+//   below has already sent out the NEXT info to the PCI bus.
+//  (These two actions had better be consistent.)
+// The way to think about this is that the State Machine reflects the
+//   PRESENT state of the PCI wires.  When you are in the Address state,
+//   the Address is valid on the bus.
+  reg    [TS_Range:0] PCI_Target_State;  // forward reference
+
+// NOTE: WORKING: use Full Function for Debug, Partial Functions when satisfied.
+  wire   [TS_Range:0] PCI_Target_Next_State =
+                            PCI_Target_Next_State_Full_Function[TS_Range:0];
+
+// Actual State Machine includes async reset
+  always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
+  begin
+    if (pci_reset_comb == 1'b1)
+    begin
+      PCI_Target_State[7:0] <= PCI_TARGET_IDLE_000;
+    end
+    else if (pci_reset_comb == 1'b0)
+    begin
+      PCI_Target_State[7:0] <= PCI_Target_Next_State[TS_Range:0];
+    end
+    else
+    begin
+      PCI_Target_State[7:0] <= TS_X;
+    end
+  end
+
+`ifdef CALL_OUT_TARGET_STATE_TRANSITIONS
+// Look inside the target module and try to call out transition names.
+  reg    [67:1] transitions_seen;
+
+task initialize_transition_table;
+  integer i;
+  begin
+    for (i = 1; i <= 67; i = i + 1)
+    begin
+      transitions_seen[i] = 1'b0;
+    end
+//    transitions_seen[4] = 1'b1;
+  end
+endtask
+
+task call_out_transition;
+  input i;
+  integer i;
+  begin
+    if ((i >= 1) & (i <= 67))
+    begin
+      $display ("transition %d seen at %t", i, $time);
+      transitions_seen[i] = 1'b1;
+    end
+    else
+    begin
+      $display ("*** bogus transition %d seen at %t", i, $time);
+    end
+  end
+endtask
+
+task report_missing_transitions;
+  integer i, j;
+  begin
+  $display ("calling out transitions which were not yet exercised");
+    j = 0;
+    for (i = 1; i <= 67; i = i + 1)
+    begin
+      if (transitions_seen[i] == 1'b0)
+      begin
+        $display ("transition %d not seen", i);
+        j = j + 1;
+      end
+    end
+    $display ("%d transitions not seen", j);
+  end
+endtask
+
+  initial initialize_transition_table;
+
+  reg     prev_fifo_contains_address;
+  reg     prev_fifo_contains_data_more, prev_fifo_contains_data_two_more;
+  reg     prev_fifo_contains_data_last, prev_timeout_forces_disconnect;
+  reg     prev_back_to_back_possible, prev_doing_config_reference;
+  reg     prev_bus_available, prev_config_reference;
+  reg     prev_master_retry_write;
+
+  always @(posedge pci_clk)
+  begin
+    prev_bus_available <= external_pci_bus_available_critical;
+    prev_fifo_contains_address <= Request_FIFO_CONTAINS_ADDRESS;
+    prev_config_reference <= Master_Doing_Config_Reference;
+    prev_fifo_contains_data_more <= Request_FIFO_CONTAINS_DATA_MORE;
+    prev_fifo_contains_data_two_more <= Request_FIFO_CONTAINS_DATA_TWO_MORE;
+    prev_fifo_contains_data_last <= Request_FIFO_CONTAINS_DATA_LAST;
+    prev_timeout_forces_disconnect <= Master_Data_Latency_Disconnect
+                                    | Master_Bus_Latency_Disconnect;
+    prev_back_to_back_possible <= master_fast_b2b_en;
+    prev_doing_config_reference <= Master_Doing_Config_Reference;
+    prev_master_retry_write <= Master_Retry_Write;
+    if (   (PCI_Target_Prev_State[4:0] == PCI_TARGET_IDLE_000)
+         & (prev_bus_available == 1'b1)
+         & (prev_fifo_contains_address == 1'b0) )
+      call_out_transition (1);
+    end
+// synopsys translate_on
 endmodule
 

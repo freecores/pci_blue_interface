@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_options.vh,v 1.14 2001-08-15 10:31:46 bbeaver Exp $
+// $Id: pci_blue_options.vh,v 1.15 2001-08-19 04:03:21 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -120,7 +120,7 @@
   parameter PCI_BUS_CBE_RANGE   =  7;
 `define PCI_BUS_CBE_X              8'hXX
 `define PCI_BUS_CBE_Z              8'hZZ
-`define PCI_BUS_DATA_ZERO          8'h00
+`define PCI_BUS_CBE_ZERO           8'h00
 `define PCI_BUS_Address_Mask      64'hFFFFFFFF_FFFFFFF8
 `define PCI_BUS_Address_Step      64'h00000000_00000008
 `else  // PCI_BUS_SIZE_64

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_master.v,v 1.23 2001-08-15 10:31:47 bbeaver Exp $
+// $Id: test_pci_master.v,v 1.24 2001-08-19 04:03:21 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -255,7 +255,6 @@ module pci_test_master (
   reg    pci_clk;
 
   wire    pci_host_request_room_available_meta;
-  wire    pci_host_request_two_words_available_meta;
   reg     pci_host_request_submit;
   reg    [2:0] pci_host_request_type;
   reg    [PCI_BUS_CBE_RANGE:0] pci_host_request_cbe;
@@ -1416,8 +1415,6 @@ pci_fifo_storage_request pci_fifo_storage_request (
   .write_submit               (pci_host_request_submit),
 // NOTE Needs extra settling time to avoid metastability
   .write_room_available_meta  (pci_host_request_room_available_meta),
-// NOTE Needs extra settling time to avoid metastability
-  .write_two_words_available_meta  (pci_host_request_two_words_available_meta),
   .write_data                 ({pci_host_request_type[2:0],
                                 pci_host_request_cbe[PCI_BUS_CBE_RANGE:0],
                                 pci_host_request_data[PCI_BUS_DATA_RANGE:0]}),

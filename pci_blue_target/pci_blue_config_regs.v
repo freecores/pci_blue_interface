@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_config_regs.v,v 1.7 2001-08-15 10:31:47 bbeaver Exp $
+// $Id: pci_blue_config_regs.v,v 1.8 2001-08-19 04:03:21 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -64,7 +64,11 @@
 // NOTE:  The PCI Configuration Registers as described in the PCI Local
 //        Bus Specification Revision 2.2, Chapter 6.
 //
-// NOTE:  This Configuration Register Set contains only 1 Base Address register.
+// NOTE:  This Configuration Register Set contains 1 or 2 Base Address registers.
+//
+// NOTE: WORKING: This code assumes the PCI Bus is 32 bits wide.  Need to
+//        rewrite entirely to handle different widths, number of CBE bits.
+//        Use parameters like [PCI_BUS_DATA_RANGE:0] to control this.
 //
 //===========================================================================
 
@@ -76,6 +80,8 @@ module pci_blue_config_regs (
   pci_config_address,
   pci_config_byte_enables,
   pci_config_write_req,
+// Indication that the reference is acceptable
+  PCI_Base_Address_Hit,
 // Signals from the Config Registers to enable features in the Master and Target
   target_memory_enable,
   master_enable,
@@ -83,10 +89,6 @@ module pci_blue_config_regs (
   either_serr_enable,
   master_fast_b2b_en,
   master_latency_value,
-  base_register_0,
-`ifdef PCI_BASE_ADDR1_MATCH_ENABLE
-  base_register_1,
-`endif  // PCI_BASE_ADDR1_MATCH_ENABLE
 // Signals from the Master or the Target to set bits in the Status Register
   master_caused_parity_error,
   target_caused_abort,
@@ -104,11 +106,13 @@ module pci_blue_config_regs (
 `include "pci_blue_constants.vh"
 
 // Signals driven to control the external PCI interface
-  input  [31:0] pci_config_write_data;
-  output [31:0] pci_config_read_data;
-  input  [7:2] pci_config_address;
-  input  [3:0] pci_config_byte_enables;
+  input  [PCI_BUS_DATA_RANGE:0] pci_config_write_data;
+  output [PCI_BUS_DATA_RANGE:0] pci_config_read_data;
+  input  [PCI_BUS_DATA_RANGE:0] pci_config_address;
+  input  [PCI_BUS_CBE_RANGE:0] pci_config_byte_enables;
   input   pci_config_write_req;
+// Indication that the reference is acceptable
+  output  PCI_Base_Address_Hit;
 // Signals from the Config Registers to enable features in the Master and Target
   output  target_memory_enable;
   output  master_enable;
@@ -116,10 +120,6 @@ module pci_blue_config_regs (
   output  either_serr_enable;
   output  master_fast_b2b_en;
   output [7:0] master_latency_value;
-  output [`PCI_BASE_ADDR0_MATCH_RANGE] base_register_0;
-`ifdef PCI_BASE_ADDR1_MATCH_ENABLE
-  output [`PCI_BASE_ADDR1_MATCH_RANGE] base_register_1;
-`endif  // PCI_BASE_ADDR1_MATCH_ENABLE
 // Signals from the Master or the Target to set bits in the Status Register
   input   master_caused_parity_error;
   input   target_caused_abort;
@@ -387,16 +387,31 @@ module pci_blue_config_regs (
   assign  either_serr_enable = SERR_En;
   assign  master_fast_b2b_en = FB2B_En;
   assign  master_latency_value[7:0] = Latency_Timer[7:0];
-  assign  base_register_0[`PCI_BASE_ADDR0_MATCH_RANGE] =
+  wire   [`PCI_BASE_ADDR0_MATCH_RANGE] base_register_0 =
                                        BAR0[`PCI_BASE_ADDR0_MATCH_RANGE];
 `ifdef PCI_BASE_ADDR1_MATCH_ENABLE
-  assign  base_register_1[`PCI_BASE_ADDR1_MATCH_RANGE] =
+  wire   [`PCI_BASE_ADDR1_MATCH_RANGE] base_register_1 =
                                        BAR1[`PCI_BASE_ADDR1_MATCH_RANGE];
 `endif  // PCI_BASE_ADDR1_MATCH_ENABLE
 
-  assign  target_config_reg_signals_some_error = 
+  assign  target_config_reg_signals_some_error =  // drive outputs
                   Detected_PERR | Signaled_SERR
                 | Received_Master_Abort | Received_Target_Abort
                 | Signaled_Target_Abort | Master_Caused_PERR;
+
+// Address Compare logic to discover whether a non-config reference is for
+// this PCI controller.
+// NOTE: The number of valid MSB bits in the Base Address Registers, and the
+//       number of Base Registers, is set in the file pci_blue_options.vh
+
+// NOTE: WORKING need to take into account type, special, config refs
+  assign  PCI_Base_Address_Hit =  // drive outputs
+`ifdef PCI_BASE_ADDR1_MATCH_ENABLE
+                          (pci_config_address[`PCI_BASE_ADDR1_MATCH_RANGE]
+                                == base_register_1[`PCI_BASE_ADDR1_MATCH_RANGE])
+                        |
+`endif  // PCI_BASE_ADDR1_MATCH_ENABLE
+                          (pci_config_address[`PCI_BASE_ADDR0_MATCH_RANGE]
+                                == base_register_0[`PCI_BASE_ADDR0_MATCH_RANGE]);
 endmodule
 

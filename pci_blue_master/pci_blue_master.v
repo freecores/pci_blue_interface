@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_master.v,v 1.39 2001-08-15 10:31:46 bbeaver Exp $
+// $Id: pci_blue_master.v,v 1.40 2001-08-19 04:03:21 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -1701,7 +1701,8 @@ endfunction
                 pci_gnt_in_critical
               );
 
-  wire   [MS_Range:0] PCI_Master_Next_State_Partial_Functions =  // NOTE: WORKING: write using manually instantiated (?) fast MUX, then OR
+// NOTE: WORKING: write using manually instantiated (?) fast MUX, then OR
+  wire   [MS_Range:0] PCI_Master_Next_State_Partial_Functions =
              ((external_pci_bus_available_critical == 1'b0)
                  ? PCI_Master_Next_State_BUS_UNAVAILABLE[MS_Range:0] : PCI_MASTER_IDLE_00)
            | ((external_pci_bus_available_critical == 1'b1)
