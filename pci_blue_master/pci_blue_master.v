@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_master.v,v 1.19 2001-07-05 08:00:05 bbeaver Exp $
+// $Id: pci_blue_master.v,v 1.20 2001-07-06 05:09:40 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -276,22 +276,11 @@ module pci_blue_master (
 //   but the response_fifo combines these into 1 Address response.
 // When data is being flushed, it is passed as Status indications to the Target
 //   State Machine using the value PCI_HOST_REQUEST_ADDRESS_COMMAND_SERR.
-//
-// NOTE: EXTREME NIGHTMARE.  A PCI Master must assert Valid Write Enables
-//   on all clocks, EVEN if IRDY is not asserted.  See the PCI Local
-//   Bus Spec Revision 2.2 section 3.2.2 and 3.3.1 for details.
-//   This means that the Master CAN'T assert an Address until the NEXT
-//   Data Strobes are available, and can't assert IRDY on data unless
-//   the Data is either the LAST data, or the NEXT data is available.
-//   In the case of a Timeout, the Master has to convert a Data into
-//   a Data_Last, so that it doesn't need to come up with the NEXT
-//   Data Byte Enables.
-//   The reference can only be retried once the late data becomes available.
 
 // Use standard FIFO prefetch trick to allow a single flop to control the
 //   unloading of the whole FIFO.
   wire    prefetching_request_fifo_data;  // forward reference
-  wire    Master_Flushing_Request_FIFO;  // forward reference
+  wire    Master_Mark_Status_Entry_Flushed;  // forward reference
   reg    [2:0] request_fifo_type_reg;
   reg    [`PCI_FIFO_CBE_RANGE] request_fifo_cbe_reg;
   reg    [`PCI_FIFO_DATA_RANGE] request_fifo_data_reg;
@@ -306,7 +295,7 @@ module pci_blue_master (
                       pci_request_fifo_cbe[`PCI_FIFO_CBE_RANGE];
       request_fifo_data_reg[`PCI_FIFO_DATA_RANGE] <=
                       pci_request_fifo_data[`PCI_FIFO_DATA_RANGE];
-      request_fifo_flush_reg <= Master_Flushing_Request_FIFO;
+      request_fifo_flush_reg <= Master_Mark_Status_Entry_Flushed;
     end
     else
     begin
@@ -321,9 +310,8 @@ module pci_blue_master (
 
 // Single FLOP used to control activity of this FIFO.
 //
-// FIFO data is consumed if Master_Flushing_Request_FIFO
-//                       or Master_Captures_Request_FIFO_Unconditionally
-//                       of Master_Captures_Request_FIFO_If_TRDY and TRDY
+// FIFO data is consumed if Master_Consumes_Request_FIFO_Data_Unconditionally
+//                       or Master_Captures_Request_FIFO_If_TRDY and TRDY
 // If not unloading and not full and no data,  not full
 // If not unloading and not full and data,     full
 // If not unloading and full and no data,      full
@@ -334,13 +322,16 @@ module pci_blue_master (
 // If unloading and full and data,             full
 // NOTE: TRDY is VERY LATE.  This must be implemented to let TRDY operate quickly
   reg     master_request_full;  // forward reference
-  wire    Master_Captures_Request_FIFO_Unconditionally;  // forward reference
-  wire    Master_Captures_Request_FIFO_If_TRDY;  // forward reference
+  wire    Master_Consumes_Request_FIFO_Data_Unconditionally;  // forward reference
+  wire    Master_Consumes_Request_FIFO_If_TRDY;  // forward reference
   wire    Master_Flushing_Housekeeping = prefetching_request_fifo_data
                       & (   (pci_request_fifo_type[2:0] ==  // new address
                                     `PCI_HOST_REQUEST_SPARE)
                           | (pci_request_fifo_type[2:0] ==  // new address
                                     `PCI_HOST_REQUEST_INSERT_WRITE_FENCE));
+  wire    Master_Consumes_This_Entry =
+                        Master_Consumes_Request_FIFO_Data_Unconditionally
+                      | Master_Flushing_Housekeeping;
 
 // Master Request Full bit indicates when data prefetched on the way to PCI bus
   always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
@@ -353,17 +344,13 @@ module pci_blue_master (
     begin
       if (pci_trdy_in_comb == 1'b1)  // pci_trdy_in_comb is VERY LATE
         master_request_full <=
-                      (   Master_Flushing_Request_FIFO
-                        | Master_Captures_Request_FIFO_Unconditionally
-                        | Master_Flushing_Housekeeping
-                        | Master_Captures_Request_FIFO_If_TRDY)
+                      (   Master_Consumes_This_Entry
+                        | Master_Consumes_Request_FIFO_If_TRDY)
                       ? (master_request_full & prefetching_request_fifo_data)   // unloading
                       : (master_request_full | prefetching_request_fifo_data);  // not unloading
       else  // (pci_trdy_in_comb == 1'b0)
         master_request_full <=
-                      (   Master_Flushing_Request_FIFO
-                        | Master_Captures_Request_FIFO_Unconditionally
-                        | Master_Flushing_Housekeeping)
+                          Master_Consumes_This_Entry
                       ? (master_request_full & prefetching_request_fifo_data)   // unloading
                       : (master_request_full | prefetching_request_fifo_data);  // not unloading
     end
@@ -382,40 +369,32 @@ module pci_blue_master (
                         prefetching_request_fifo_data
                       ? pci_request_fifo_cbe[`PCI_FIFO_CBE_RANGE]
                       : request_fifo_data_reg[`PCI_FIFO_DATA_RANGE];
-  wire    request_fifo_flush_current =  // just to be complete
-                        prefetching_request_fifo_data
-                      ? Master_Flushing_Request_FIFO
-                      : request_fifo_flush_reg;
 
 // Create Data Available signals which depend on the FIFO, the Latch, AND the
 //   input of the status datapath, which can prevent the unloading of data.
-  reg     master_to_target_status_full;  // forward reference
-  wire    master_to_target_status_not_full = ~master_to_target_status_full
-                                           | master_to_target_status_unload;
-
+  wire    master_to_target_status_loadable;  // forward reference
   wire    request_fifo_data_available_meta =
                         (   pci_request_fifo_data_available_meta
                           | master_request_full)  // available
-                      & master_to_target_status_not_full;  // plus room
+                      & master_to_target_status_loadable;  // plus room
   wire    request_fifo_two_words_available_meta =
                         (   pci_request_fifo_two_words_available_meta
                           | (   pci_request_fifo_data_available_meta
                               & master_request_full))  // available
-                      & master_to_target_status_not_full;  // plus room
+                      & master_to_target_status_loadable;  // plus room
 
 // Calculate whether to unload data from the Request FIFO
-// NOTE: WORKING might want to hold off unload for 1 clock when reporting an error
   assign  prefetching_request_fifo_data = pci_request_fifo_data_available_meta
                                         & ~master_request_full
-                                        & master_to_target_status_not_full;
-
+                                        & master_to_target_status_loadable;
   assign  pci_request_fifo_data_unload = prefetching_request_fifo_data;  // drive outputs
 
-// Buffer Signals from the Request FIFO to the Target to insert the Status
-//   Info into the Response FIFO.
+// Re-use Request FIFO Preferch Buffer to send Signals from the Request FIFO
+//   to the Target to finally insert the Status Info into the Response FIFO.
 // The Master will only make progress when this Buffer between
 //   Master and Target is empty.
 // Target Status Full bit indicates when the Target is done with the Status data.
+  reg     master_to_target_status_full;
 
   always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
   begin
@@ -431,6 +410,10 @@ module pci_blue_master (
     end
   end
 
+// Create Buffer Available signal which can prevent the unloading of data.
+  assign  master_to_target_status_loadable = ~master_to_target_status_full
+                                           | master_to_target_status_unload;
+
 // Send Status Data to Target.  This works because ALL request data goes
 //   through the prefetch buffer, where it sits until it is replaced.
   assign  master_to_target_status_type[2:0] =                   // drive outputs
@@ -443,6 +426,8 @@ module pci_blue_master (
   assign  master_to_target_status_available = master_to_target_status_full;  // drive outputs
 
 // State Machine keeping track of Request FIFO Retry Information.
+// Retry Information is needed when the Target does a Retry with or without
+//   data, or when the Master ends a Burst early because of lack of data.
 // All Address and Data items which have been offered to the PCI interface
 //   may need to be retried.
 // Unfortunately, it is not possible to look at the IRDY/TRDY signals
@@ -467,21 +452,14 @@ module pci_blue_master (
 //   both address and data until the ACK, then start with neither
 //   Address or Data.
 
-// Retry Information is needed when the Target does a Retry with or without
-//   data, or when the Master ends a Burst early because of lack of data.
-
-  parameter NO_ADDR_NO_DATA_CAPTURED  = 2'b00;  // Neither Address nor Data captured
-  parameter ADDR_BUT_NO_DATA_CAPTURED = 2'b10;  // Address but no Data captured
-  parameter ADDR_DATA_CAPTURED        = 2'b11;  // Address plus Data captured
-  reg    [1:0] PCI_Master_Retry_State;
-  wire    Master_Completed_Retry_Address;  // forward reference
-  wire    Master_Completed_Retry_Data;  // forward reference
-
-// Delay the Full Flop, to see when to capture Address and Data items.
-  reg     Master_Previously_Full;
+// Delay the Full Flop, to see when when it transitions from Full to Empty,
+//   or whenever it does not become full because of bypass.  In both cases
+//   it is time to capture Address and Data items.
+  reg     Master_Previously_Full;  // forward reference
   wire    Master_Capturing_Retry_Data = Master_Previously_Full  // notice that data
                                       & ~master_request_full;   // captured by bus
 
+// Classify Address and Data just sent out onto PCI bus
   wire    Master_Issued_Housekeeping = Master_Capturing_Retry_Data
                       & (   (request_fifo_type_reg[2:0] ==  // new address
                                     `PCI_HOST_REQUEST_SPARE)
@@ -502,6 +480,16 @@ module pci_blue_master (
                           | (request_fifo_type_reg[2:0] ==  // new data
                                     `PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR));
 
+// Keep track of the stored Address and Data validity
+
+  parameter NO_ADDR_NO_DATA_CAPTURED  = 2'b00;  // Neither Address nor Data captured
+  parameter ADDR_BUT_NO_DATA_CAPTURED = 2'b10;  // Address but no Data captured
+  parameter ADDR_DATA_CAPTURED        = 2'b11;  // Address plus Data captured
+  reg    [1:0] PCI_Master_Retry_State;
+
+  wire    Master_Completed_Retry_Address;  // forward reference
+  wire    Master_Completed_Retry_Data;  // forward reference
+
   always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
   begin
     if (pci_reset_comb == 1'b1)
@@ -511,7 +499,7 @@ module pci_blue_master (
     end
     else
     begin
-      if (Master_Flushing_Request_FIFO | Master_Completed_Retry_Address)
+      if (Master_Completed_Retry_Address)
       begin
         Master_Previously_Full <= 1'b0;
         PCI_Master_Retry_State[1:0] <= NO_ADDR_NO_DATA_CAPTURED;
@@ -564,9 +552,7 @@ module pci_blue_master (
     end
   end
 
-// make the signals which capture the Address and Data before they are overwritten
-  wire    Master_Grab_Address = Master_Issued_Address;
-  wire    Master_Grab_Data = Master_Issued_Data;
+// Make the signal which knows to increment the Address when Data is latched.
   wire    Master_Inc_Address =
                         (   (PCI_Master_Retry_State[1:0] == ADDR_DATA_CAPTURED)
                           & Master_Completed_Retry_Data)  // disconnect with data
@@ -589,7 +575,7 @@ module pci_blue_master (
 
   always @(posedge pci_clk)
   begin
-    if (Master_Grab_Address == 1'b1)  // hold or increment the Burst Address
+    if (Master_Issued_Address == 1'b1)  // hold or increment the Burst Address
     begin
       Master_Retry_Address_Type[2:0] <= request_fifo_type_reg[2:0];
       Master_Retry_Address[`PCI_FIFO_DATA_RANGE] <=
@@ -632,7 +618,7 @@ module pci_blue_master (
 
   always @(posedge pci_clk)
   begin
-    if (Master_Grab_Data == 1'b1)  // hold or increment the Burst Address
+    if (Master_Issued_Data == 1'b1)  // hold or increment the Burst Address
     begin
       Master_Retry_Data_Type[2:0] <= request_fifo_type_reg[2:0];
       Master_Retry_Data[`PCI_FIFO_DATA_RANGE] <=
@@ -650,30 +636,114 @@ module pci_blue_master (
     end
   end
 
-// The Request FIFO can be unloaded only of all of these three things are true:
+// Master Aborts are detected when the Master asserts FRAME, and does
+// not see DEVSEL in a timely manner.  See the PCI Local Bus Spec
+// Revision 2.2 section 3.3.3.1 for details.
+  wire    Master_Clear_Master_Abort_Counter;  // forward reference
+  reg    [2:0] Master_Abort_Counter;
+  reg     Master_Got_Devsel, Master_Abort_Detected;
+
+  always @(posedge pci_clk)
+  begin
+    if (Master_Clear_Master_Abort_Counter == 1'b1)
+    begin
+      Master_Abort_Counter[2:0] <= 3'h0;
+      Master_Got_Devsel <= 1'b0;
+      Master_Abort_Detected <= 1'b0;
+    end
+    else
+    begin
+      Master_Abort_Counter[2:0] <= Master_Abort_Counter[2:0] + 3'h1;
+      Master_Got_Devsel <= pci_devsel_in_prev | Master_Got_Devsel;
+      Master_Abort_Detected <= Master_Abort_Detected
+                      | (   ~Master_Got_Devsel
+                          & (Master_Abort_Counter[2:0] == 3'h5));
+    end
+  end
+
+// Master Data Latency Counter.  Must make progress within 8 Bus Clocks.
+// See the PCI Local Bus Spec Revision 2.2 section 3.5.2 for details.
+  wire    Master_Clear_Data_Latency_Counter;  // forward reference
+  reg    [2:0] Master_Data_Latency_Counter;
+  reg     Master_Data_Latency_Disconnect;
+
+  always @(posedge pci_clk)
+  begin
+    if (Master_Clear_Data_Latency_Counter)
+    begin
+      Master_Data_Latency_Counter[2:0] <= 3'h0;
+      Master_Data_Latency_Disconnect   <= 1'b0;
+    end
+    else
+    begin
+      Master_Data_Latency_Counter[2:0] <= Master_Data_Latency_Counter[2:0] + 3'h1;
+      Master_Data_Latency_Disconnect   <= Master_Data_Latency_Disconnect
+                      | (Master_Data_Latency_Counter[2:0] == 3'h7);
+    end
+  end
+
+// The Master Bus Latency Counter is needed to force the Master off the bus
+//   in a timely fashion if it is in the middle of a burst when it's Grant is
+//   removed.  See the PCI Local Bus Spec Revision 2.2 section 3.5.4 for details.
+  wire    Master_Clear_Bus_Latency_Timer;  // forward reference
+  reg    [7:0] Master_Bus_Latency_Timer;
+  reg     Master_Bus_Latency_Time_Exceeded;
+
+  always @(posedge pci_clk)
+  begin
+    if (Master_Clear_Bus_Latency_Timer == 1'b1)
+    begin
+      Master_Bus_Latency_Timer[7:0]    <= 8'h00;
+      Master_Bus_Latency_Time_Exceeded <= 1'b0;
+    end
+    else
+    begin
+      Master_Bus_Latency_Timer[7:0] <= pci_gnt_in_prev ? 8'h00
+                                     : Master_Bus_Latency_Timer[7:0] + 8'h01;
+      Master_Bus_Latency_Time_Exceeded <= Master_Bus_Latency_Time_Exceeded
+                      | (Master_Bus_Latency_Timer[7:0]
+                                 == master_latency_value[7:0]);
+    end
+  end
+
+// NOTE: EXTREME NIGHTMARE.  A PCI Master must assert Valid Write Enables
+//   on all clocks, EVEN if IRDY is not asserted.  See the PCI Local
+//   Bus Spec Revision 2.2 section 3.2.2 and 3.3.1 for details.
+//   This means that the Master CAN'T assert an Address until the NEXT
+//   Data Strobes are available, and can't assert IRDY on data unless
+//   the Data is either the LAST data, or the NEXT data is available.
+//   In the case of a Timeout, the Master has to convert a Data into
+//   a Data_Last, so that it doesn't need to come up with the NEXT
+//   Data Byte Enables.  The reference can only be continued once the
+//   late data becomes available.
+//
+// The Request FIFO can be unloaded only of ALL of these three things are true:
 // 1) Room available in Status FIFO to accept data
-// 2) Address + next, or Data + next, or Data_Last, or Reg_Ref, or Fence, in FIFO
-// 3) If Data Phase, External Device on PCI bus can transfer data,
-//    otherwise send data immediately into Status FIFO.
-// NOTE: In the case of Master Abort, this FIFO needs to be flushed till Data_Last
+// 2) Address + Next Data, or Data + Next Data, or Data_Last, or Reg_Ref,
+//    or Fence, in FIFO
+// 3) If Data Phase, External Device on PCI bus allows transfer using TRDY,
+//    otherwise send data immediately into PCI buffers.
 // NOTE: Other logic will mix in the various timeouts which can happen.
-  wire   [2:0] Next_Request_Type =
-                        (PCI_Master_Retry_State[1:0] == NO_ADDR_NO_DATA_CAPTURED)
-                      ? pci_request_fifo_type_current[2:0]
-                      : Master_Retry_Address_Type[2:0];
-  wire   [`PCI_FIFO_CBE_RANGE] Next_Request_Command =
-                        (PCI_Master_Retry_State[1:0] == NO_ADDR_NO_DATA_CAPTURED)
-                      ? pci_request_fifo_cbe_current[`PCI_FIFO_CBE_RANGE]
-                      : Master_Retry_Command[`PCI_FIFO_CBE_RANGE];
-  wire   [2:0] Next_Data_Type =
-                        (PCI_Master_Retry_State[1:0] == ADDR_BUT_NO_DATA_CAPTURED)
-                      ? pci_request_fifo_type_current[2:0]
-                      : Master_Retry_Data_Type[2:0];
 
-// Either new Address in FIFO PLUS next item containing Byte Strobes, or
-//   Stored Address plus FIFO contains next item containing Byte Strobes
-  wire    Master_Disconnect_Being_Forced;  // forward reference
+// Classify the activity commanded in the head of the Request FIFO.  In some
+//   cases, the entry AFTER the first word needs to be known before the
+//   entry can properly be classified.  If so, pertend that the FIFO is
+//   empty until the needed data is available.
+  wire    Master_Using_Retry_Info;  // forward reference
 
+  wire   [2:0] Next_Request_Type = Master_Using_Retry_Info
+                      ? Master_Retry_Address_Type[2:0]
+                      : pci_request_fifo_type_current[2:0];
+  wire   [`PCI_FIFO_CBE_RANGE] Next_Request_Command = Master_Using_Retry_Info
+                      ? Master_Retry_Command[`PCI_FIFO_CBE_RANGE]
+                      : pci_request_fifo_cbe_current[`PCI_FIFO_CBE_RANGE];
+  wire   [2:0] Next_Data_Type = Master_Using_Retry_Info
+                      ? Master_Retry_Data_Type[2:0]
+                      : pci_request_fifo_type_current[2:0];
+
+// Either Address in FIFO plus next Data in FIFO containing Byte Strobes,
+//   or Stored Address plus next Data in FIFO containing Byte Strobes,
+//   or Stored Address plus Stored Data containing Byte Strobes.
   wire    Request_FIFO_CONTAINS_ADDRESS =
                master_enable  // only start (or retry) a reference if enabled
              & (   (   (PCI_Master_Retry_State[1:0] == NO_ADDR_NO_DATA_CAPTURED)
@@ -690,103 +760,41 @@ module pci_blue_master (
                                 `PCI_COMMAND_CONFIG_READ)  // captured data used
                  | (Next_Request_Command[`PCI_BUS_CBE_RANGE] ==
                                 `PCI_COMMAND_CONFIG_WRITE));  // captured data used
-  wire    Request_FIFO_CONTAINS_DATA_MORE =  // could happen at dame time as FIFO_CONTAINS_ADDRESS
-               ~Master_Disconnect_Being_Forced  // Master Data Latency Timeout
-             & (   (   (   (PCI_Master_Retry_State[1:0] == ADDR_BUT_NO_DATA_CAPTURED)
+
+// Either Data or Data Last must follow the Address item
+  wire    Master_Timeout_Forces_Disconnect;  // forward reference
+
+  wire    Request_FIFO_CONTAINS_DATA_MORE =  // could happen at same time as FIFO_CONTAINS_ADDRESS
+               ~Master_Timeout_Forces_Disconnect  // Master Data Latency Timeout
+             & (   (   (   ~Master_Using_Retry_Info
                          &  request_fifo_data_available_meta)  // stored address plus data
-                     | (PCI_Master_Retry_State[1:0] == ADDR_DATA_CAPTURED))
+                     | (   (PCI_Master_Retry_State[1:0] == ADDR_DATA_CAPTURED)
+                         &  Master_Using_Retry_Info)
                  & (   (Next_Data_Type[2:0] ==
                                 `PCI_HOST_REQUEST_W_DATA_RW_MASK)
                      | (Next_Data_Type[2:0] ==
                                 `PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR)));
   wire    Request_FIFO_CONTAINS_DATA_LAST =  // could happen with FIFO_CONTAINS_ADDRESS
-               (   Master_Disconnect_Being_Forced  // Master Data Latency Timeout
-                 | (   (   (   (PCI_Master_Retry_State[1:0] == ADDR_BUT_NO_DATA_CAPTURED)
+               (   Master_Timeout_Forces_Disconnect  // Master Data Latency Timeout
+                 | (   (   (   ~Master_Using_Retry_Info
                              &  request_fifo_data_available_meta)  // stored address plus data
-                         | (PCI_Master_Retry_State[1:0] == ADDR_DATA_CAPTURED))
+                         | (   (PCI_Master_Retry_State[1:0] == ADDR_DATA_CAPTURED)
+                             &  Master_Using_Retry_Info)
                      & (   (Next_Data_Type[2:0] ==
-                                `PCI_HOST_REQUEST_W_DATA_RW_MASK)
+                                `PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST)
                          | (Next_Data_Type[2:0] ==
-                                `PCI_HOST_REQUEST_W_DATA_RW_MASK_PERR))));
+                                `PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST_PERR))));
+// 
   wire    Request_FIFO_CONTAINS_HOUSEKEEPING_DATA =
-                  request_fifo_data_available_meta  // only 1 word
+                  request_fifo_data_available_meta  // only 1 word, never saved for retry
                & (   (pci_request_fifo_type_current[2:0] ==
                                       `PCI_HOST_REQUEST_INSERT_WRITE_FENCE)  // also Reg Refs
                    | (pci_request_fifo_type_current[2:0] ==
                                       `PCI_HOST_REQUEST_SPARE));
 
-// Master Aborts are detected when the Master asserts FRAME, and does
-// not see DEVSEL in a timely manner.  See the PCI Local Bus Spec
-// Revision 2.2 section 3.3.3.1 for details.
-  reg    [2:0] Master_Abort_Counter;
-  reg     Master_Got_Devsel, Master_Abort_Detected;
-  wire    Master_Clear_Master_Abort_Counter;  // forward reference
-
-  always @(posedge pci_clk)
-  begin
-    if (Master_Clear_Master_Abort_Counter == 1'b1)
-    begin
-      Master_Abort_Counter[2:0] <= 3'h0;
-      Master_Got_Devsel <= 1'b0;
-      Master_Abort_Detected <= 1'b0;
-    end
-    else
-    begin
-      Master_Abort_Counter[2:0] <= Master_Abort_Counter[2:0] + 3'h1;
-      Master_Got_Devsel <= pci_devsel_in_prev | Master_Got_Devsel;
-      Master_Abort_Detected <= ~Master_Got_Devsel
-                             & (Master_Abort_Counter[2:0] == 3'h5);  // NOTE: WORKING tune this to be big enough
-    end
-  end
-
-// Master Data Latency Counter.  Must make progress within 8 Bus Clocks.
-// See the PCI Local Bus Spec Revision 2.2 section 3.5.2 for details.
-  reg    [2:0] Master_Data_Latency_Counter;
-  reg     Master_Data_Latency_Disconnect;
-
-  always @(posedge pci_clk)
-  begin
-    if (   Request_FIFO_CONTAINS_ADDRESS  // All these indicate that Data Available
-         | Request_FIFO_CONTAINS_DATA_MORE
-         | Request_FIFO_CONTAINS_DATA_LAST)
-    begin
-      Master_Data_Latency_Counter[2:0] <= 3'h0;
-      Master_Data_Latency_Disconnect   <= 1'b0;
-    end
-    else
-    begin
-      Master_Data_Latency_Counter[2:0] <= Master_Data_Latency_Counter[2:0] + 3'h1;
-      Master_Data_Latency_Disconnect   <= (Master_Data_Latency_Counter[2:0] == 3'h7);
-    end
-  end
-
-// The Master Bus Latency Counter is needed to force the Master off the bus
-//   in a timely fashion if it is in the middle of a burst when it's Grant is
-//   removed.  See the PCI Local Bus Spec Revision 2.2 section 3.5.4 for details.
-  reg    [7:0] Master_Bus_Latency_Timer;
-  wire    Master_Clear_Bus_Latency_Timer;  // forward reference
-  reg     Master_Bus_Latency_Time_Exceeded;
-
-  always @(posedge pci_clk)
-  begin
-    if (Master_Clear_Bus_Latency_Timer == 1'b1)
-    begin
-      Master_Bus_Latency_Timer[7:0]    <= 8'h00;
-      Master_Bus_Latency_Time_Exceeded <= 1'b0;
-    end
-    else
-    begin
-      Master_Bus_Latency_Timer[7:0] <= pci_gnt_in_prev ? 8'h00
-                                     : Master_Bus_Latency_Timer[7:0] + 8'h01;
-      Master_Bus_Latency_Time_Exceeded <= (Master_Bus_Latency_Timer[7:0]  // set
-                                               == master_latency_value[7:0])
-                                    | Master_Bus_Latency_Time_Exceeded;  // hold
-    end
-  end
-
-// As far as I can tell, this is the story.
-//
-// Default is no FRAME, no IRDY.  This is the PCI_MASTER_IDLE State.
+// The Master State Machine as described in Appendix B.
+// No Lock State Machine is implemented.
+// This design supports Medium Decode.  Fast Decode is not supported.
 //
 // At the beginning of a transfer, the Master asserts FRAME and
 //   not IRDY for 1 clock, independent of all other signals, to
@@ -827,10 +835,6 @@ module pci_blue_master (
 //   has to re-arbitrate for the bus.  It must then continue the transfer,
 //   using the incremented DMA address.  It acts partially like it had
 //   received a Target Retry, but with itself causing the disconnect.
-
-// The Master State Machine as described in Appendix B.
-// No Lock State Machine is implemented.
-// This design supports Medium Decode.  Fast Decode is not supported.
 //
 // Here is my interpretation of the Master State Machine:
 //
@@ -838,11 +842,6 @@ module pci_blue_master (
 // 1) Waiting,
 // 2) Transferring data with more to come,
 // 3) Transferring the last Data item.
-//
-// The Request FIFO can indicate that it
-// 1) contains no Data,
-// 2) contains Data which is not the last,
-// 3) contains the last Data
 //
 // NOTE: The PCI Spec says that the Byte Enables driven by the Master
 // must be valid on all clocks.  Therefore, the Master cannot
@@ -855,13 +854,17 @@ module pci_blue_master (
 // available early enough.
 // See the PCI Local Bus Spec Revision 2.2 section 3.2.2 and 3.3.1 for details.
 //
-// In addition, the Result FIFO can have room or no room.
-// When it has no room, this holds off Master State Machine
+// The Request FIFO can indicate that it
+// 1) contains no Data,
+// 2) contains Data which is not the last,
+// 3) contains the last Data
+//
+// When the Result FIFO has no room, this holds off Master State Machine
 // activity the same as if no Write Data or Read Strobes were available.
 //
 // The Target can say that it wants a Wait State, that it wants
 // to transfer Data, that it wants to transfer the Last Data,
-// and that it wants to do a Disconnect, Retry, or Target Abort.
+// or that it wants to do a Disconnect, Retry, or Target Abort.
 // (This last condition will be called Target DRA below.)
 //
 // The State Sequence is as follows:
@@ -1343,25 +1346,31 @@ module pci_blue_master (
 
 // During Address Phase and First Data Phase, always update the PCI Bus.
 // After those two clocks, the PCI bus will only update when IRDY and TRDY.
-// This signal controls the unloading of the Request FIFO in this module.
-  assign  Master_Captures_Request_FIFO_Unconditionally =
+  wire    Master_Updates_Request_FIFO_Because_Data_Available =
                       (PCI_Master_State[9:0] == PCI_MASTER_IDLE)  // New Address
                     | (PCI_Master_State[9:0] == PCI_MASTER_PARK)  // New Address
-                    | (PCI_Master_State[9:0] == PCI_MASTER_STEP)  // New Address
-                    | (PCI_Master_State[9:0] == PCI_MASTER_ADDR);  // First Data
+// Do NOT grab new data during STEP state.  The Address needs to stay constant
+                    | (PCI_Master_State[9:0] == PCI_MASTER_ADDR)  // First Data
+                    | 1'b0;  // NOTE: WORKING
+
+// Controls the unloading of the Request FIFO
+  wire    Master_Discards_Request_FIFO_Entry_After_Abort;  // forward reference
+  assign  Master_Consumes_Request_FIFO_Data_Unconditionally =
+                      Master_Updates_Request_FIFO_Because_Data_Available
+                    | Master_Discards_Request_FIFO_Entry_After_Abort;
 
 // This signal controls the actual PCI IO Pads, and results in data the next clock.
   assign  Master_Force_AD_to_Address_Data =  // drive outputs
-                      Master_Captures_Request_FIFO_Unconditionally;
+                      Master_Updates_Request_FIFO_Because_Data_Available;
 
 // This signal controls the unloading of the Request FIFO in this module.
-  assign  Master_Captures_Request_FIFO_If_TRDY = 1'b0;  // NOTE: WORKING
+  assign  Master_Consumes_Request_FIFO_If_TRDY = 1'b0;  // NOTE: WORKING
 
 // This signal controls the actual PCI IO Pads, and results in data the next clock.
-  assign  Master_Exposes_Data_On_TRDY = Master_Captures_Request_FIFO_If_TRDY;  // drive outputs  // NOTE: WORKING  Only on READS!
+  assign  Master_Exposes_Data_On_TRDY = Master_Consumes_Request_FIFO_If_TRDY;  // drive outputs  // NOTE: WORKING  Only on READS!
 
 // This signal tells the Target to grab data from the PCI bus this clock.
-  assign  Master_Captures_Data_On_TRDY = Master_Captures_Request_FIFO_If_TRDY;  // drive outputs  // NOTE: WORKING  Only on READS!
+  assign  Master_Captures_Data_On_TRDY = Master_Consumes_Request_FIFO_If_TRDY;  // drive outputs  // NOTE: WORKING  Only on READS!
 
 // This signal muxes the Stored Address onto the PCI bus during retries.
   wire    Master_Select_Stored_Address =
@@ -1381,13 +1390,17 @@ module pci_blue_master (
                       (PCI_Master_State[9:0] == PCI_MASTER_ADDR);
 
   assign  Waiting_For_External_PCI_Bus_To_Go_Idle = 1'b1;  // NOTE: WORKING
-  assign  Master_Flushing_Request_FIFO = 1'b0;  // NOTE: WORKING
+  assign  Master_Mark_Status_Entry_Flushed = 1'b0;  // NOTE: WORKING
+  assign  Master_Mark_Status_Entry_Flushed = 1'b0;  // NOTE: WORKING
+  assign  Master_Discards_Request_FIFO_Entry_After_Abort = 1'b0;  // NOTE: WORKING
+  assign  Master_Using_Retry_Info = 1'b0;  // NOTE: WORKING
   assign  Master_Completed_Retry_Address = 1'b0;  // NOTE: WORKING
   assign  Master_Completed_Retry_Data = 1'b0;  // NOTE: WORKING
   assign  Master_Got_Retry = 1'b0;  // NOTE WORKING
-  assign  Master_Disconnect_Being_Forced = 1'b0;  // NOTE: WORKING
+  assign  Master_Timeout_Forces_Disconnect = 1'b0;  // NOTE: WORKING
   assign  Fast_Back_to_Back_Possible = 1'b0;  // NOTE: WORKING
   assign  Master_Clear_Bus_Latency_Timer = 1'b0;  // NOTE: WORKING
+  assign  Master_Clear_Data_Latency_Counter = 1'b0;  // NOTE: WORKING
   assign  Master_Forced_Off_Bus_By_Target_Abort = 1'b0;  // NOTE: WORKING
   assign  Master_Forces_PERR = 1'b0;  // NOTE: WORKING
 
