@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_master.v,v 1.17 2001-08-11 10:13:11 bbeaver Exp $
+// $Id: test_pci_master.v,v 1.18 2001-08-11 15:01:35 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -203,7 +203,7 @@ module pci_test_master (
   assign  old_addr_new_data     = pci_blue_master.proceed_with_stored_address_plus_new_data;     // TEMPORARY
   assign  old_addr_old_data     = pci_blue_master.proceed_with_stored_address_plus_stored_data;  // TEMPORARY
   assign  new_data              = pci_blue_master.proceed_with_new_data;                  // TEMPORARY
-  assign  inc                   = pci_blue_master.inc_stored_address;                     // TEMPORARY
+  assign  inc                   = pci_blue_master.Inc_Stored_Address;                     // TEMPORARY
 
 // PCI signals
   wire    pci_req_out_next, pci_req_out_oe_comb;
@@ -225,7 +225,7 @@ module pci_test_master (
   wire    Master_Captures_Data_On_TRDY, Master_Exposes_Data_On_TRDY;
   wire    Master_Forces_PERR;
 // Signal to control Request pin if on-chip PCI devices share it
-  wire    Master_Forced_Off_Bus_By_Target_Abort;
+  wire    Master_Forced_Off_Bus_By_Target_Termination;
   wire    PERR_Detected_While_Master_Read;
   wire    This_Chip_Driving_IRDY = 1'b0;  // NOTE: use GNT instead.
 
@@ -316,6 +316,15 @@ endtask
 
 task do_reset;
   begin
+    if ($time > 0)
+    begin
+      if (   (pci_frame_bus === 1'b1)
+           | (pci_frame_bus === 1'b0)
+           | (pci_irdy_bus === 1'b1)
+           | (pci_irdy_bus === 1'b0) )
+        $display ("*** FRAME or IRDY still driven when Reset asserted at time %t", $time);
+
+    end
     #3.0;
     pci_clk = 1'b0;
     pci_gnt_in_critical = 1'b0;
@@ -1495,6 +1504,9 @@ endtask
     pci_trdy;
       do_clocks (4'h3);
     pci_grant;
+      do_clocks (4'h4);
+    pci_devsel;
+    pci_trdy;
       do_clocks (4'h8);
 
     $display ("Doing Memory Write, 3 words, 6 Master Wait State, at time %t", $time);
@@ -1517,6 +1529,9 @@ endtask
     pci_trdy;
       do_clocks (4'h3);
     pci_grant;
+      do_clocks (4'h4);
+    pci_devsel;
+    pci_trdy;
       do_clocks (4'h8);
 
     $display ("Doing Memory Read, 3 words, 7 Master Wait State, at time %t", $time);
@@ -1539,6 +1554,9 @@ endtask
     pci_trdy;
       do_clocks (4'h3);
     pci_grant;
+      do_clocks (4'h4);
+    pci_devsel;
+    pci_trdy;
       do_clocks (4'h8);
 
     $display ("Doing Memory Write, 3 words, 7 Master Wait State, at time %t", $time);
@@ -1561,11 +1579,15 @@ endtask
     pci_trdy;
       do_clocks (4'h3);
     pci_grant;
+      do_clocks (4'h4);
+    pci_devsel;
+    pci_trdy;
       do_clocks (4'h8);
 
-NOTE: need to test fast back-to-backs.  Do all exceptional conditions get handled?
+//  NOTE: need to test fast back-to-backs.  Do all exceptional conditions get handled?
 `endif  // WORKING
 
+`define DUMPING
 `ifdef DUMPING
 
     $display ("Doing Memory Read, 1 word, Master Abort, at time %t", $time);
@@ -1573,12 +1595,43 @@ NOTE: need to test fast back-to-backs.  Do all exceptional conditions get handle
     unload_target_data;
     write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ);
       do_clocks (4'h1);
-    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_0);
-      do_clocks (4'h4);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_1);
+      do_clocks (4'h1);
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_2);
+      do_clocks (4'h2);
     pci_grant;  // Clk 0, resulting in FRAME at first clock.
       do_clocks (4'h6);  // abort is 6 or greater
     pci_devsel;
+      do_clocks (4'h6);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
       do_clocks (4'h8);
+
+    $display ("Doing Memory Write, 1 word, Master Abort, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_3);
+      do_clocks (4'h1);
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_0);
+      do_clocks (4'h2);
+    pci_grant;
+      do_clocks (4'h6);  // abort is 6 or greater
+    pci_devsel;
+      do_clocks (4'h6);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
+
 
     $display ("Doing Memory Read, 2 words, Master Abort, at time %t", $time);
     do_reset;
@@ -1588,20 +1641,19 @@ NOTE: need to test fast back-to-backs.  Do all exceptional conditions get handle
     write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1);
       do_clocks (4'h1);
     write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_2);
-      do_clocks (4'h3);
-    pci_grant;
-      do_clocks (4'h8);
-
-// NOTE: add version where data, or data last, not available at time of timeout.  Delayed Flush.
-
-    $display ("Doing Memory Write, 1 word, Master Abort, at time %t", $time);
-    do_reset;
-    unload_target_data;
+      do_clocks (4'h1);
     write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE);
       do_clocks (4'h1);
     write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_3);
-      do_clocks (4'h4);
+      do_clocks (4'h1);
     pci_grant;
+      do_clocks (4'h6);  // abort is 6 or greater
+    pci_devsel;
+      do_clocks (4'h7);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
       do_clocks (4'h8);
 
     $display ("Doing Memory Write, 2 words, Master Abort, at time %t", $time);
@@ -1612,12 +1664,317 @@ NOTE: need to test fast back-to-backs.  Do all exceptional conditions get handle
     write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_0);
       do_clocks (4'h1);
     write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Half_1);
-      do_clocks (4'h3);
+      do_clocks (4'h1);
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_0);
+      do_clocks (4'h1);
     pci_grant;
+      do_clocks (4'h6);  // abort is 6 or greater
+    pci_devsel;
+      do_clocks (4'h7);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
       do_clocks (4'h8);
 
-// Master Abort before and after last data offered,
+    $display ("Doing Memory Read, 2 words, Master Abort, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1);
+      do_clocks (4'h4);
+    pci_grant;
+      do_clocks (4'h3);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_2);
+      do_clocks (4'h1);
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_3);
+      do_clocks (4'h1);  // abort is 6 or greater
+    pci_devsel;
+      do_clocks (4'h7);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
+
+    $display ("Doing Memory Write, 2 words, Master Abort, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_0);
+      do_clocks (4'h4);
+    pci_grant;
+      do_clocks (4'h3);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Half_1);
+      do_clocks (4'h1);
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_0);
+      do_clocks (4'h1);  // abort is 6 or greater
+    pci_devsel;
+      do_clocks (4'h7);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
+
+    $display ("Doing Memory Read, 3 words, Master Abort, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1);
+      do_clocks (4'h4);
+    pci_grant;
+      do_clocks (4'h3);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_2);
+      do_clocks (4'h3);  // abort is 6 or greater
+    pci_devsel;
+      do_clocks (4'h8);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_3);
+      do_clocks (4'h1);
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_0);
+      do_clocks (4'h4);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
+
+    $display ("Doing Memory Write, 3 words, Master Abort, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1);
+      do_clocks (4'h4);
+    pci_grant;
+      do_clocks (4'h3);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_2);
+      do_clocks (4'h3);  // abort is 6 or greater
+    pci_devsel;
+      do_clocks (4'h8);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_3);
+      do_clocks (4'h1);
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_0);
+      do_clocks (4'h4);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
+
 // Target abort before and after last data offered,
+
+    $display ("Doing Memory Read, 1 word, Target Abort, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_1);
+      do_clocks (4'h1);
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_2);
+      do_clocks (4'h2);
+    pci_grant;  // Clk 0, resulting in FRAME at first clock.
+      do_clocks (4'h5);  // abort is 6 or greater
+    pci_devsel;
+      do_clocks (4'h1);
+    pci_stop;
+      do_clocks (4'h6);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
+
+    $display ("Doing Memory Write, 1 word, Target Abort, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_3);
+      do_clocks (4'h1);
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_0);
+      do_clocks (4'h2);
+    pci_grant;
+      do_clocks (4'h5);  // abort is 6 or greater
+    pci_devsel;
+      do_clocks (4'h1);
+    pci_stop;
+      do_clocks (4'h6);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
+
+
+    $display ("Doing Memory Read, 2 words, Target Abort, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_2);
+      do_clocks (4'h1);
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_3);
+      do_clocks (4'h1);
+    pci_grant;
+      do_clocks (4'h5);  // abort is 6 or greater
+    pci_devsel;
+      do_clocks (4'h1);
+    pci_stop;
+      do_clocks (4'h7);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
+
+    $display ("Doing Memory Write, 2 words, Target Abort, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_0);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Half_1);
+      do_clocks (4'h1);
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_0);
+      do_clocks (4'h1);
+    pci_grant;
+      do_clocks (4'h5);  // abort is 6 or greater
+    pci_devsel;
+      do_clocks (4'h1);
+    pci_stop;
+      do_clocks (4'h7);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
+
+    $display ("Doing Memory Read, 2 words, Target Abort, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1);
+      do_clocks (4'h4);
+    pci_grant;
+      do_clocks (4'h3);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_2);
+      do_clocks (4'h1);
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_3);
+    pci_devsel;  // abort is 6 or greater
+      do_clocks (4'h1);
+    pci_stop;
+      do_clocks (4'h7);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
+
+    $display ("Doing Memory Write, 2 words, Target Abort, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Half_0);
+      do_clocks (4'h4);
+    pci_grant;
+      do_clocks (4'h3);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Half_1);
+      do_clocks (4'h1);
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_0);
+    pci_devsel;  // abort is 6 or greater
+      do_clocks (4'h1);
+    pci_stop;
+      do_clocks (4'h7);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
+
+    $display ("Doing Memory Read, 3 words, Target Abort, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1);
+      do_clocks (4'h4);
+    pci_grant;
+      do_clocks (4'h3);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_2);
+      do_clocks (4'h2);  // abort is 6 or greater
+    pci_devsel;
+      do_clocks (4'h1);
+    pci_stop;
+      do_clocks (4'h8);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_3);
+      do_clocks (4'h1);
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_0);
+      do_clocks (4'h4);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
+
+    $display ("Doing Memory Write, 3 words, Target Abort, at time %t", $time);
+    do_reset;
+    unload_target_data;
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_WRITE);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_1);
+      do_clocks (4'h4);
+    pci_grant;
+      do_clocks (4'h3);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK, `Test_Byte_2);
+      do_clocks (4'h2);  // abort is 6 or greater
+    pci_devsel;
+      do_clocks (4'h1);
+    pci_stop;
+      do_clocks (4'h8);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_3);
+      do_clocks (4'h1);
+    write_addr (PCI_HOST_REQUEST_ADDRESS_COMMAND, PCI_COMMAND_MEMORY_READ);
+      do_clocks (4'h1);
+    write_data (PCI_HOST_REQUEST_W_DATA_RW_MASK_LAST, `Test_Byte_0);
+      do_clocks (4'h4);
+    pci_grant;
+      do_clocks (4'h3);  // 2 for fast decode, 3 for medium
+    pci_devsel;
+    pci_trdy;
+      do_clocks (4'h8);
 
     $display ("Doing Memory Read, 1 word, Target Abort, at time %t", $time);
     do_reset;
@@ -1814,7 +2171,7 @@ pci_blue_master pci_blue_master (
   .PERR_Detected_While_Master_Read (PERR_Detected_While_Master_Read),
   .This_Chip_Driving_IRDY     (This_Chip_Driving_IRDY),
 // Signal to control Request pin if on-chip PCI devices share it
-  .Master_Forced_Off_Bus_By_Target_Abort (Master_Forced_Off_Bus_By_Target_Abort),
+  .Master_Forced_Off_Bus_By_Target_Termination (Master_Forced_Off_Bus_By_Target_Termination),
 // Host Interface Request FIFO used to ask the PCI Interface to initiate
 //   PCI References to an external PCI Target.
   .pci_request_fifo_type      (pci_request_fifo_type[2:0]),
