@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_target.v,v 1.18 2001-08-05 06:35:43 bbeaver Exp $
+// $Id: pci_blue_target.v,v 1.19 2001-08-13 09:18:16 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -119,13 +119,15 @@ module pci_blue_target (
   pci_target_ad_en_next, pci_target_ad_out_oe_comb,
   pci_idsel_in_prev,
   pci_cbe_l_in_prev,
-  pci_par_in_prev,     pci_par_in_critical,
+  pci_par_in_critical, pci_par_in_prev,
   pci_target_par_out_next,
   pci_target_par_out_oe_comb,
-  pci_frame_in_prev,   pci_frame_in_critical,
-  pci_irdy_in_prev,    pci_irdy_in_critical,
-  pci_devsel_out_next, pci_d_t_s_out_oe_comb,
-  pci_trdy_out_next,   pci_stop_out_next,
+  pci_frame_in_critical, pci_frame_in_prev,
+  pci_irdy_in_critical, pci_irdy_in_prev,
+  pci_devsel_out_next,
+  pci_trdy_out_next,
+  pci_stop_out_next,
+  pci_d_t_s_out_oe_comb,
   pci_perr_in_prev,
   pci_target_perr_out_next,
   pci_target_perr_out_oe_comb,
@@ -192,18 +194,18 @@ module pci_blue_target (
   output  pci_target_ad_out_oe_comb;
   input   pci_idsel_in_prev;
   input  [PCI_BUS_CBE_RANGE:0] pci_cbe_l_in_prev;
-  input   pci_par_in_prev;
   input   pci_par_in_critical;
+  input   pci_par_in_prev;
   output  pci_target_par_out_next;
   output  pci_target_par_out_oe_comb;
-  input   pci_frame_in_prev;
   input   pci_frame_in_critical;
-  input   pci_irdy_in_prev;
+  input   pci_frame_in_prev;
   input   pci_irdy_in_critical;
+  input   pci_irdy_in_prev;
   output  pci_devsel_out_next;
-  output  pci_d_t_s_out_oe_comb;
   output  pci_trdy_out_next;
   output  pci_stop_out_next;
+  output  pci_d_t_s_out_oe_comb;
   input   pci_perr_in_prev;
   output  pci_target_perr_out_next;
   output  pci_target_perr_out_oe_comb;
@@ -305,6 +307,8 @@ module pci_blue_target (
 // Data Bits [15:8] are the single-byte Read Data returned when writing the Config Register.
 // Data Bit  [16] indicates that a Config Write has been done.
 // Data Bit  [17] indicates that a Config Read has been done.
+// Data Bits [20:18] are used to select individual function register sets in the
+//   case that a multi-function PCI interface is created.
 // This Response will be issued with either Data Bits 16 or 17 set to 1'b1.
 // `define PCI_HOST_RESPONSE_READ_WRITE_CONFIG_REGISTER  (4'h1)
 // Fourth, a Response repeating the Host Request the PCI Bus is presently servicing.
@@ -484,10 +488,16 @@ module pci_blue_target (
 
   always @(posedge pci_clk)
   begin
-    if (pci_reset_comb)
+    if (pci_reset_comb == 1'b1)
     begin
       Target_Subsequent_Latency_Counter[2:0] <= 3'h0;
       Read_Subsequent_Latency_Disconnect <= 1'b0;
+    end
+    else if (pci_reset_comb == 1'b0)
+    begin
+    end
+    else
+    begin  // NOTE: WORKING
     end
   end
 
@@ -517,7 +527,7 @@ module pci_blue_target (
       Target_Delayed_Read_Command[PCI_BUS_CBE_RANGE:0] <= pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0];
       Target_Delayed_Read_Address_Parity <= 1'b0;  // NOTE WORKING
     end
-    else
+    else if (Grab_Target_Address == 1'b0)
     begin
       if (Inc_Target_Address == 1'b1)
       begin
@@ -525,13 +535,19 @@ module pci_blue_target (
                           Target_Delayed_Read_Address[PCI_BUS_DATA_RANGE:0]
                         + `PCI_BUS_Address_Step;
       end
-      else
+      else if (Inc_Target_Address == 1'b0)
       begin
         Target_Delayed_Read_Address[PCI_BUS_DATA_RANGE:0] <=
                                Target_Delayed_Read_Address[PCI_BUS_DATA_RANGE:0];
       end
+      else
+      begin  // NOTE: WORKING
+      end
       Target_Delayed_Read_Command[PCI_BUS_CBE_RANGE:0] <=
                                Target_Delayed_Read_Command[PCI_BUS_CBE_RANGE:0];
+    end
+    else
+    begin  // NOTE: WORKING
     end
     Prev_Grab_Target_Address <= Grab_Target_Address;
     if ((Prev_Grab_Target_Address == 1'b1) || (Inc_Target_Address == 1'b1))
@@ -539,10 +555,13 @@ module pci_blue_target (
       Target_Delayed_Read_Byte_Strobes[PCI_BUS_CBE_RANGE:0] <=
                                pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0];
     end
-    else
+    else if ((Prev_Grab_Target_Address == 1'b0) && (Inc_Target_Address == 1'b0))
     begin
       Target_Delayed_Read_Byte_Strobes[PCI_BUS_CBE_RANGE:0] <=
                                Target_Delayed_Read_Byte_Strobes[PCI_BUS_CBE_RANGE:0];
+    end
+    else
+    begin  // NOTE: WORKING
     end
   end
 
@@ -554,12 +573,12 @@ module pci_blue_target (
 
   always @(posedge pci_clk)
   begin
-    if (pci_reset_comb)
+    if (pci_reset_comb == 1'b1)
     begin
       Delayed_Read_Discard_Counter[14:0] <= 15'h7FFF;
       Delayed_Read_Discard_Now <= 1'b0;
     end
-    else if (Grab_Target_Address)
+    else if (Grab_Target_Address == 1'b1)  // NOTE: WORKING
     begin
       Delayed_Read_Discard_Counter[14:0] <= 15'h0000;
       Delayed_Read_Discard_Now <= 1'b0;
@@ -587,11 +606,11 @@ module pci_blue_target (
 
   always @(posedge pci_clk or posedge pci_reset_comb)
   begin
-    if (pci_reset_comb)
+    if (pci_reset_comb == 1'b1)
     begin
       Delayed_Read_In_Progress <= 1'b0;
     end
-    else
+    else if (pci_reset_comb == 1'b0)
     begin  // NOTE: WORKING
       if (Delayed_Read_In_Progress && Delayed_Read_Discard_Now)
       begin
@@ -601,6 +620,9 @@ module pci_blue_target (
       begin
         Delayed_Read_In_Progress <= 1'b0;  // NOTE WORKING
       end
+    end
+    else
+    begin  // NOTE: WORKING
     end
   end
 
@@ -805,6 +827,24 @@ module pci_blue_target (
   parameter PCI_TARGET_STOP      = 8'b10000000;  // Target waits till Frame goes away
   reg    [7:0] PCI_Target_State;
 
+// State Variables are closely related to PCI Control Signals:
+//  They are (in order) AD_OE, DEVSEL_L, TRDY_L, STOP_L, State_[1,0]
+  parameter PCI_TARGET_IDLE_000             = 6'b0_000_00;  // 00 Target in IDLE state
+  parameter PCI_TARGET_NOT_ME_000           = 6'b0_000_01;  // 01 Target in IDLE state
+
+  parameter PCI_TARGET_DEVSEL_WAIT_100      = 6'b1_100_00;  // 30 Target Wait State
+
+  parameter PCI_TARGET_DEVSEL_DATA_110      = 6'b1_110_00;  // 38 Target Transfers Data
+
+  parameter PCI_TARGET_DEVSEL_STOP_101      = 6'b1_101_00;  // 34 Master Transfers Data
+
+  parameter PCI_TARGET_ABORT_FIRST_100      = 6'b1_100_01;  // 31 Target Starting ABORT
+  parameter PCI_TARGET_ABORT_SECOND_100     = 6'b1_001_00;  // 24 Target Starting ABORT
+
+  parameter TS_Range = 5;
+  parameter TS_X = {(TS_Range+1){1'bX}};
+
+// Classify the activity of the External Target.
 // These correspond to      {frame, irdy}
   parameter MASTER_IDLE      = 2'b10;
   parameter MASTER_DATA_MORE = 2'b11;
@@ -814,6 +854,57 @@ module pci_blue_target (
 //   FRAME and IRDY are extremely time critical.  These signals cannot be
 //   latched in the IO pads.  The signals must be acted upon by the
 //   Target State Machine as combinational inputs.
+//
+// There are two implementations of the logic below.  One uses a regular
+//   CASE statement.  It is probably correct, but slow.  The second is
+//   much more complicated, but uses the critical external signals only to
+//   control a MUX which is right before flops.  The MUX is fast.
+//
+// The combinational logic is below.  This feeds into some Output Flops
+//   which are right at the IO pads, and also some which capture the state.
+// NOTE: THESE COULD BE THE SAME FLOPS if the timing could be guaranteed.
+//   that would reduce loading on these critical signals.
+
+// NOTE: FRAME and IRDY are VERY LATE.  This logic is in the critical path.
+
+// Given a present Target State and all appropriate inputs, calculate the next state.
+// Here is how to think of it for now: When a clock happens, this says what to do now
+function [TS_Range:0] Target_Next_State;
+  input  [TS_Range:0] Target_Present_State;
+  input   Response_FIFO_has_Room;
+  input   DELAYED_READ_FIFO_CONTAINS_DATA;
+  input   Timeout_Forces_Disconnect;
+  input   frame_in;
+  input   irdy_in;
+  input   Back_to_Back_Possible;
+
+  begin
+// synopsys translate_off
+    if (   ( $time > 0)
+         & (   ((frame_in ^ frame_in) === 1'bX)
+             | ((irdy_in ^ irdy_in) === 1'bX)))
+    begin
+      Target_Next_State[TS_Range:0] = TS_X;  // error
+      $display ("*** %m PCI Target State Machine FRAME, IRDY Unknown %x %x at time %t",
+                  frame_in, irdy_in, $time);
+    end
+    else
+// synopsys translate_on
+
+    case (Target_Present_State[TS_Range:0])  // synopsys parallel_case
+    default:
+      begin
+        Target_Next_State[TS_Range:0] = TS_X;  // error
+// synopsys translate_off
+        if ($time > 0)
+          $display ("*** %m PCI Target State Machine Unknown %x at time %t",
+                         Target_Next_State[TS_Range:0], $time);
+// synopsys translate_on
+      end
+    endcase
+  end
+endfunction
+
 
 // This Case Statement is supposed to implement the Target State Machine.
 //   I believe that it might be safer to implement it as gates, in order
@@ -822,11 +913,11 @@ module pci_blue_target (
 
   always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
   begin
-    if (pci_reset_comb)
+    if (pci_reset_comb == 1'b1)
     begin
       PCI_Target_State[7:0] <= PCI_TARGET_IDLE;
     end
-    else
+    else if (pci_reset_comb == 1'b0)
     begin
       case (PCI_Target_State[7:0])
       PCI_TARGET_IDLE:
@@ -859,6 +950,9 @@ module pci_blue_target (
 // synopsys translate_on
         end
       endcase
+    end
+    else
+    begin  // NOTE: WORKING
     end
   end
 

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_interface.v,v 1.22 2001-08-12 04:30:51 bbeaver Exp $
+// $Id: pci_blue_interface.v,v 1.23 2001-08-13 09:18:15 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -1129,7 +1129,7 @@ pci_synchronizer_flop sync_SERR_flop (
   .async_reset                (host_reset_to_PCI_interface)
 );
 
-  reg     SERR_prev, SERR_prev_prev;
+  reg     SERR_prev, SERR_prev_prev, SERR_prev_prev_prev;
   reg     SERR_Detected;
 
   always @(posedge pci_clk or posedge pci_reset_comb) // async reset!
@@ -1144,9 +1144,10 @@ pci_synchronizer_flop sync_SERR_flop (
     begin
       SERR_prev <= SERR_sync;
       SERR_prev_prev <= SERR_prev_prev;
+      SERR_prev_prev_prev <= SERR_prev_prev;
       SERR_Detected <=  (SERR_prev_prev_prev == 1'b0)
                       & (SERR_prev_prev == 1'b0)
-                      & (SERR_sync == 1'b1);
+                      & (SERR_prev == 1'b1);
     end
 // synopsys translate_off
       else
@@ -1294,18 +1295,18 @@ pci_blue_target pci_blue_target (
   .pci_target_ad_out_oe_comb  (pci_target_ad_out_oe_comb),
   .pci_idsel_in_prev          (pci_idsel_in_prev),
   .pci_cbe_l_in_prev          (pci_cbe_l_in_prev[PCI_BUS_CBE_RANGE:0]),
-  .pci_par_in_prev            (pci_par_in_prev),
   .pci_par_in_critical        (pci_par_in_critical),
+  .pci_par_in_prev            (pci_par_in_prev),
   .pci_target_par_out_next    (pci_target_par_out_next),
   .pci_target_par_out_oe_comb (pci_target_par_out_oe_comb),
-  .pci_frame_in_prev          (pci_frame_in_prev),
   .pci_frame_in_critical      (pci_frame_in_critical),
-  .pci_irdy_in_prev           (pci_irdy_in_prev),
+  .pci_frame_in_prev          (pci_frame_in_prev),
   .pci_irdy_in_critical       (pci_irdy_in_critical),
+  .pci_irdy_in_prev           (pci_irdy_in_prev),
   .pci_devsel_out_next        (pci_devsel_out_next),
-  .pci_d_t_s_out_oe_comb      (pci_d_t_s_out_oe_comb),
   .pci_trdy_out_next          (pci_trdy_out_next),
   .pci_stop_out_next          (pci_stop_out_next),
+  .pci_d_t_s_out_oe_comb      (pci_d_t_s_out_oe_comb),
   .pci_perr_in_prev           (pci_perr_in_prev),
   .pci_target_perr_out_next   (pci_target_perr_out_next),
   .pci_target_perr_out_oe_comb (pci_target_perr_out_oe_comb),
@@ -1373,7 +1374,7 @@ pci_blue_target pci_blue_target (
   wire    PERR_Detected_While_Master_Read;
   wire    This_Chip_Driving_IRDY;
 // Signal to control Request pin if on-chip PCI devices share it
-  wire    Master_Forced_Off_Bus_By_Target_Abort;
+  wire    Master_Forced_Off_Bus_By_Target_Termination;
 
 // Instantiate the Master Interface
 pci_blue_master pci_blue_master (
@@ -1400,7 +1401,6 @@ pci_blue_master pci_blue_master (
   .pci_stop_in_prev           (pci_stop_in_prev),
   .pci_stop_in_critical       (pci_stop_in_critical),
   .pci_perr_in_prev           (pci_perr_in_prev),
-  .pci_serr_in_prev           (pci_serr_in_prev),
 // Signals to control shared AD bus, Parity, and SERR signals
   .Master_Force_AD_to_Address_Data_Critical (Master_Force_AD_to_Address_Data_Critical),
   .Master_Captures_Data_On_TRDY (Master_Captures_Data_On_TRDY),
@@ -1409,7 +1409,7 @@ pci_blue_master pci_blue_master (
   .PERR_Detected_While_Master_Read (PERR_Detected_While_Master_Read),
   .This_Chip_Driving_IRDY     (This_Chip_Driving_IRDY),
 // Signal to control Request pin if on-chip PCI devices share it
-  .Master_Forced_Off_Bus_By_Target_Abort (Master_Forced_Off_Bus_By_Target_Abort),
+  .Master_Forced_Off_Bus_By_Target_Termination (Master_Forced_Off_Bus_By_Target_Termination),
 // Host Interface Request FIFO used to ask the PCI Interface to initiate
 //   PCI References to an external PCI Target.
   .pci_request_fifo_type      (pci_request_fifo_type[2:0]),

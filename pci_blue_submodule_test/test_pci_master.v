@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: test_pci_master.v,v 1.21 2001-08-12 23:05:29 bbeaver Exp $
+// $Id: test_pci_master.v,v 1.22 2001-08-13 09:18:16 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -1449,10 +1449,10 @@ pci_blue_master pci_blue_master (
   .pci_irdy_out_next          (pci_irdy_out_next),
   .pci_irdy_out_oe_comb       (pci_irdy_out_oe_comb),
   .pci_devsel_in_prev         (pci_devsel_in_prev),
-  .pci_trdy_in_prev           (pci_trdy_in_prev),
   .pci_trdy_in_critical       (pci_trdy_in_critical),
-  .pci_stop_in_prev           (pci_stop_in_prev),
+  .pci_trdy_in_prev           (pci_trdy_in_prev),
   .pci_stop_in_critical       (pci_stop_in_critical),
+  .pci_stop_in_prev           (pci_stop_in_prev),
   .pci_perr_in_prev           (pci_perr_in_prev),
 // Signals to control shared AD bus, Parity, and SERR signals
   .Master_Force_AD_to_Address_Data_Critical (Master_Force_AD_to_Address_Data_Critical),
@@ -1497,6 +1497,7 @@ pci_blue_master pci_blue_master (
   .pci_reset_comb             (host_reset_comb)
 );
 
+// Convert seperate signals and OE controls into composite signal
   reg     req_reg;
   reg    [PCI_BUS_DATA_RANGE:0] ad_reg;
   reg    [PCI_BUS_CBE_RANGE:0] cbe_reg;
