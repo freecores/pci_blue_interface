@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_master.v,v 1.6 2001-06-11 08:14:49 bbeaver Exp $
+// $Id: pci_blue_master.v,v 1.7 2001-06-12 06:37:52 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -588,6 +588,17 @@ module pci_blue_master (
 // 1) contains no Data,
 // 2) contains Data which is not the last,
 // 3) contains the last Data
+//
+// NOTE: The PCI Spec says that the Byte Enables driven by the Master
+// must be valid on all clocks.  Therefore, the Master cannot
+// allow one transfer to complete until it knows that both data for
+// that transfer is available AND byte enables for the next transfer
+// are available.  This requirement means that this logic must be
+// aware of the top 2 entries in the Request FIFO.  The Master might
+// need to do a master disconnect, and a later reference retry,
+// solely because the Byte Enables for the NEXT reference aren't
+// available early enough.
+// See the PCI Local Bus Spec Revision 2.2 section 3.2.2 and 3.3.1 for details.
 //
 // In addition, the Result FIFO can have room or no room.
 // When it has no room, this holds off Master State Machine

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_target.v,v 1.6 2001-06-11 08:14:50 bbeaver Exp $
+// $Id: pci_blue_target.v,v 1.7 2001-06-12 06:37:53 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -485,68 +485,94 @@ module pci_blue_target (
 //
 // The State Sequence is as follows:
 //                   FRAME   IRDY        DEVSEL   TRDY   STOP
-//    TARGET_IDLE,        FIFO Empty       0       0      0
-// Master No Frame     0      X            0       0      0  -> MASTER_IDLE
+//    TARGET_IDLE,        FIFO Don't care  0       0      0
+// Master No Frame     0      X            0       0      0  -> TARGET_IDLE
+// Master Frame        1      0            0       0      0  -> TARGET_ADDR
 //                   FRAME   IRDY        DEVSEL   TRDY   STOP
-//    TARGET_IDLE         FIFO Address     0       0      0
-// Master Don't Care   X      X            0       1      0  -> MASTER_ADDR
+//    TARGET_ADDR         FIFO Empty       0       0      0
+// Write No Addr Match 1      X            0       0      0  -> TARGET_NOT_ME
+// Write Addr Match,   1      X            1       0      0  -> TARGET_WAIT
+// Read No Addr Match  1      X            0       0      0  -> TARGET_NOT_ME
+// No Delayed Read     1      X            1       0      1  -> TARGET_STOP
+// Delayed Read Match  1      X            1       0      0  -> TARGET_WAIT
 //                   FRAME   IRDY        DEVSEL   TRDY   STOP
-//    TARGET_ADDR         FIFO Don't care  0       1      0
-// Master Don't Care   X      X            0       1      0  -> MASTER_WAIT
+//    TARGET_ADDR         FIFO non-Last Data 0     0      0
+// Write No Addr Match 1      X            0       0      0  -> TARGET_NOT_ME
+// Write Addr Match,   1      X            1       1      0  -> TARGET_DATA_MORE
+// Read No Addr Match  1      X            0       0      0  -> TARGET_NOT_ME
+// No Delayed Read     1      X            1       0      0  -> TARGET_STOP
+// Delayed Read Match  1      X            1       1      0  -> TARGET_DATA_MORE
 //                   FRAME   IRDY        DEVSEL   TRDY   STOP
-//    TARGET_WAIT,        FIFO Empty       0       1      0
-// Master Wait         0      0            0       1      0  -> MASTER_WAIT
-// Master Data         1      0            0       1      0  -> MASTER_WAIT
-// Master Last Data    1      1            0       1      0  -> MASTER_WAIT
+//    TARGET_ADDR         FIFO Last Data   0       0      0
+// Write No Addr Match 1      X            0       0      0  -> TARGET_NOT_ME
+// Write Addr Match,   1      X            1       1      1  -> TARGET_DATA_LAST
+// Read No Addr Match  1      X            0       0      0  -> TARGET_NOT_ME
+// No Delayed Read     1      X            1       0      0  -> TARGET_STOP
+// Delayed Read Match  1      X            1       1      1  -> TARGET_DATA_LAST
 //                   FRAME   IRDY        DEVSEL   TRDY   STOP
-//    TARGET_WAIT,        FIFO non-Last Data       1      0
-// Master Wait         0      0            0       1      1  -> MASTER_DATA_MORE
-// Master Data         1      0            0       1      1  -> MASTER_DATA_MORE
-// Master Last Data    1      1            0       0      1  -> MASTER_DATA_LAST
+//    TARGET_ADDR         FIFO Abort       0       0      0
+// Write No Addr Match 1      X            0       0      0  -> TARGET_NOT_ME
+// Write Addr Match,   1      X            1       0      0  -> TARGET_ABORT
+// Read No Addr Match  1      X            0       0      0  -> TARGET_NOT_ME
+// No Delayed Read     1      X            1       0      1  -> TARGET_STOP
+// Delayed Read Match  1      X            1       0      0  -> TARGET_ABORT
+//                   FRAME   IRDY        DEVSEL   TRDY   STOP
+//    TARGET_WAIT,        FIFO Empty       1       1      0
+// Master Wait         0      0            1       1      0  -> TARGET_WAIT
+// Master Data         1      0            1       1      0  -> TARGET_WAIT
+// Master Last Data    1      1            1       1      0  -> TARGET_WAIT
+//                   FRAME   IRDY        DEVSEL   TRDY   STOP
+//    TARGET_WAIT,        FIFO non-Last Data 0     1      0
+// Master Wait         0      0            0       1      1  -> TARGET_DATA_MORE
+// Master Data         1      0            0       1      1  -> TARGET_DATA_MORE
+// Master Last Data    1      1            0       0      1  -> TARGET_DATA_LAST
 //                   FRAME   IRDY        DEVSEL   TRDY   STOP
 //    TARGET_WAIT,        FIFO Last Data   0       1      0
-// Master Wait         0      0            0       0      1  -> MASTER_DATA_LAST
-// Master Data         1      0            0       0      1  -> MASTER_DATA_LAST
-// Master Last Data    1      1            0       0      1  -> MASTER_DATA_LAST
+// Master Wait         0      0            0       0      1  -> TARGET_DATA_LAST
+// Master Data         1      0            0       0      1  -> TARGET_DATA_LAST
+// Master Last Data    1      1            0       0      1  -> TARGET_DATA_LAST
 //                   FRAME   IRDY        DEVSEL   TRDY   STOP
 //    TARGET_WAIT,        FIFO Abort       0       1      0
-// Master Wait         0      0            0       0      1  -> MASTER_DATA_LAST
-// Master Data         1      0            0       0      1  -> MASTER_DATA_LAST
-// Master Last Data    1      1            0       0      1  -> MASTER_DATA_LAST
+// Master Wait         0      0            0       0      1  -> TARGET_DATA_LAST
+// Master Data         1      0            0       0      1  -> TARGET_DATA_LAST
+// Master Last Data    1      1            0       0      1  -> TARGET_DATA_LAST
 //                   FRAME   IRDY        DEVSEL   TRDY   STOP
 //    TARGET_DATA_MORE,   FIFO Empty       0       1      1
-// Master Wait         0      0            0       1      1  -> MASTER_DATA_MORE
-// Master Data         1      0            0       1      0  -> MASTER_WAIT
-// Master Last Data    1      1            0       0      1  -> MASTER_DATA_LAST
+// Master Wait         0      0            0       1      1  -> TARGET_DATA_MORE
+// Master Data         1      0            0       1      0  -> TARGET_WAIT
+// Master Last Data    1      1            0       0      1  -> TARGET_DATA_LAST
 //                   FRAME   IRDY        DEVSEL   TRDY   STOP
 //    TARGET_DATA_MORE,   FIFO non-Last Data       1      1
-// Master Wait         0      0            0       1      1  -> MASTER_DATA_MORE
-// Master Data         1      0            0       1      1  -> MASTER_DATA_MORE
-// Master Last Data    1      1            0       0      1  -> MASTER_DATA_LAST
+// Master Wait         0      0            0       1      1  -> TARGET_DATA_MORE
+// Master Data         1      0            0       1      1  -> TARGET_DATA_MORE
+// Master Last Data    1      1            0       0      1  -> TARGET_DATA_LAST
 //                   FRAME   IRDY        DEVSEL   TRDY   STOP
 //    TARGET_DATA_MORE,   FIFO Last Data   0       1      1
-// Master Wait         0      0            0       1      1  -> MASTER_DATA_MORE
-// Master Data         1      0            0       0      1  -> MASTER_DATA_LAST
-// Master Last Data    1      1            0       0      1  -> MASTER_DATA_LAST
+// Master Wait         0      0            0       1      1  -> TARGET_DATA_MORE
+// Master Data         1      0            0       0      1  -> TARGET_DATA_LAST
+// Master Last Data    1      1            0       0      1  -> TARGET_DATA_LAST
 //                   FRAME   IRDY        DEVSEL   TRDY   STOP
 //    TARGET_DATA_MORE,   FIFO Abort       0       1      1
-// Master Wait         0      0            0       1      1  -> MASTER_DATA_MORE
-// Master Data         1      0            0       0      1  -> MASTER_DATA_LAST
-// Master Last Data    1      1            0       0      1  -> MASTER_DATA_LAST
+// Master Wait         0      0            0       1      1  -> TARGET_DATA_MORE
+// Master Data         1      0            0       0      1  -> TARGET_DATA_LAST
+// Master Last Data    1      1            0       0      1  -> TARGET_DATA_LAST
 //                   FRAME   IRDY        DEVSEL   TRDY   STOP
 //    TARGET_DATA_LAST,   FIFO Empty       0       0      1 (or if no Fast Back-to-Back)
-// Master Wait         0      0            0       0      1  -> MASTER_DATA_LAST
-// Master Data         1      0            0       0      0  -> MASTER_IDLE
-// Master Last Data    1      1            0       0      0  -> MASTER_IDLE
+// Master Wait         0      0            0       0      1  -> TARGET_DATA_LAST
+// Master Data         1      0            0       0      0  -> TARGET_IDLE
+// Master Last Data    1      1            0       0      0  -> TARGET_IDLE
 //                   FRAME   IRDY        DEVSEL   TRDY   STOP
 //    TARGET_DATA_LAST,   FIFO Address     0       0      1 (and if Fast Back-to-Back)
-// Master Don't Care   X      X            0       1      0  -> MASTER_ADDR
+// Master Don't Care   X      X            0       1      0  -> TARGET_ADDR
+//                   FRAME   IRDY        DEVSEL   TRDY   STOP
+//    TARGET_ABORT,       FIFO Empty       0       0      1 (or if no Fast Back-to-Back)
+// Master Don't Care   X      X            0       0      0  -> TARGET_IDLE
 //                   FRAME   IRDY        DEVSEL   TRDY   STOP
 //    TARGET_STOP,        FIFO Empty       0       0      1 (or if no Fast Back-to-Back)
-// Master Don't Care   X      X            0       0      0  -> MASTER_IDLE
+// Master Don't Care   X      X            0       0      0  -> TARGET_IDLE
 //                   FRAME   IRDY        DEVSEL   TRDY   STOP
 //    TARGET_STOP,        FIFO Address     0       0      1 (and if Fast Back-to-Back)
-// Master Don't Care   X      X            0       1      0  -> MASTER_ADDR
+// Master Don't Care   X      X            0       1      0  -> TARGET_ADDR
 //
 // NOTE: that in all cases, the DEVSEL, TRDY, and STOP signals are calculated
 //   based on the FRAME and IRDY signals, which are very late and very
@@ -586,7 +612,7 @@ module pci_blue_target (
 //    TARGET_IDLE,        FIFO Empty          000     000 (no FRAME, IRDY)
 //    TARGET_IDLE         FIFO Address        100     000 (Always FRAME)
 //    TARGET_ADDR         FIFO Don't care     100     000 (Always FRAME)
-//    TARGET_NOTME        FIFO Don't care     100     000 (Always FRAME)
+//    TARGET_NOT_ME       FIFO Don't care     100     000 (Always FRAME)
 //    TARGET_WAIT,        FIFO Empty          101     101 (FRAME unless DRA)
 //    TARGET_WAIT,        FIFO non-Last Data  110     100
 //    TARGET_WAIT,        FIFO Last Data      000     100
@@ -602,11 +628,12 @@ module pci_blue_target (
 
   parameter PCI_TARGET_IDLE      = 8'b00000001;  // Target in IDLE state
   parameter PCI_TARGET_ADDR      = 8'b00000010;  // Target decodes Address
-  parameter PCI_TARGET_NOTME     = 8'b00000100;  // Some Other device is addressed
+  parameter PCI_TARGET_NOT_ME    = 8'b00000100;  // Some Other device is addressed
   parameter PCI_TARGET_WAIT      = 8'b00001000;  // Waiting for Target Data
   parameter PCI_TARGET_DATA_MORE = 8'b00010000;  // Target Transfers Data
   parameter PCI_TARGET_DATA_LAST = 8'b00100000;  // Target Transfers Last Data
-  parameter PCI_TARGET_STOP      = 8'b01000000;  // Target waits till Frame goes away
+  parameter PCI_TARGET_ABORT     = 8'b01000000;  // Target waits till Frame goes away
+  parameter PCI_TARGET_STOP      = 8'b10000000;  // Target waits till Frame goes away
   reg    [7:0] PCI_Target_State;
 
 // These correspond to      {frame, irdy}
@@ -639,7 +666,7 @@ module pci_blue_target (
       PCI_TARGET_ADDR:
         begin
         end
-      PCI_TARGET_NOTME:
+      PCI_TARGET_NOT_ME:
         begin
         end
       PCI_TARGET_WAIT:
