@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: sha_1_digest.v,v 1.2 2001-08-30 10:08:46 bbeaver Exp $
+// $Id: sha_1_digest.v,v 1.3 2001-08-31 11:11:04 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -133,11 +133,40 @@
 //         m) After each block, H_0 = H_0 + A, H_1 = H_1 + B; H_2 = H_2 + C; H_3 = H_3 + D, H_4 = H_4 + E;
 //        After the last block is operated on, the Digest is {H_0, H_1, H_2, H_3, H_4};
 //
+// NOTE:  There are 4 Memory Reads and 1 Memory Write per iteration.  The obvious
+//          way to do these are as references to a single-port memory.  It would
+//          be 20% faster to use a dual-port memory, and do the last read and the
+//          write at the same time.  It would be even faster if 2 words could be
+//          read out of the Ram per clock, either by implementing the RAM as a
+//          bunch of flops followed by MUXes, as a 2-read SRAM, or as 2 copies of
+//          an SRAM which can read 1 word per clock.
+//
 // NOTE:  There is one place above where 5 numbers are added together.  This might
 //          turn out to be slow.  They can be done sequentially.  It might also be
 //          possible to use 2 adders in parallel to do this faster.  It might finally
 //          possible to use a Wallace Tree adder scheme.  This will unfortunately
 //          NOT fit will into an FPGA with a fast adder built-in.
+//
+// NOTE: Using a single-port SRAM, it looks like it would take 16 + (5 * 64) = 336
+//          clocks to handle a 64-byte block.
+//       Using a RAM which can write at the same time it can read, it looks like it
+//          would take 16 + (4 * 64) = 272 clocks.
+//       If 2 reads per clock were possible, followed by a write, it looks like it
+//          would take 16 + (3 * 64) = 208 clocks.  But 2 adds would need to be done
+//          in parallel.
+//       If 2 reads per clock were possible, and the write overlapped the second
+//          read phase, it looks like it would take 16 + (2 * 64) = 144 clocks.
+//          Again, 2 reads would need to be done per clock.
+//       If ALL reads could happen at the same time, and the 4 adds happened at
+//          the same time, it looks like this could be done in 80 clocks.
+//       If ALL reads could happen at the same time, and more than 1 write could
+//          happen per clock, I don't see any reason why things couldn't happen
+//          EVEN FASTER.  It seems possible to do 2 results per clock trivially.
+//          Using much hardware, it seems possible to do 1 block in 40 clocks.
+//          To achieve this, the user would have to offer 2 data items per clock
+//          during the first 8 clocks.
+//       Those are the choices.  An 8-to-1 range in the number of clocks.  I imagine
+//          that the faster version would need 8 times as much logic, though!
 //
 // NOTE:  The standard gives 2 example messages:
 //        {8'h61, 8'h62, 8'h63} results in the digest
@@ -157,16 +186,20 @@
 
 `timescale 1ns/1ps
 
-module sha_1_digest (
-  use_F_for_CRC,
-  present_crc,
-  data_in_8,
-  next_crc
+module sha_1_digest_336_clocks (
+  start_new_digest,
+  data_in_32,
+  ready_for_next_block,
+  march_out_digest,
+  digest_out_32
 );
-  input   use_F_for_CRC;
-  input  [`NUMBER_OF_BITS_IN_CRC - 1 : 0] present_crc;
-  input  [7:0] data_in_8;
-  output [`NUMBER_OF_BITS_IN_CRC - 1 : 0] next_crc;
+  input   start_new_digest;
+  input  [31:0] data_in_32;
+  output  ready_for_next_block;
+  input   march_out_digest;
+  output [31:0] digest_out_32;
+
+// The simplest version.
 
 endmodule
 

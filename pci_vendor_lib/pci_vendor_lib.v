@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_vendor_lib.v,v 1.16 2001-08-29 11:30:59 bbeaver Exp $
+// $Id: pci_vendor_lib.v,v 1.17 2001-08-31 11:11:05 bbeaver Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -350,28 +350,6 @@ module pci_registered_resettable_io_pad (
 // synopsys translate_on
 endmodule
 
-// Mux which might need to be carefully placed to satisfy timing constraints
-/*
-module pci_critical_MUX (
-  d_0, d_1, sel, q
-);
-  input   d_0, d_1, sel;
-  output  q;
-  assign  q = sel ? d_1 : d_0;
-endmodule
-*/
-
-// Mux which might need to be carefully placed to satisfy timing constraints
-/*
-module pci_critical_AND_MUX (
-  d_0, d_1, sel_0, sel_1, q
-);
-  input   d_0, d_1, sel_0, sel_1;
-  output  q;
-  assign  q = (sel_0 & sel_1) ? d_1 : d_0;
-endmodule
-*/
-
 // Logic which might need to be carefully placed to satisfy timing constraints.
 // Enable Data to change during Address phase, and when both IRDY and TRDY asserted.
 // The pci_trdy_in_critical and pci_irdy_in_critical signals are critical.
@@ -389,303 +367,6 @@ module pci_critical_data_latch_enable (
                              |  New_Data_Unconditional;
 endmodule
 
-`ifdef NOT_NEEDED
-// Enable FRAME to change based on TRDY and STOP.
-// The pci_trdy_in_critical and pci_stop_in_critical signals are critical.
-// See pci_blue_master for details about the content of this module.
-// NOTE: This module must be implemented in a single Xilinx CLB.
-// NOTE: Logic which might need to be carefully placed to satisfy timing
-// constraints.
-module pci_critical_next_frame (
-  PCI_Next_FRAME_Code,
-  pci_gnt_in_critical,
-  pci_frame_in_critical, pci_irdy_in_critical,
-  pci_trdy_in_critical, pci_stop_in_critical,
-  pci_frame_out_next
-);
-  input  [2:0] PCI_Next_FRAME_Code;
-  input   pci_gnt_in_critical;
-  input   pci_frame_in_critical, pci_irdy_in_critical;
-  input   pci_trdy_in_critical, pci_stop_in_critical;
-  output  pci_frame_out_next;
-
-// NOTE: these declarations are duplicated in PCI_Blue_Master.
-  parameter FRAME_0              = 3'b000;
-  parameter FRAME_UNLESS_STOP    = 3'b001;
-  parameter FRAME_UNLESS_LAST    = 3'b010;
-  parameter FRAME_WHILE_WAIT     = 3'b011;
-  parameter FRAME_BACK_TO_BACK   = 3'b100;
-  parameter FRAME_1              = 3'b101;
-  parameter FRAME_IF_GNT         = 3'b110;
-  parameter FRAME_IF_GNT_IDLE    = 3'b111;
-
-// See pci_blue_master.v for encoding
-  wire    Output_If_Idle =
-                    (PCI_Next_FRAME_Code[2:0] == FRAME_0)            ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_STOP)  ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_LAST)  ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_WHILE_WAIT)   ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_BACK_TO_BACK) ? 1'b0
-                 : 1'b1))));  // FRAME_1
-  wire    Output_If_Disconnect_Retry_Abort =
-                    (PCI_Next_FRAME_Code[2:0] == FRAME_0)            ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_STOP)  ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_LAST)  ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_WHILE_WAIT)   ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_BACK_TO_BACK) ? 1'b0
-                 : 1'b1))));  // FRAME_1
-  wire    Output_If_Data_More =
-                    (PCI_Next_FRAME_Code[2:0] == FRAME_0)            ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_STOP)  ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_LAST)  ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_WHILE_WAIT)   ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_BACK_TO_BACK) ? 1'b1
-                 : 1'b1))));  // FRAME_1
-  wire    Output_If_Data_Last =
-                    (PCI_Next_FRAME_Code[2:0] == FRAME_0)            ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_STOP)  ? 1'b1
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_UNLESS_LAST)  ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_WHILE_WAIT)   ? 1'b0
-                 : ((PCI_Next_FRAME_Code[2:0] == FRAME_BACK_TO_BACK) ? 1'b1
-                 : 1'b1))));  // FRAME_1
-
-// Implement as 4-1 MUX, using pci_trdy_in_critical and pci_stop_in_critical as
-// the VERY LATE selection wires.  The cases are:
-// {trdy, stop} {00} Idle, {01} Abort, {10} Data, {11} Data_Last
-  wire    Abort_Idle         = pci_stop_in_critical  // This is VERY LATE
-                             ? Output_If_Disconnect_Retry_Abort
-                             : Output_If_Idle;
-  wire    Data_Last_Data     = pci_stop_in_critical  // This is VERY LATE
-                             ? Output_If_Data_Last
-                             : Output_If_Data_More;
-  assign  pci_frame_out_next = pci_trdy_in_critical  // This is VERY LATE
-                             ? Data_Last_Data
-                             : Abort_Idle;
-endmodule
-
-// Enable IRDY to change based on TRDY and STOP.
-// The pci_trdy_in_critical and pci_stop_in_critical signals are critical.
-// See pci_blue_master for details about the content of this module.
-// NOTE: This module must be implemented in a single Xilinx CLB.
-// NOTE: Logic which might need to be carefully placed to satisfy timing
-// constraints.
-module pci_critical_next_irdy (
-  PCI_Next_IRDY_Code,
-  pci_trdy_in_critical, pci_stop_in_critical,
-  pci_irdy_out_next
-);
-  input  [2:0] PCI_Next_IRDY_Code;
-  input   pci_trdy_in_critical, pci_stop_in_critical;
-  output  pci_irdy_out_next;
-
-// NOTE: these declarations are duplicated in PCI_Blue_Master.
-  parameter IRDY_0               = 3'b000;
-  parameter IRDY_IF_STOP         = 3'b001;
-  parameter IRDY_UNLESS_MORE     = 3'b010;
-  parameter IRDY_WHILE_WAIT      = 3'b011;
-  parameter IRDY_1               = 3'b100;
-
-// See pci_blue_master.v for encoding
-  wire    Output_If_Idle =
-                    (PCI_Next_IRDY_Code[2:0] == IRDY_0)           ? 1'b0
-                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_IF_STOP)     ? 1'b0
-                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_UNLESS_MORE) ? 1'b1
-                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_WHILE_WAIT)  ? 1'b1
-                 : 1'b1)));  // IRDY_1
-  wire    Output_If_Disconnect_Retry_Abort =
-                    (PCI_Next_IRDY_Code[2:0] == IRDY_0)           ? 1'b0
-                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_IF_STOP)     ? 1'b1
-                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_UNLESS_MORE) ? 1'b0
-                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_WHILE_WAIT)  ? 1'b0
-                 : 1'b1)));  // IRDY_1
-  wire    Output_If_Data_More =
-                    (PCI_Next_IRDY_Code[2:0] == IRDY_0)           ? 1'b0
-                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_IF_STOP)     ? 1'b0
-                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_UNLESS_MORE) ? 1'b0
-                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_WHILE_WAIT)  ? 1'b0
-                 : 1'b1)));  // IRDY_1
-  wire    Output_If_Data_Last =
-                    (PCI_Next_IRDY_Code[2:0] == IRDY_0)           ? 1'b0
-                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_IF_STOP)     ? 1'b0
-                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_UNLESS_MORE) ? 1'b1
-                 : ((PCI_Next_IRDY_Code[2:0] == IRDY_WHILE_WAIT)  ? 1'b0
-                 : 1'b1)));  // IRDY_1
-
-// Implement as 4-1 MUX, using pci_trdy_in_critical and pci_stop_in_critical as
-// the VERY LATE selection wires.  The cases are:
-// {trdy, stop} {00} Idle, {01} Abort, {10} Data, {11} Data_Last
-  wire    Abort_Idle        = pci_stop_in_critical
-                            ? Output_If_Disconnect_Retry_Abort
-                            : Output_If_Idle;
-  wire    Data_Last_Data    = pci_stop_in_critical
-                            ? Output_If_Data_Last
-                            : Output_If_Data_More;
-  assign  pci_irdy_out_next = pci_trdy_in_critical
-                            ? Data_Last_Data
-                            : Abort_Idle;
-endmodule
-
-// Enable DEVSEL to change based on FRAME and IRDY.
-// The pci_frame_in_critical and pci_irdy_in_critical signals are critical.
-// See pci_blue_target for details about the content of this module.
-// NOTE: This module must be implemented in a single Xilinx CLB.
-// NOTE: Logic which might need to be carefully placed to satisfy timing
-// constraints.
-module pci_critical_next_devsel (
-  PCI_Next_DEVSEL_Code,
-  pci_frame_in_critical, pci_irdy_in_critical,
-  pci_devsel_out_next
-);
-  input  [2:0] PCI_Next_DEVSEL_Code;
-  input   pci_frame_in_critical, pci_irdy_in_critical;
-  output  pci_devsel_out_next;
-
-
-// NOTE: these declarations are duplicated in PCI_Blue_Master.
-  parameter DEVSEL_0             = 3'b000;
-  parameter DEVSEL_IF_STOP       = 3'b001;
-  parameter DEVSEL_UNLESS_MORE   = 3'b010;
-  parameter DEVSEL_WHILE_WAIT    = 3'b011;
-  parameter DEVSEL_1             = 3'b100;
-
-// NOTE: not done yet
-  wire    Output_If_Idle =
-                    (PCI_Next_DEVSEL_Code[2:0] == DEVSEL_0) ? 1'b0
-                 : ((PCI_Next_DEVSEL_Code[2:0] == DEVSEL_IF_STOP) ? 1'b0
-                 : ((PCI_Next_DEVSEL_Code[2:0] == DEVSEL_UNLESS_MORE) ? 1'b1
-                 : ((PCI_Next_DEVSEL_Code[2:0] == DEVSEL_WHILE_WAIT) ? 1'b1
-                 : 1'b1)));  // DEVSEL_1
-  wire    Output_If_Data_More =
-                    (PCI_Next_DEVSEL_Code[2:0] == DEVSEL_0) ? 1'b0
-                 : ((PCI_Next_DEVSEL_Code[2:0] == DEVSEL_IF_STOP) ? 1'b0
-                 : ((PCI_Next_DEVSEL_Code[2:0] == DEVSEL_UNLESS_MORE) ? 1'b0
-                 : ((PCI_Next_DEVSEL_Code[2:0] == DEVSEL_WHILE_WAIT) ? 1'b0
-                 : 1'b1)));  // DEVSEL_1
-  wire    Output_If_Data_Last =
-                    (PCI_Next_DEVSEL_Code[2:0] == DEVSEL_0) ? 1'b0
-                 : ((PCI_Next_DEVSEL_Code[2:0] == DEVSEL_IF_STOP) ? 1'b0
-                 : ((PCI_Next_DEVSEL_Code[2:0] == DEVSEL_UNLESS_MORE) ? 1'b1
-                 : ((PCI_Next_DEVSEL_Code[2:0] == DEVSEL_WHILE_WAIT) ? 1'b0
-                 : 1'b1)));  // DEVSEL_1
-
-// Implement as 4-1 MUX, using pci_frame_in_critical and pci_irdy_in_critical as
-// the VERY LATE selection wires.  The cases are:
-// {frame, irdy} {10} Idle, {11} Data, {01} Data_Last
-  wire    Data_Last_Data      = pci_frame_in_critical
-                              ? Output_If_Data_Last
-                              : Output_If_Data_More;
-  assign  pci_devsel_out_next = pci_irdy_in_critical
-                              ? Data_Last_Data
-                              : Output_If_Idle;
-endmodule
-
-// Enable TRDY to change based on FRAME and IRDY.
-// The pci_frame_in_critical and pci_irdy_in_critical signals are critical.
-// See pci_blue_target for details about the content of this module.
-// NOTE: This module must be implemented in a single Xilinx CLB.
-// NOTE: Logic which might need to be carefully placed to satisfy timing
-// constraints.
-module pci_critical_next_trdy (
-  PCI_Next_TRDY_Code,
-  pci_frame_in_critical, pci_irdy_in_critical,
-  pci_trdy_out_next
-);
-  input  [2:0] PCI_Next_TRDY_Code;
-  input   pci_frame_in_critical, pci_irdy_in_critical;
-  output  pci_trdy_out_next;
-
-// NOTE: these declarations are duplicated in PCI_Blue_Master.
-  parameter TRDY_0               = 3'b000;
-  parameter TRDY_IF_STOP         = 3'b001;
-  parameter TRDY_UNLESS_MORE     = 3'b010;
-  parameter TRDY_WHILE_WAIT      = 3'b011;
-  parameter TRDY_1               = 3'b100;
-
-// NOTE: not done yet
-  wire    Output_If_Idle =
-                    (PCI_Next_TRDY_Code[2:0] == TRDY_0) ? 1'b0
-                 : ((PCI_Next_TRDY_Code[2:0] == TRDY_IF_STOP) ? 1'b0
-                 : ((PCI_Next_TRDY_Code[2:0] == TRDY_UNLESS_MORE) ? 1'b1
-                 : ((PCI_Next_TRDY_Code[2:0] == TRDY_WHILE_WAIT) ? 1'b1
-                 : 1'b1)));  // TRDY_1
-  wire    Output_If_Data_More =
-                    (PCI_Next_TRDY_Code[2:0] == TRDY_0) ? 1'b0
-                 : ((PCI_Next_TRDY_Code[2:0] == TRDY_IF_STOP) ? 1'b0
-                 : ((PCI_Next_TRDY_Code[2:0] == TRDY_UNLESS_MORE) ? 1'b0
-                 : ((PCI_Next_TRDY_Code[2:0] == TRDY_WHILE_WAIT) ? 1'b0
-                 : 1'b1)));  // TRDY_1
-  wire    Output_If_Data_Last =
-                    (PCI_Next_TRDY_Code[2:0] == TRDY_0) ? 1'b0
-                 : ((PCI_Next_TRDY_Code[2:0] == TRDY_IF_STOP) ? 1'b0
-                 : ((PCI_Next_TRDY_Code[2:0] == TRDY_UNLESS_MORE) ? 1'b1
-                 : ((PCI_Next_TRDY_Code[2:0] == TRDY_WHILE_WAIT) ? 1'b0
-                 : 1'b1)));  // TRDY_1
-
-// Implement as 4-1 MUX, using pci_frame_in_critical and pci_irdy_in_critical as
-// the VERY LATE selection wires.  The cases are:
-// {frame, irdy} {10} Idle, {11} Data, {01} Data_Last
-  wire    Data_Last_Data    = pci_frame_in_critical
-                            ? Output_If_Data_Last
-                            : Output_If_Data_More;
-  assign  pci_trdy_out_next = pci_irdy_in_critical
-                            ? Data_Last_Data
-                            : Output_If_Idle;
-endmodule
-
-// Enable STOP to change based on FRAME and IRDY.
-// The pci_frame_in_critical and pci_irdy_in_critical signals are critical.
-// See pci_blue_target for details about the content of this module.
-// NOTE: This module must be implemented in a single Xilinx CLB.
-// NOTE: Logic which might need to be carefully placed to satisfy timing
-// constraints.
-module pci_critical_next_stop (
-  PCI_Next_STOP_Code,
-  pci_frame_in_critical, pci_irdy_in_critical,
-  pci_stop_out_next
-);
-  input  [2:0] PCI_Next_STOP_Code;
-  input   pci_frame_in_critical, pci_irdy_in_critical;
-  output  pci_stop_out_next;
-
-// NOTE: these declarations are duplicated in PCI_Blue_Master.
-  parameter STOP_0               = 3'b000;
-  parameter STOP_IF_STOP         = 3'b001;
-  parameter STOP_UNLESS_MORE     = 3'b010;
-  parameter STOP_WHILE_WAIT      = 3'b011;
-  parameter STOP_1               = 3'b100;
-
-// NOTE: not done yet
-  wire    Output_If_Idle =
-                    (PCI_Next_STOP_Code[2:0] == STOP_0) ? 1'b0
-                 : ((PCI_Next_STOP_Code[2:0] == STOP_IF_STOP) ? 1'b0
-                 : ((PCI_Next_STOP_Code[2:0] == STOP_UNLESS_MORE) ? 1'b1
-                 : ((PCI_Next_STOP_Code[2:0] == STOP_WHILE_WAIT) ? 1'b1
-                 : 1'b1)));  // STOP_1
-  wire    Output_If_Data_More =
-                    (PCI_Next_STOP_Code[2:0] == STOP_0) ? 1'b0
-                 : ((PCI_Next_STOP_Code[2:0] == STOP_IF_STOP) ? 1'b0
-                 : ((PCI_Next_STOP_Code[2:0] == STOP_UNLESS_MORE) ? 1'b0
-                 : ((PCI_Next_STOP_Code[2:0] == STOP_WHILE_WAIT) ? 1'b0
-                 : 1'b1)));  // STOP_1
-  wire    Output_If_Data_Last =
-                    (PCI_Next_STOP_Code[2:0] == STOP_0) ? 1'b0
-                 : ((PCI_Next_STOP_Code[2:0] == STOP_IF_STOP) ? 1'b0
-                 : ((PCI_Next_STOP_Code[2:0] == STOP_UNLESS_MORE) ? 1'b1
-                 : ((PCI_Next_STOP_Code[2:0] == STOP_WHILE_WAIT) ? 1'b0
-                 : 1'b1)));  // STOP_1
-
-// Implement as 4-1 MUX, using pci_frame_in_critical and pci_irdy_in_critical as
-// the VERY LATE selection wires.  The cases are:
-// {frame, irdy} {10} Idle, {11} Data, {01} Data_Last
-  wire    Data_Last_Data    = pci_frame_in_critical
-                            ? Output_If_Data_Last
-                            : Output_If_Data_More;
-  assign  pci_stop_out_next = pci_irdy_in_critical
-                            ? Data_Last_Data
-                            : Output_If_Idle;
-endmodule
-`endif  // NOT_NEEDED
-
 // whatever it takes to distribute a clock signal with near zero skew
 module pci_clock_tree (
   pci_clk_pll_out, pci_clk
@@ -694,6 +375,35 @@ module pci_clock_tree (
   output  pci_clk;
   assign  pci_clk = pci_clk_pll_out;
 endmodule
+
+`ifdef UNUSED
+// IO pads contain NO internal flip-flop on output data, output OE
+module pci_direct_io_pad (
+  pci_clk,
+  pci_ad_in, pci_ad_in_reg,
+  pci_direct_data_out, pci_direct_data_out_oe,
+  pci_ad_ext
+);
+  input   pci_clk;
+  output  pci_ad_in;
+  output  pci_ad_in_reg;
+  input   pci_direct_data_out;
+  input   pci_direct_data_out_oe;
+  inout   pci_ad_ext;
+
+  reg     pci_ad_in_reg_int;
+
+  always @(posedge pci_clk)
+  begin
+    pci_ad_in_reg_int <= pci_ad_ext;
+  end
+
+  assign  pci_ad_ext = (pci_direct_data_out_oe) ? pci_direct_data_out : 1'bz;
+  assign  pci_ad_in_reg = pci_ad_in_reg_int;
+  assign  pci_ad_in = pci_ad_ext;
+// The paramater `PCI_IO_PAD_LIBRARY_NAME can be used to call out a pad.
+endmodule
+`endif  // UNUSED
 
 // If the vendor has a flop which is particularly good at settling out of
 //   metastability, it should be used here.
@@ -775,35 +485,4 @@ module pci_2port_sram_16x1 (
                     ? PCI_Fifo_Mem[latched_read_address[3:0]] : 1'bX;
 `endif  // HOST_FIFOS_ARE_MADE_FROM_FLOPS
 endmodule
-
-
-`ifdef UNUSED
-// IO pads contain NO internal flip-flop on output data, output OE
-module pci_direct_io_pad (
-  pci_clk,
-  pci_ad_in, pci_ad_in_reg,
-  pci_direct_data_out, pci_direct_data_out_oe,
-  pci_ad_ext
-);
-  input   pci_clk;
-  output  pci_ad_in;
-  output  pci_ad_in_reg;
-  input   pci_direct_data_out;
-  input   pci_direct_data_out_oe;
-  inout   pci_ad_ext;
-
-  reg     pci_ad_in_reg_int;
-
-  always @(posedge pci_clk)
-  begin
-    pci_ad_in_reg_int <= pci_ad_ext;
-  end
-
-  assign  pci_ad_ext = (pci_direct_data_out_oe) ? pci_direct_data_out : 1'bz;
-  assign  pci_ad_in_reg = pci_ad_in_reg_int;
-  assign  pci_ad_in = pci_ad_ext;
-// The paramater `PCI_IO_PAD_LIBRARY_NAME can be used to call out a pad.
-endmodule
-`endif  // UNUSED
-
 
